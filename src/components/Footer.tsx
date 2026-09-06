@@ -18,30 +18,18 @@ export default function Footer() {
     <footer className="border-t border-rule mt-24">
       <div className="mx-auto max-w-7xl px-5 sm:px-8 py-8">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
-          {/* Mark plus the single-line wordmark, the same pairing the header
-              uses. The stacked lockup's own wordmark is unreadable this small. */}
-          <Link
-            href="/"
-            aria-label="Designer District, home"
-            className="flex shrink-0 items-center gap-2.5"
-          >
+          {/* The full lockup as drawn: dome above, wordmark stacked under it.
+              Sized so those two lines of type stay legible rather than
+              collapsing into a smudge. */}
+          <Link href="/" aria-label="Designer District, home" className="shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/brand/designer-district-mark.png"
-              alt=""
-              width={640}
-              height={314}
-              loading="lazy"
-              className="h-8 w-auto"
-            />
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/brand/designer-district-wordmark.png"
+              src="/brand/designer-district.png"
               alt="Designer District"
-              width={900}
-              height={61}
+              width={800}
+              height={618}
               loading="lazy"
-              className="h-[15px] w-auto"
+              className="h-20 w-auto sm:h-24"
             />
           </Link>
 
