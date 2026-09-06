@@ -1,5 +1,3 @@
-import Link from "next/link";
-import { ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseConfigured } from "@/lib/supabase/config";
 import SetupNotice from "@/components/SetupNotice";
@@ -23,11 +21,10 @@ export default async function HomePage() {
       {/* ---------------- HERO ---------------- */}
       <section className="border-b border-rule">
         <div className="mx-auto flex max-w-7xl flex-col items-center px-5 sm:px-8 py-20 sm:py-28 text-center">
-          {/* A circular rule around a black disc. The transparent-background
-              artwork is used rather than the square original, so the disc can
-              be a true circle without the wordmark being clipped by the crop:
-              the lockup is wider than it is tall, so it is held at 72% of the
-              diameter to keep its corners inside the curve. */}
+          {/* The transparent-ground artwork on a black disc, rather than the
+              square original: the lockup is wider than it is tall, so a
+              circular crop of the original would clip the wordmark. Held at
+              72% of the diameter to keep its corners inside the curve. */}
           <div className="grid aspect-square w-full max-w-sm animate-rise place-items-center rounded-full bg-ink sm:max-w-md">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -39,30 +36,13 @@ export default async function HomePage() {
               className="w-[72%]"
             />
           </div>
-
-          <p
-            className="mt-10 max-w-md text-base leading-relaxed text-ink-dim animate-rise"
-            style={{ animationDelay: "80ms" }}
-          >
-            The house of the most wanted names in streetwear.
-          </p>
-
-          <div className="mt-10 animate-rise" style={{ animationDelay: "140ms" }}>
-            <Link
-              href="#brands"
-              className="inline-flex items-center gap-2 rounded-full bg-ink px-8 py-4 text-xs font-semibold uppercase tracking-[0.2em] text-paper transition-colors hover:opacity-90"
-            >
-              Shop by brand
-              <ArrowRight size={14} aria-hidden />
-            </Link>
-          </div>
         </div>
       </section>
 
       {/* ---------------- SHOP BY BRAND ---------------- */}
       {/* The only way into the catalog. Pick a house first. */}
       <section id="brands" className="mx-auto max-w-7xl px-5 sm:px-8 py-20 scroll-mt-20">
-        <p className="eyebrow">The roster</p>
+        <p className="eyebrow">The Collection</p>
         <h1 className="display mt-2 text-3xl sm:text-4xl">Shop by brand</h1>
         <p className="mt-3 max-w-md text-sm text-ink-faint">
           Choose a house to see everything we hold from it: tees, hoodies,

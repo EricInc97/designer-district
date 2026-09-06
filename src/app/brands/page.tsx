@@ -21,7 +21,7 @@ export default async function BrandsIndexPage() {
 
   return (
     <section className="mx-auto max-w-7xl px-5 sm:px-8 py-14">
-      <p className="eyebrow">The roster</p>
+      <p className="eyebrow">The Collection</p>
       <h1 className="display mt-2 text-4xl sm:text-5xl">All brands</h1>
 
       <ul className="mt-10 grid grid-cols-3 gap-2 sm:gap-4">

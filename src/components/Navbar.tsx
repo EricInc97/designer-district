@@ -50,8 +50,8 @@ export default async function Navbar() {
             <img
               src="/brand/designer-district-wordmark-on-dark.png"
               alt="Designer District"
-              width={1768}
-              height={120}
+              width={900}
+              height={61}
               className="h-[18px] w-auto sm:h-[22px]"
             />
           </Link>
