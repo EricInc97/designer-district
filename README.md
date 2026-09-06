@@ -277,6 +277,57 @@ Real product photography and brand logos are licensed assets, so nothing is
 hotlinked. Point `products.image_url` / `brands.logo_url` at your own CDN or a
 Supabase Storage bucket and the route simply stops being called.
 
+## Deploying to Vercel
+
+The build is production-clean and needs no `vercel.json`: Vercel auto-detects
+Next.js, and the default Node version already satisfies Next 16.
+
+**1. Sign in.** This one is yours to run, it opens a browser to authenticate:
+
+```
+npx vercel login
+```
+
+**2. Create the project and deploy a preview.** Accept the detected framework
+settings when prompted:
+
+```
+npx vercel
+```
+
+**3. Give it the Supabase keys.** Without these the deployed site renders the
+setup notice instead of the storefront. Both are public-by-design keys; the
+database is protected by RLS, not by key secrecy:
+
+```
+echo https://dphfetxmgooyuzexrloy.supabase.co | npx vercel env add NEXT_PUBLIC_SUPABASE_URL production
+echo https://dphfetxmgooyuzexrloy.supabase.co | npx vercel env add NEXT_PUBLIC_SUPABASE_URL preview
+```
+
+Then the same for `NEXT_PUBLIC_SUPABASE_ANON_KEY`, using the anon key from
+`.env.local`.
+
+**4. Ship it.**
+
+```
+npx vercel --prod
+```
+
+**5. Point Supabase Auth at the deployed domain.** Until you do, confirmation
+and password-reset links keep pointing at `localhost:3200`. In the Supabase
+dashboard, under Authentication then URL Configuration:
+
+- Site URL: your production Vercel domain
+- Redirect URLs: add the production domain and `https://*.vercel.app/**` so
+  preview deployments can sign in too
+
+### Note on git
+
+The repo has no remote yet, so this deploys straight from the working
+directory. If you push it to GitHub later and connect the repo in Vercel, you
+get per-branch preview deployments automatically. Vercel builds the default
+branch for production, so `master` would need this work merged into it first.
+
 ## Commands
 
 ```bash
