@@ -37,18 +37,18 @@ export default function BrandTile({
       />
 
       {/* Resting state. */}
-      <span className="brand-rest-layer absolute inset-0 flex items-center justify-center px-8 text-ink transition-opacity duration-300 group-hover:opacity-0">
-        <CornerFrame />
+      <span className="brand-rest-layer absolute inset-0 flex items-center justify-center px-2 text-ink transition-opacity sm:px-6 duration-300 group-hover:opacity-0">
+        <CornerFrame inset="inset-1.5 sm:inset-2.5" size="h-2 w-2 sm:h-4 sm:w-4" />
         <BrandMark brand={brand} size="lg" decorative />
       </span>
 
       {/* Hover state, inheriting the colourway's ink. */}
       <span
         aria-hidden
-        className="brand-hover-layer absolute inset-0 flex items-center justify-center px-8 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+        className="brand-hover-layer absolute inset-0 flex items-center justify-center px-2 opacity-0 transition-opacity sm:px-6 duration-300 group-hover:opacity-100"
         style={style.hover.textStyle}
       >
-        <CornerFrame />
+        <CornerFrame inset="inset-1.5 sm:inset-2.5" size="h-2 w-2 sm:h-4 sm:w-4" />
         <BrandMark brand={brand} size="lg" decorative className="!text-current" />
       </span>
     </Link>

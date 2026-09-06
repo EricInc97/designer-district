@@ -28,20 +28,16 @@ export default async function HomePage() {
               be a true circle without the wordmark being clipped by the crop:
               the lockup is wider than it is tall, so it is held at 72% of the
               diameter to keep its corners inside the curve. */}
-          <div className="w-full max-w-sm animate-rise sm:max-w-md">
-            <div className="grid aspect-square place-items-center rounded-full border border-ink p-5 sm:p-6">
-              <div className="grid h-full w-full place-items-center rounded-full bg-ink">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="/brand/designer-district-on-dark.png"
-                  alt="Designer District"
-                  width={800}
-                  height={618}
-                  fetchPriority="high"
-                  className="w-[72%]"
-                />
-              </div>
-            </div>
+          <div className="grid aspect-square w-full max-w-sm animate-rise place-items-center rounded-full bg-ink sm:max-w-md">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/brand/designer-district-on-dark.png"
+              alt="Designer District"
+              width={800}
+              height={618}
+              fetchPriority="high"
+              className="w-[72%]"
+            />
           </div>
 
           <p
@@ -79,7 +75,7 @@ export default async function HomePage() {
             load the catalog.
           </p>
         ) : (
-          <ul className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="mt-10 grid grid-cols-3 gap-2 sm:gap-4">
             {brandList.map((brand) => (
               <li key={brand.id}>
                 <BrandTile brand={brand} />

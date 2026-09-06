@@ -24,7 +24,7 @@ export default async function BrandsIndexPage() {
       <p className="eyebrow">The roster</p>
       <h1 className="display mt-2 text-4xl sm:text-5xl">All brands</h1>
 
-      <ul className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <ul className="mt-10 grid grid-cols-3 gap-2 sm:gap-4">
         {brands.map((brand) => (
           <li key={brand.id}>
             <BrandTile brand={brand} />

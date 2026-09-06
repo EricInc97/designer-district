@@ -20,7 +20,10 @@ export default function BrandMark({
   const sizeClass = {
     sm: "text-lg sm:text-xl",
     md: "text-2xl sm:text-3xl",
-    lg: "text-4xl sm:text-5xl",
+    // Fluid: the tiles sit three-across at every width, so on a phone each one
+    // is ~100px and a fixed text-4xl would overflow. Clamped so it still caps
+    // out once the grid stops growing at max-w-7xl.
+    lg: "text-[clamp(0.6rem,3.2vw,3rem)]",
   }[size];
 
   if (isRealAsset(brand.logo_url)) {

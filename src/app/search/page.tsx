@@ -156,7 +156,7 @@ export default async function SearchPage({ searchParams }: Props) {
           {/* ---------------- RESULTS ---------------- */}
           <div>
             {idle ? (
-              <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <ul className="grid grid-cols-3 gap-2 sm:gap-4">
                 {brands.map((b) => (
                   <li key={b.id}>
                     <BrandTile brand={b} />
