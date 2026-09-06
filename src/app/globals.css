@@ -1,26 +1,162 @@
 @import "tailwindcss";
 
+/* ============================================================
+   DESIGNER DISTRICT, high-contrast monochrome system.
+   Paper-white ground, near-black type, one hairline rule. No accent
+   colour anywhere except state (error / success / stock).
+
+   Tokens are named for the role they play, not the colour they hold:
+   `paper` is always the ground, `ink` is always what sits on it. Flipping
+   the theme is a matter of changing the values below, nothing else.
+   ============================================================ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --paper: #ffffff;
+  --paper-raised: #f7f6f3;
+  --paper-sunken: #ebe9e4;
+  --ink: #0b0b0b;
+  --ink-dim: #56554f;
+  --ink-faint: #7c7b74;
+  --rule: #e5e3dd;
+  --rule-strong: #c6c3bb;
+  --danger: #c0261f;
+  --success: #0e7a52;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-paper: var(--paper);
+  --color-paper-raised: var(--paper-raised);
+  --color-paper-sunken: var(--paper-sunken);
+  --color-ink: var(--ink);
+  --color-ink-dim: var(--ink-dim);
+  --color-ink-faint: var(--ink-faint);
+  --color-rule: var(--rule);
+  --color-rule-strong: var(--rule-strong);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: light;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The house voice: uppercase, wide-tracked, small. */
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--ink-dim);
+}
+
+.display {
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+  line-height: 0.9;
+  font-weight: 600;
+}
+
+/* Focus ring, visible on paper, never on mouse clicks. */
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* Thin scrollbars inside panels and drawers. */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--rule-strong) transparent;
+}
+.scroll-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: var(--rule-strong);
+  border-radius: 3px;
+}
+
+/* ---------- brand tiles on touch devices ----------
+   A hover reveal is dead weight on a phone: the pointer never hovers, so the
+   colourway would never show. Where the device cannot hover, the tiles simply
+   rest in their hover state instead.
+
+   Doubled class names lift specificity just above Tailwind's own opacity
+   utilities, so this wins without !important. */
+@media (hover: none) {
+  .brand-rest-layer.brand-rest-layer { opacity: 0; }
+  .brand-hover-layer.brand-hover-layer { opacity: 1; }
+}
+
+/* ---------- first-visit splash ---------- */
+#dd-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: var(--paper);
+  transition: opacity 0.5s ease;
+}
+
+#dd-splash img {
+  width: min(70vw, 420px);
+  height: auto;
+  animation: dd-pulse 1.8s ease-in-out infinite;
+}
+
+#dd-splash[data-state="out"] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Set by the inline script in layout.tsx when this tab has already seen it. */
+[data-splash="skip"] #dd-splash {
+  display: none;
+}
+
+@keyframes dd-pulse {
+  0%, 100% { opacity: 0.72; transform: scale(1); }
+  50%      { opacity: 1;    transform: scale(1.035); }
+}
+
+@keyframes dd-slide-in-left {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+@keyframes dd-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes dd-slide-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+@keyframes dd-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-slide-in { animation: dd-slide-in 0.28s cubic-bezier(0.32, 0.72, 0, 1); }
+.animate-slide-in-left { animation: dd-slide-in-left 0.28s cubic-bezier(0.32, 0.72, 0, 1); }
+.animate-fade-in { animation: dd-fade-in 0.2s ease-out; }
+.animate-rise { animation: dd-rise 0.3s ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-slide-in,
+  .animate-slide-in-left,
+  .animate-fade-in,
+  .animate-rise,
+  #dd-splash img { animation: none; }
 }
