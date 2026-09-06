@@ -27,7 +27,7 @@ export default function BrandTile({
     <Link
       href={`/brands/${brand.slug}`}
       aria-label={`Shop ${brand.name}`}
-      className={`group relative block aspect-[16/9] overflow-hidden border border-rule bg-paper-raised transition-colors hover:border-transparent ${className}`}
+      className={`group relative block aspect-square overflow-hidden border border-rule bg-paper-raised transition-colors hover:border-transparent ${className}`}
     >
       {/* The brand's own colourway. */}
       <span

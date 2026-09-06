@@ -23,17 +23,26 @@ export default async function HomePage() {
       {/* ---------------- HERO ---------------- */}
       <section className="border-b border-rule">
         <div className="mx-auto flex max-w-7xl flex-col items-center px-5 sm:px-8 py-20 sm:py-28 text-center">
-          {/* The logo as originally delivered, white on its own black ground.
-              No frame: the panel edge is already the rectangle. */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/brand/designer-district-original.png"
-            alt="Designer District"
-            width={900}
-            height={900}
-            fetchPriority="high"
-            className="w-full max-w-md animate-rise sm:max-w-lg"
-          />
+          {/* A circular rule around a black disc. The transparent-background
+              artwork is used rather than the square original, so the disc can
+              be a true circle without the wordmark being clipped by the crop:
+              the lockup is wider than it is tall, so it is held at 72% of the
+              diameter to keep its corners inside the curve. */}
+          <div className="w-full max-w-sm animate-rise sm:max-w-md">
+            <div className="grid aspect-square place-items-center rounded-full border border-ink p-5 sm:p-6">
+              <div className="grid h-full w-full place-items-center rounded-full bg-ink">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/brand/designer-district-on-dark.png"
+                  alt="Designer District"
+                  width={800}
+                  height={618}
+                  fetchPriority="high"
+                  className="w-[72%]"
+                />
+              </div>
+            </div>
+          </div>
 
           <p
             className="mt-10 max-w-md text-base leading-relaxed text-ink-dim animate-rise"
