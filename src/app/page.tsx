@@ -37,10 +37,8 @@ export default async function HomePage() {
             />
           </div>
 
-          {/* Medium weight rather than semibold: enough to carry under the
-              logo without competing with it. */}
           <p
-            className="mt-8 max-w-md animate-rise text-base font-medium leading-relaxed text-ink-dim sm:text-lg"
+            className="mt-8 max-w-md animate-rise text-base font-semibold leading-relaxed text-ink sm:text-lg"
             style={{ animationDelay: "80ms" }}
           >
             At Designer District we carry a wide variety of exclusive brands.
