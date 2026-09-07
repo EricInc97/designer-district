@@ -1,29 +1,29 @@
 import { styleFor, isRealAsset } from "@/lib/brandStyles";
-import { BrandEmblem, hasEmblem } from "@/components/brandEmblems";
 import type { Brand } from "@/lib/types";
 
 /**
- * A brand's resting mark, in one of three forms, in priority order:
+ * A brand's mark: the house's own logo file where there is one, otherwise the
+ * wordmark set in a face matching that house's register.
  *
- *  1. a licensed file, once `logo_url` points at one;
- *  2. a full lockup from brandEmblems, for the houses whose mark is a
- *     composition rather than a wordmark. It carries its own type, so the
- *     wordmark is not repeated underneath;
- *  3. the wordmark, set in a face matching that house's register.
- *
- * See lib/brandStyles.ts for the per-house typography.
+ * A tile shows the mark twice, once per crossfade layer, and the two layers sit
+ * on very different grounds. `hovered` picks the artwork drawn for the
+ * colourway rather than for paper, which matters for a logo built for a dark
+ * ground: see `hover.logoUrl` in lib/brandStyles.ts.
  */
 export default function BrandMark({
   brand,
   className = "",
   size = "md",
   decorative = false,
+  hovered = false,
 }: {
   brand: Pick<Brand, "name" | "slug" | "logo_url">;
   className?: string;
   size?: "sm" | "md" | "lg";
   /** Set when a real heading already names the brand, so it isn't read twice. */
   decorative?: boolean;
+  /** Set on the layer that sits on the house colourway. */
+  hovered?: boolean;
 }) {
   const sizeClass = {
     sm: "text-lg sm:text-xl",
@@ -36,22 +36,18 @@ export default function BrandMark({
     lg: "text-[clamp(0.6rem,2.8vw,3rem)]",
   }[size];
 
-  // A lockup carries its own type, so it is sized against the tile rather than
-  // against the wordmark it replaces.
-  const lockupClass = {
-    sm: "h-12",
-    md: "h-24",
-    lg: "h-[clamp(2.6rem,15vw,12rem)]",
+  // A logo is held off the tile edge rather than filling it, so the corner
+  // brackets keep their air. The percentages resolve against the crossfade
+  // layer, which is inset-0 on the tile; the smaller sizes sit in auto-height
+  // rows instead, so those are capped in absolute terms.
+  const logoClass = {
+    sm: "max-h-12 max-w-[62%]",
+    md: "max-h-20 max-w-[70%]",
+    lg: "max-h-[62%] max-w-[76%]",
   }[size];
 
   const style = styleFor(brand.slug);
-  // An array is an explicit multi-line lockup, so each line is held together;
-  // a plain label is still free to wrap when the tile is too narrow for it.
-  const label = style.label ?? brand.name.toUpperCase();
-  const stacked = Array.isArray(label);
-  const lines = stacked ? label : [label];
-
-  const logo = brand.logo_url;
+  const logo = (hovered && style.hover.logoUrl) || brand.logo_url;
 
   if (isRealAsset(logo)) {
     return (
@@ -60,24 +56,16 @@ export default function BrandMark({
         src={logo!}
         alt={decorative ? "" : brand.name}
         loading="lazy"
-        className={`max-h-full w-auto max-w-full object-contain ${className}`}
+        className={`w-auto object-contain ${logoClass} ${className}`}
       />
     );
   }
 
-  if (hasEmblem(brand.slug)) {
-    return (
-      <span
-        aria-hidden={decorative || undefined}
-        className={`inline-flex max-w-full items-center justify-center text-ink ${className}`}
-      >
-        <BrandEmblem
-          slug={brand.slug}
-          className={`${lockupClass} w-auto max-w-full`}
-        />
-      </span>
-    );
-  }
+  // An array is an explicit multi-line lockup, so each line is held together;
+  // a plain label is still free to wrap when the tile is too narrow for it.
+  const label = style.label ?? brand.name.toUpperCase();
+  const stacked = Array.isArray(label);
+  const lines = stacked ? label : [label];
 
   return (
     <span

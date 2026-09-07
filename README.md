@@ -240,35 +240,35 @@ hydration mismatches.
 
 ### Brand marks
 
-`<BrandMark />` resolves a house's mark in three steps, in this order.
+`<BrandMark />` renders a house's own logo file when `brands.logo_url` points at
+one, and otherwise falls back to a wordmark set in a face matching that house's
+register: geometric oblique for Supreme, condensed block caps for Balenciaga, a
+Didone serif for Amiri and Casablanca, gothic for Godspeed.
 
-**1. A licensed file.** The moment a brand's `logo_url` points at a real asset,
-that file is rendered and nothing below applies. This is the swap path: drop the
-file at `public/brands/<slug>.svg` (or `.png`), set the column, done. No code
-change.
+Bape, Chrome Hearts and Gallery Dept. have real artwork in `public/brands/`.
+Each was keyed off the flat ground it was supplied on by
+`scripts/key_brand_logo.py`, so none of them carries a visible box. Line art
+(Chrome Hearts, Gallery Dept.) has its luminance turned into the alpha channel
+and is repainted in ink; the multi-colour Bape lockup is unblended per pixel
+against its own palette, which brings the antialiased edges back as partial
+alpha rather than a dark fringe. Re-run it against new source files to
+regenerate.
 
-**2. A lockup**, from `src/components/brandEmblems.tsx`. Bape and Chrome Hearts
-are the houses whose mark is a composition rather than a wordmark, an arch of
-type around a figure and a horseshoe under a banner, so they get drawn artwork
-that carries its own type. The wordmark is not repeated underneath.
+**A logo drawn for a dark ground needs a second cut.** Bape ships white
+lettering on black, which disappears on the paper tile, so there are two files:
 
-These are **inline** SVG, not files under `public/`, and that is load-bearing.
-The arched type is real `<text>` on a `<textPath>`, which needs the page's own
-webfonts; an SVG loaded through `<img>` or `mask-image` renders in a restricted
-mode where those never arrive and the type silently falls back to a system face.
-Inline also means `fill="currentColor"` just works, so the whole lockup flips to
-the house colourway on hover along with everything else.
+| File | Used on |
+|---|---|
+| `bape.png` | The resting tile. Lettering remapped to ink. |
+| `bape-on-dark.png` | The camo colourway, via `hover.logoUrl`. Lettering as drawn. |
 
-The `<defs>` ids are per-brand constants. Several copies of one emblem render on
-a page, the tile's rest and hover layers plus the menu row, and each defines the
-same path under the same id, so a duplicate resolves to identical geometry.
+`BrandMark` takes a `hovered` prop, set by the crossfade layer that sits on the
+colourway, and prefers `hover.logoUrl` when the house defines one. Chrome Hearts
+and Gallery Dept. need only one cut each: their hover grounds (chrome, spattered
+grey) are both light, so the ink artwork reads on either.
 
-**3. The wordmark**, set in a face matching that house's register: geometric
-oblique for Supreme, condensed block caps for Balenciaga, a Didone serif for
-Amiri and Casablanca, gothic for Godspeed, stacked heavy grotesque with a
-registered mark for Gallery Dept. A `label` array in `brandStyles` is an
-explicit two-line lockup and each line is held together; a plain string label
-still wraps when a tile is too narrow for it.
+A `label` array in `brandStyles` is an explicit two-line lockup and each line is
+held together; a plain string label still wraps when a tile is too narrow.
 
 The site menu (the burger, left of the header) is the primary way into the
 catalog. Designers sit one level down from the root panel, each row using the
@@ -286,10 +286,12 @@ chrome, Balenciaga's flat black, Amiri's bone, Gallery Dept's spattered studio
 floor, Godspeed's votive gold, Off-White's crosswalk. See `hover` in
 `src/lib/brandStyles.ts`.
 
-**These are stand-ins, not the real logos.** The wordmarks are set in lookalike
-faces and the lockups are drawn here from scratch; every house's actual mark is
-their trademark and has to come from them, a press kit or your wholesale
-account, not from a logo-aggregator site. Step 1 above is how you replace one.
+**The wordmarks are still stand-ins.** Houses without a file in
+`public/brands/` are set in lookalike faces, not their real marks. Every brand's
+actual logo is their trademark and has to come from them, a press kit or your
+wholesale account. To add one: drop the file at `public/brands/<slug>.<ext>`,
+set that brand's `logo_url`, and add a `hover.logoUrl` cut if the artwork was
+drawn for the opposite ground. No code change either way.
 
 ## Replacing the placeholder imagery
 

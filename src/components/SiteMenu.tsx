@@ -41,7 +41,7 @@ function BrandRow({ brand }: { brand: Brand }) {
         className="brand-hover-layer absolute inset-0 flex items-center px-4 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
         style={style.hover.textStyle}
       >
-        <BrandMark brand={brand} size="sm" decorative className="!text-current" />
+        <BrandMark brand={brand} size="sm" decorative hovered className="!text-current" />
       </span>
     </Link>
   );

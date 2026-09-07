@@ -11,10 +11,10 @@ import type { CSSProperties } from "react";
  * look (Bape's camo, Supreme's red box, Chrome Hearts' silver) rather than
  * reproducing their artwork.
  *
- * Houses whose mark is a composition rather than a wordmark have no entry for
- * `markClass` worth reading: their lockup lives in components/brandEmblems.tsx
- * and replaces the wordmark outright. See BrandMark for the order of
- * precedence.
+ * A house that has its own logo file skips all of this: BrandMark renders the
+ * file the moment `logo_url` points at one, and only falls back to the wordmark
+ * when it does not. The `hover.logoUrl` below is the second cut of that file,
+ * for the colourway rather than for paper.
  */
 
 export type BrandStyle = {
@@ -30,6 +30,9 @@ export type BrandStyle = {
     style: CSSProperties;
     /** Applied to the wordmark itself while hovered. */
     textStyle?: CSSProperties;
+    /** Artwork for this colourway, when the house's logo was drawn for a dark
+     *  ground and would disappear against paper (or the reverse). */
+    logoUrl?: string;
   };
 };
 
@@ -53,8 +56,8 @@ const splatter: CSSProperties = {
   backgroundImage: [
     "radial-gradient(ellipse 9% 6% at 18% 22%, #1a1a1a 70%, transparent 71%)",
     "radial-gradient(ellipse 5% 4% at 33% 12%, #1a1a1a 70%, transparent 71%)",
-    "radial-gradient(ellipse 12% 8% at 72% 30%, #1a1a1a 70%, transparent 71%)",
-    "radial-gradient(ellipse 4% 3% at 60% 38%, #1a1a1a 70%, transparent 71%)",
+    "radial-gradient(ellipse 12% 8% at 78% 22%, #1a1a1a 70%, transparent 71%)",
+    "radial-gradient(ellipse 4% 3% at 60% 24%, #1a1a1a 70%, transparent 71%)",
     "radial-gradient(ellipse 10% 7% at 26% 74%, #1a1a1a 70%, transparent 71%)",
     "radial-gradient(ellipse 6% 4% at 84% 71%, #1a1a1a 70%, transparent 71%)",
     "radial-gradient(ellipse 7% 5% at 50% 88%, #1a1a1a 70%, transparent 71%)",
@@ -77,6 +80,10 @@ export const brandStyles: Record<string, BrandStyle> = {
     hover: {
       style: camo,
       textStyle: { color: "#ffffff", textShadow: "0 2px 10px rgba(0,0,0,0.55)" },
+      // The lockup as drawn, lettering still white: that is what the black
+      // ground it ships on was for, and camo is dark enough to carry it. The
+      // paper cut swaps the lettering to ink so it does not vanish.
+      logoUrl: "/brands/bape-on-dark.png",
     },
   },
 

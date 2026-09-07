@@ -35,16 +35,16 @@ insert into public.categories (name, slug) values
 on conflict (slug) do nothing;
 
 -- ---------------- BRANDS ----------------
--- logo_url stays null: <BrandMark /> renders a typographic wordmark per brand.
--- Drop a licensed asset at public/brands/<slug>.svg and set this column to
--- '/brands/<slug>.svg' to use the real mark instead.
+-- logo_url is the house's own mark. Where it is null, BrandMark falls back to
+-- a wordmark set in a lookalike face. Drop an asset at public/brands/<slug>.<ext>
+-- and point this column at '/brands/<slug>.<ext>' to use the real one.
 insert into public.brands (name, slug, logo_url, description, sort_order) values
-  ('Bape',          'bape',          null, 'A Bathing Ape. Ura-Harajuku camo, shark hoodies and 1st Camo since 1993.', 10),
-  ('Chrome Hearts', 'chrome-hearts', null, 'Hollywood-born sterling silver, leather and gothic cross motifs.',          20),
+  ('Bape',          'bape',          '/brands/bape.png', 'A Bathing Ape. Ura-Harajuku camo, shark hoodies and 1st Camo since 1993.', 10),
+  ('Chrome Hearts', 'chrome-hearts', '/brands/chrome-hearts.png', 'Hollywood-born sterling silver, leather and gothic cross motifs.',          20),
   ('Supreme',       'supreme',       null, 'The downtown New York box logo. Skate, art and weekly drops since 1994.',   30),
   ('Amiri',         'amiri',         null, 'Mike Amiri''s Los Angeles house. Rock-and-roll tailoring, hand-distressed denim and bone-and-black restraint.', 40),
   ('Balenciaga',    'balenciaga',    null, 'The Paris house rebuilt around utility. Condensed logo type, exaggerated volume and the sneaker that started it.', 50),
-  ('Gallery Dept.', 'gallery-dept',  null, 'Josue Thomas'' Los Angeles studio. Hand-painted, distressed and reworked, one piece at a time.', 60),
+  ('Gallery Dept.', 'gallery-dept',  '/brands/gallery-dept.png', 'Josue Thomas'' Los Angeles studio. Hand-painted, distressed and reworked, one piece at a time.', 60),
   ('Godspeed',      'godspeed',      null, 'New York streetwear with a gothic streak. Religious motifs, boxy cuts and limited drops.', 70),
   ('Purple Brand',  'purple-brand',  null, 'Los Angeles denim label built on premium washes, painted wordmarks and a low-rise silhouette.', 80),
   ('Off-White',     'off-white',     null, 'Virgil Abloh''s Milan house. Helvetica caps, quotation marks and the diagonal crosswalk stripe.', 90),

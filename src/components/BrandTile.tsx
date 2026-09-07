@@ -49,7 +49,13 @@ export default function BrandTile({
         style={style.hover.textStyle}
       >
         <CornerFrame inset="inset-1.5 sm:inset-2.5" size="h-2 w-2 sm:h-4 sm:w-4" />
-        <BrandMark brand={brand} size="lg" decorative className="!text-current" />
+        <BrandMark
+          brand={brand}
+          size="lg"
+          decorative
+          hovered
+          className="!text-current"
+        />
       </span>
     </Link>
   );
