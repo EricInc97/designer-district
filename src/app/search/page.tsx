@@ -7,56 +7,96 @@ import ProductCard from "@/components/ProductCard";
 import RecommendationRail from "@/components/RecommendationRail";
 import SearchTracker from "@/components/SearchTracker";
 import BrandTile from "@/components/BrandTile";
-import type { Brand, ProductWithBrand } from "@/lib/types";
+import type { Brand, Category, ProductWithBrand } from "@/lib/types";
 
 export const metadata: Metadata = { title: "Search" };
 
 type Props = {
-  searchParams: Promise<{ q?: string; brand?: string; sort?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    brand?: string;
+    category?: string;
+    sort?: string;
+    featured?: string;
+    sale?: string;
+    arrivals?: string;
+  }>;
 };
 
 export default async function SearchPage({ searchParams }: Props) {
   if (!supabaseConfigured) return <SetupNotice />;
 
-  const { q = "", brand = "", sort = "" } = await searchParams;
+  const {
+    q = "",
+    brand = "",
+    category = "",
+    sort = "",
+    featured = "",
+    sale = "",
+    arrivals = "",
+  } = await searchParams;
+
   const term = q.trim();
+  const onlyFeatured = featured === "1";
+  const onlySale = sale === "1";
+  const onlyArrivals = arrivals === "1";
   const supabase = await createClient();
 
-  // Nothing asked for, nothing shown, the catalog is entered through a brand
-  // or an explicit search, never dumped wholesale.
-  const idle = !term && !brand;
+  // Products appear once the shopper has actually asked for something: a
+  // search, a house, a category, or one of the curated views. Landing here
+  // with nothing chosen still shows the brands rather than the whole catalog.
+  const idle =
+    !term && !brand && !category && !onlyFeatured && !onlySale && !onlyArrivals;
 
-  let query = supabase
-    .from("products")
-    .select("*, brands(id, name, slug, logo_url)")
-    .eq("is_published", true);
-
-  if (term) {
-    query = query.or(`name.ilike.%${term}%,description.ilike.%${term}%`);
-  }
-  if (brand) {
-    const { data: b } = await supabase
-      .from("brands")
-      .select("id")
-      .eq("slug", brand)
-      .single();
-    if (b) query = query.eq("brand_id", b.id);
-  }
-
-  query =
-    sort === "price-asc"
-      ? query.order("price", { ascending: true })
-      : sort === "price-desc"
-        ? query.order("price", { ascending: false })
-        : query.order("created_at", { ascending: false });
-
-  const [{ data: products }, { data: brandRows }] = await Promise.all([
-    idle ? Promise.resolve({ data: [] }) : query.limit(48),
+  const [{ data: brandRows }, { data: categoryRows }] = await Promise.all([
     supabase.from("brands").select("*").eq("is_active", true).order("sort_order"),
+    supabase.from("categories").select("*").order("name"),
   ]);
 
-  const results = (products ?? []) as ProductWithBrand[];
   const brands = (brandRows ?? []) as Brand[];
+  const categories = (categoryRows ?? []) as Category[];
+
+  let results: ProductWithBrand[] = [];
+
+  if (!idle) {
+    let query = supabase
+      .from("products")
+      .select("*, brands(id, name, slug, logo_url)")
+      .eq("is_published", true);
+
+    if (term) {
+      query = query.or(`name.ilike.%${term}%,description.ilike.%${term}%`);
+    }
+    if (brand) {
+      const match = brands.find((b) => b.slug === brand);
+      if (match) query = query.eq("brand_id", match.id);
+    }
+    if (category) {
+      const match = categories.find((c) => c.slug === category);
+      if (match) query = query.eq("category_id", match.id);
+    }
+    if (onlyFeatured) query = query.eq("is_featured", true);
+    // PostgREST cannot compare two columns, so narrow to rows that have a
+    // compare-at price and settle the actual discount below.
+    if (onlySale) query = query.not("compare_at_price", "is", null);
+
+    query =
+      sort === "price-asc"
+        ? query.order("price", { ascending: true })
+        : sort === "price-desc"
+          ? query.order("price", { ascending: false })
+          : query.order("created_at", { ascending: false });
+
+    // New Arrivals is the recent end of the catalog, not all of it by date.
+    const { data } = await query.limit(onlyArrivals ? 24 : 48);
+    results = (data ?? []) as ProductWithBrand[];
+
+    if (onlySale) {
+      results = results.filter(
+        (p) => p.compare_at_price != null && Number(p.compare_at_price) > Number(p.price),
+      );
+    }
+  }
 
   const sorts = [
     { key: "", label: "Newest" },
@@ -68,7 +108,11 @@ export default async function SearchPage({ searchParams }: Props) {
     const next = new URLSearchParams({
       ...(term ? { q: term } : {}),
       ...(brand ? { brand } : {}),
+      ...(category ? { category } : {}),
       ...(sort ? { sort } : {}),
+      ...(onlyFeatured ? { featured: "1" } : {}),
+      ...(onlySale ? { sale: "1" } : {}),
+      ...(onlyArrivals ? { arrivals: "1" } : {}),
       ...patch,
     });
     for (const [k, v] of [...next.entries()]) if (!v) next.delete(k);
@@ -76,18 +120,32 @@ export default async function SearchPage({ searchParams }: Props) {
     return s ? `/search?${s}` : "/search";
   };
 
+  // What the shopper actually asked for, said back to them.
+  const activeCategory = categories.find((c) => c.slug === category);
+  const heading = term
+    ? `“${term}”`
+    : onlyArrivals
+      ? "New Arrivals"
+      : onlyFeatured
+      ? "Featured"
+      : onlySale
+        ? "Sale"
+        : activeCategory
+          ? activeCategory.name
+          : brand
+            ? (brands.find((b) => b.slug === brand)?.name ?? "Filtered")
+            : "What are you after?";
+
   return (
     <>
       {term && <SearchTracker query={term} resultCount={results.length} />}
 
       <div className="mx-auto max-w-7xl px-5 sm:px-8 py-12">
-        <p className="eyebrow">{idle ? "Search" : "Search results"}</p>
-        <h1 className="display mt-2 text-3xl sm:text-4xl">
-          {term ? `“${term}”` : idle ? "What are you after?" : "Filtered"}
-        </h1>
+        <p className="eyebrow">{idle ? "Search" : "The Collection"}</p>
+        <h1 className="display mt-2 text-3xl sm:text-4xl">{heading}</h1>
         <p className="mt-3 text-sm text-ink-faint">
           {idle
-            ? "Search by name, or pick a house on the left."
+            ? "Search by name, or pick a district on the left."
             : `${results.length} ${results.length === 1 ? "result" : "results"}`}
         </p>
 
@@ -101,7 +159,9 @@ export default async function SearchPage({ searchParams }: Props) {
                   <Link
                     href={linkFor({ brand: "" })}
                     className={`text-sm transition-colors ${
-                      brand ? "text-ink-faint hover:text-ink" : "text-ink underline underline-offset-4"
+                      brand
+                        ? "text-ink-faint hover:text-ink"
+                        : "text-ink underline underline-offset-4"
                     }`}
                   >
                     All brands
@@ -118,6 +178,38 @@ export default async function SearchPage({ searchParams }: Props) {
                       }`}
                     >
                       {b.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <p className="eyebrow">Category</p>
+              <ul className="mt-3 space-y-1.5">
+                <li>
+                  <Link
+                    href={linkFor({ category: "" })}
+                    className={`text-sm transition-colors ${
+                      category
+                        ? "text-ink-faint hover:text-ink"
+                        : "text-ink underline underline-offset-4"
+                    }`}
+                  >
+                    All categories
+                  </Link>
+                </li>
+                {categories.map((c) => (
+                  <li key={c.id}>
+                    <Link
+                      href={linkFor({ category: c.slug })}
+                      className={`text-sm transition-colors ${
+                        category === c.slug
+                          ? "text-ink underline underline-offset-4"
+                          : "text-ink-faint hover:text-ink"
+                      }`}
+                    >
+                      {c.name}
                     </Link>
                   </li>
                 ))}
@@ -144,8 +236,6 @@ export default async function SearchPage({ searchParams }: Props) {
               </ul>
             </div>
 
-            {/* No products anywhere until a house or a query is chosen, the
-                rail only earns its place once they are actually browsing. */}
             {!idle && (
               <div className="border-t border-rule pt-6">
                 <RecommendationRail title="Picked for you" limit={4} layout="sidebar" />
@@ -172,7 +262,7 @@ export default async function SearchPage({ searchParams }: Props) {
                   href="/"
                   className="mt-6 inline-block rounded-full border border-rule-strong px-6 py-3 text-xs uppercase tracking-[0.2em] hover:bg-ink hover:text-paper transition-colors"
                 >
-                  Browse brands
+                  Browse districts
                 </Link>
               </div>
             ) : (

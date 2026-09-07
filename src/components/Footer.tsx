@@ -7,7 +7,7 @@ import Link from "next/link";
  */
 const links = [
   { label: "All Brands", href: "/brands" },
-  { label: "New Arrivals", href: "/search?sort=new" },
+  { label: "New Arrivals", href: "/search?arrivals=1" },
   { label: "Settings", href: "/account" },
   { label: "Orders", href: "/account/orders" },
   { label: "Support", href: "/account/tickets" },

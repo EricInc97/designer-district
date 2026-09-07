@@ -4,12 +4,13 @@ import { createClient } from "@/lib/supabase/server";
 import { supabaseConfigured } from "@/lib/supabase/config";
 import SiteMenu from "@/components/SiteMenu";
 import CartButton from "@/components/CartButton";
-import type { Brand } from "@/lib/types";
+import type { Brand, Category } from "@/lib/types";
 
 export default async function Navbar() {
   let user = null;
   let isStaff = false;
   let brands: Brand[] = [];
+  let categories: Category[] = [];
 
   if (supabaseConfigured) {
     const supabase = await createClient();
@@ -17,14 +18,16 @@ export default async function Navbar() {
       data: { user },
     } = await supabase.auth.getUser());
 
-    const [{ data: brandRows }, profile] = await Promise.all([
+    const [{ data: brandRows }, { data: categoryRows }, profile] = await Promise.all([
       supabase.from("brands").select("*").eq("is_active", true).order("sort_order"),
+      supabase.from("categories").select("*").order("name"),
       user
         ? supabase.from("profiles").select("role").eq("id", user.id).single()
         : Promise.resolve({ data: null }),
     ]);
 
     brands = (brandRows ?? []) as Brand[];
+    categories = (categoryRows ?? []) as Category[];
     const role = (profile as { data: { role?: string } | null }).data?.role;
     isStaff = role === "admin" || role === "master_admin";
   }
@@ -36,7 +39,12 @@ export default async function Navbar() {
             matter how wide the flanking controls get. */}
         <div className="grid h-16 grid-cols-[1fr_auto_1fr] items-center gap-3">
           <div className="flex justify-start">
-            <SiteMenu brands={brands} isSignedIn={Boolean(user)} isStaff={isStaff} />
+            <SiteMenu
+              brands={brands}
+              categories={categories}
+              isSignedIn={Boolean(user)}
+              isStaff={isStaff}
+            />
           </div>
 
           <Link
