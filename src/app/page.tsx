@@ -20,7 +20,7 @@ export default async function HomePage() {
     <>
       {/* ---------------- HERO ---------------- */}
       <section className="border-b border-rule">
-        <div className="mx-auto flex max-w-7xl flex-col items-center px-5 sm:px-8 py-20 sm:py-28 text-center">
+        <div className="mx-auto flex max-w-7xl flex-col items-center px-5 sm:px-8 py-14 sm:py-20 text-center">
           {/* The transparent-ground artwork on a black disc, rather than the
               square original: the lockup is wider than it is tall, so a
               circular crop of the original would clip the wordmark. Held at
@@ -41,21 +41,28 @@ export default async function HomePage() {
 
       {/* ---------------- SHOP BY BRAND ---------------- */}
       {/* The only way into the catalog. Pick a house first. */}
-      <section id="brands" className="mx-auto max-w-7xl px-5 sm:px-8 py-20 scroll-mt-20">
-        <p className="eyebrow">The Collection</p>
-        <h1 className="display mt-2 text-3xl sm:text-4xl">Shop by brand</h1>
-        <p className="mt-3 max-w-md text-sm text-ink-faint">
-          Choose a house to see everything we hold from it: tees, hoodies,
-          outerwear, denim and accessories.
-        </p>
+      <section
+        id="brands"
+        className="mx-auto max-w-7xl scroll-mt-20 px-5 pb-16 pt-10 sm:px-8 sm:pb-20 sm:pt-12"
+      >
+        {/* Centred and tightened: the block reads as one unit rather than
+            three widely spaced lines. */}
+        <div className="mx-auto max-w-xl text-center">
+          <p className="eyebrow">The Collection</p>
+          <h1 className="display mt-1.5 text-3xl sm:text-4xl">Shop by brand</h1>
+          <p className="mt-2 text-sm leading-relaxed text-ink-faint">
+            Choose a house to see everything we hold from it: tees, hoodies,
+            outerwear, denim and accessories.
+          </p>
+        </div>
 
         {brandList.length === 0 ? (
-          <p className="mt-10 text-sm text-ink-faint">
+          <p className="mt-8 text-center text-sm text-ink-faint">
             No brands yet. Run <code className="font-mono">supabase/03_seed.sql</code> to
             load the catalog.
           </p>
         ) : (
-          <ul className="mt-10 grid grid-cols-3 gap-2 sm:gap-4">
+          <ul className="mt-8 grid grid-cols-3 gap-2 sm:gap-4">
             {brandList.map((brand) => (
               <li key={brand.id}>
                 <BrandTile brand={brand} />
