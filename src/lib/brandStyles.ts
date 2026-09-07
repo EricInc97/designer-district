@@ -11,16 +11,20 @@ import type { CSSProperties } from "react";
  * look (Bape's camo, Supreme's red box, Chrome Hearts' silver) rather than
  * reproducing their artwork.
  *
- * An SVG at public/brands/<slug>.svg, pointed at by the brand's logo_url, adds
- * an emblem above the wordmark. It is painted through a CSS mask, so it must be
- * a solid single-colour silhouette; see BrandMark.
+ * Houses whose mark is a composition rather than a wordmark have no entry for
+ * `markClass` worth reading: their lockup lives in components/brandEmblems.tsx
+ * and replaces the wordmark outright. See BrandMark for the order of
+ * precedence.
  */
 
 export type BrandStyle = {
   markClass: string;
   markStyle?: CSSProperties;
-  /** Rendered text when it differs from the stored brand name. */
-  label?: string;
+  /** Rendered text when it differs from the stored brand name. An array
+   *  stacks one line per entry, the way a two-line lockup sets it. */
+  label?: string | string[];
+  /** Hangs a superscript registered mark off the end of the first line. */
+  registered?: boolean;
   hover: {
     /** Applied to the tile behind the wordmark. */
     style: CSSProperties;
@@ -122,12 +126,14 @@ export const brandStyles: Record<string, BrandStyle> = {
     },
   },
 
-  // Hand-painted and distressed. The house is a paint studio first, so the
-  // colourway is spattered rather than flat.
+  // Heavy grotesque caps stacked over two lines with the registered mark
+  // hung off the first, as the house sets it. The paint belongs to the
+  // colourway, not the lettering: it is a studio first, so the ground is
+  // spattered rather than flat.
   "gallery-dept": {
-    label: "GALLERY DEPT.",
-    markClass: "font-[family-name:var(--font-marker)] tracking-[0.01em]",
-    markStyle: { transform: "rotate(-1.5deg)" },
+    label: ["GALLERY", "DEPT."],
+    registered: true,
+    markClass: "font-[family-name:var(--font-geometric)] tracking-[-0.02em]",
     hover: {
       style: splatter,
       textStyle: { color: "#101010" },

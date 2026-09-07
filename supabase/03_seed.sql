@@ -39,8 +39,8 @@ on conflict (slug) do nothing;
 -- Drop a licensed asset at public/brands/<slug>.svg and set this column to
 -- '/brands/<slug>.svg' to use the real mark instead.
 insert into public.brands (name, slug, logo_url, description, sort_order) values
-  ('Bape',          'bape',          '/brands/bape.svg',          'A Bathing Ape. Ura-Harajuku camo, shark hoodies and 1st Camo since 1993.', 10),
-  ('Chrome Hearts', 'chrome-hearts', '/brands/chrome-hearts.svg', 'Hollywood-born sterling silver, leather and gothic cross motifs.',          20),
+  ('Bape',          'bape',          null, 'A Bathing Ape. Ura-Harajuku camo, shark hoodies and 1st Camo since 1993.', 10),
+  ('Chrome Hearts', 'chrome-hearts', null, 'Hollywood-born sterling silver, leather and gothic cross motifs.',          20),
   ('Supreme',       'supreme',       null, 'The downtown New York box logo. Skate, art and weekly drops since 1994.',   30),
   ('Amiri',         'amiri',         null, 'Mike Amiri''s Los Angeles house. Rock-and-roll tailoring, hand-distressed denim and bone-and-black restraint.', 40),
   ('Balenciaga',    'balenciaga',    null, 'The Paris house rebuilt around utility. Condensed logo type, exaggerated volume and the sneaker that started it.', 50),
