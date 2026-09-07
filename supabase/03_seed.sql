@@ -39,15 +39,16 @@ on conflict (slug) do nothing;
 -- Drop a licensed asset at public/brands/<slug>.svg and set this column to
 -- '/brands/<slug>.svg' to use the real mark instead.
 insert into public.brands (name, slug, logo_url, description, sort_order) values
-  ('Bape',          'bape',          null, 'A Bathing Ape. Ura-Harajuku camo, shark hoodies and 1st Camo since 1993.', 10),
-  ('Chrome Hearts', 'chrome-hearts', null, 'Hollywood-born sterling silver, leather and gothic cross motifs.',          20),
-  ('Palm Angels',   'palm-angels',   null, 'Milanese tailoring filtered through Los Angeles skate culture.',           30),
-  ('Supreme',       'supreme',       null, 'The downtown New York box logo. Skate, art and weekly drops since 1994.',   40),
-  ('Rhude',         'rhude',         null, 'Rhuigi Villasenor''s luxury-meets-Americana take on LA streetwear.',       50),
-  ('Stussy',        'stussy',        null, 'The original streetwear signature. Surf, skate and sound system.',        60),
-  ('Purple Brand',  'purple-brand',  null, 'Los Angeles denim label built on premium washes, painted wordmarks and a low-rise silhouette.', 70),
-  ('Off-White',     'off-white',     null, 'Virgil Abloh''s Milan house. Helvetica caps, quotation marks and the diagonal crosswalk stripe.', 80),
-  ('Casablanca',    'casablanca',    null, 'Charaf Tajer''s Paris label. Apres-sport luxury in silk, pastel prints and Mediterranean colour.', 90)
+  ('Bape',          'bape',          '/brands/bape.svg',          'A Bathing Ape. Ura-Harajuku camo, shark hoodies and 1st Camo since 1993.', 10),
+  ('Chrome Hearts', 'chrome-hearts', '/brands/chrome-hearts.svg', 'Hollywood-born sterling silver, leather and gothic cross motifs.',          20),
+  ('Supreme',       'supreme',       null, 'The downtown New York box logo. Skate, art and weekly drops since 1994.',   30),
+  ('Amiri',         'amiri',         null, 'Mike Amiri''s Los Angeles house. Rock-and-roll tailoring, hand-distressed denim and bone-and-black restraint.', 40),
+  ('Balenciaga',    'balenciaga',    null, 'The Paris house rebuilt around utility. Condensed logo type, exaggerated volume and the sneaker that started it.', 50),
+  ('Gallery Dept.', 'gallery-dept',  null, 'Josue Thomas'' Los Angeles studio. Hand-painted, distressed and reworked, one piece at a time.', 60),
+  ('Godspeed',      'godspeed',      null, 'New York streetwear with a gothic streak. Religious motifs, boxy cuts and limited drops.', 70),
+  ('Purple Brand',  'purple-brand',  null, 'Los Angeles denim label built on premium washes, painted wordmarks and a low-rise silhouette.', 80),
+  ('Off-White',     'off-white',     null, 'Virgil Abloh''s Milan house. Helvetica caps, quotation marks and the diagonal crosswalk stripe.', 90),
+  ('Casablanca',    'casablanca',    null, 'Charaf Tajer''s Paris label. Apres-sport luxury in silk, pastel prints and Mediterranean colour.', 100)
 on conflict (slug) do update
   set logo_url = excluded.logo_url,
       description = excluded.description,
@@ -69,26 +70,31 @@ from (values
   ('chrome-hearts','hoodies',    'Horseshoe Logo Hoodie', 'horseshoe-logo-hoodie', 'Boxy French terry hoodie with flocked horseshoe logo and dagger-print sleeve.', 890.00, 980.00, 4, true),
   ('chrome-hearts','accessories','Sterling Cross Ring',   'sterling-cross-ring',   '925 sterling silver band with hand-finished cross detail. Made in Hollywood.', 745.00, null, 6, false),
   ('chrome-hearts','outerwear',  'Leather Cross Patch Jacket','leather-cross-patch-jacket','Full-grain black leather jacket with signature cross patch panelling and silver hardware.', 8400.00, null, 1, true),
-  -- Palm Angels
-  ('palm-angels','hoodies',    'Classic Logo Hoodie',      'classic-logo-hoodie',      'Cotton-jersey hoodie with the contrast racing-stripe sleeve and screen-printed logo.', 620.00, null, 18, true),
-  ('palm-angels','t-shirts',   'Palm Tree Print Tee',      'palm-tree-print-tee',      'Relaxed cotton tee with the sprayed palm-tree graphic at the back.', 320.00, 395.00, 26, false),
-  ('palm-angels','outerwear',  'Track Jacket Bear',        'track-jacket-bear',        'Technical track jacket with the Palm Angels bear intarsia and side taping.', 745.00, null, 11, true),
-  ('palm-angels','denim',      'Distressed Straight Jean', 'distressed-straight-jean', 'Rigid Japanese denim, straight leg, hand-abraded at the knee.', 480.00, null, 14, false),
   -- Supreme
   ('supreme','t-shirts',   'Box Logo Tee',          'box-logo-tee',          'The white-on-red box logo on a mid-weight cotton tee. The one everybody queues for.', 68.00, null, 48, true),
   ('supreme','hoodies',    'Box Logo Hooded Sweatshirt','box-logo-hooded-sweatshirt','Heavyweight crossgrain fleece hoodie with the embroidered box logo. Cotton/poly blend.', 168.00, 220.00, 5, true),
   ('supreme','outerwear',  'S Logo Puffer Jacket',  's-logo-puffer-jacket',  'Down-filled puffer with water-resistant shell and reflective S logo.', 398.00, null, 8, false),
   ('supreme','accessories','Canvas Duffle Bag',     'canvas-duffle-bag',     'Cordura-reinforced duffle with the printed logo webbing strap.', 178.00, null, 16, false),
-  -- Rhude
-  ('rhude','t-shirts',  'Moonlight Racing Tee',    'moonlight-racing-tee',    'Garment-dyed cotton tee with the Moonlight Racing motorsport graphic.', 295.00, null, 19, false),
-  ('rhude','hoodies',   'Rhude Logo Hoodie',       'rhude-logo-hoodie',       'Loop-back cotton hoodie with tonal flocked logo across the chest.', 545.00, null, 10, true),
-  ('rhude','denim',     'Snap Track Pant',         'snap-track-pant',         'Satin track pant with full side-snap placket and contrast piping.', 620.00, 720.00, 6, false),
-  ('rhude','footwear',  'Rhecess Low Sneaker',     'rhecess-low-sneaker',     'Low-top leather sneaker on a vulcanised gum sole.', 495.00, null, 12, true),
-  -- Stussy
-  ('stussy','t-shirts',   'Basic Stock Logo Tee', 'basic-stock-logo-tee', 'The Stock logo in a soft-hand print on midweight cotton.', 65.00, null, 52, false),
-  ('stussy','hoodies',    '8 Ball Fleece Hoodie', '8-ball-fleece-hoodie', 'Pigment-dyed heavyweight fleece with the 8 Ball graphic at the back.', 165.00, null, 23, true),
-  ('stussy','outerwear',  'Work Shell Jacket',    'work-shell-jacket',    'Cotton-canvas work shell with corduroy collar and hand-warmer pockets.', 245.00, null, 9, false),
-  ('stussy','accessories','Stock Bucket Hat',     'stock-bucket-hat',     'Cotton-twill bucket hat with the embroidered Stock logo.', 75.00, null, 31, false),
+  -- Amiri
+  ('amiri','denim',        'MX1 Bandana Patch Jean',        'mx1-bandana-patch-jean',        'Hand-distressed stretch denim with leather and bandana panelling at the knee, finished in Los Angeles.', 1090.00, null,    6,  true),
+  ('amiri','t-shirts',     'Bones Logo Tee',                'bones-logo-tee',                'Garment-dyed cotton tee with the bones lettering screen-printed at the chest.', 390.00, null,   17, false),
+  ('amiri','hoodies',      'Core Logo Hoodie',              'amiri-core-logo-hoodie',        'Loop-back cotton hoodie carrying the slender serif wordmark across the chest.', 690.00, 790.00, 8,  true),
+  ('amiri','footwear',     'Skel-Top Low Sneaker',          'skel-top-low-sneaker',          'Leather low-top with the skeletal overlay at the side and a vulcanised sole.', 595.00, null,   11, false),
+  -- Balenciaga
+  ('balenciaga','hoodies',     'Campaign Logo Hoodie',      'campaign-logo-hoodie',          'Oversized brushed-fleece hoodie with the condensed logo printed front and back.', 1150.00, null,    5,  true),
+  ('balenciaga','t-shirts',    'Logo Oversized Tee',        'logo-oversized-tee',            'Boxy heavyweight jersey tee with the wordmark at the chest and dropped shoulders.', 650.00, 750.00, 13, false),
+  ('balenciaga','footwear',    'Triple S Trainer',          'triple-s-trainer',              'The quadruple-stacked sole in mesh, nubuck and leather. The one that reset the category.', 1190.00, null,    4,  true),
+  ('balenciaga','accessories', 'Cities Logo Cap',           'cities-logo-cap',               'Cotton-drill six-panel cap with the embroidered city lettering at the front.', 495.00, null,   19, false),
+  -- Gallery Dept.
+  ('gallery-dept','denim',     'Paint Splatter Carpenter Jean', 'paint-splatter-carpenter-jean', 'Reworked vintage carpenter denim, hand-splattered and sun-faded. No two pairs alike.', 850.00, null,    7,  true),
+  ('gallery-dept','t-shirts',  'ATK Logo Tee',              'atk-logo-tee',                  'Washed cotton tee with the hand-drawn logo printed off-register at the chest.', 295.00, null,   21, false),
+  ('gallery-dept','hoodies',   'Painted Logo Hoodie',       'painted-logo-hoodie',           'Heavyweight fleece hoodie with the wordmark laid on by hand in acrylic.', 625.00, 720.00, 9,  false),
+  ('gallery-dept','outerwear', 'Hand-Painted Work Jacket',  'hand-painted-work-jacket',      'Vintage cotton-drill chore jacket, stripped, repainted and patched in the studio.', 1250.00, null,    3,  true),
+  -- Godspeed
+  ('godspeed','hoodies',     'Angel Wings Hoodie',          'angel-wings-hoodie',            'Heavyweight boxy hoodie with the puff-print wing graphic across the back.', 180.00, null,   26, true),
+  ('godspeed','t-shirts',    'Salvation Tee',               'salvation-tee',                 'Oversized cotton tee with the gothic lettering front and the salvation graphic at the back.', 95.00, null,   38, false),
+  ('godspeed','outerwear',   'Souvenir Varsity Jacket',     'souvenir-varsity-jacket',       'Satin varsity with chain-stitch lettering, striped rib trims and a quilted lining.', 340.00, 395.00, 10, true),
+  ('godspeed','accessories', 'Gothic Logo Beanie',          'gothic-logo-beanie',            'Ribbed cuffed beanie with the embroidered gothic wordmark.', 65.00, null,   44, false),
   -- Purple Brand
   ('purple-brand','denim',      'P001 Low Rise Skinny Jean', 'p001-low-rise-skinny-jean', 'Premium stretch denim in a low-rise skinny cut, with the painted wordmark down the leg and a cowhide patch at the back.', 295.00, null,   14, false),
   ('purple-brand','denim',      'P005 Straight Leg Jean',    'p005-straight-leg-jean',    'Rigid straight-leg denim, five-pocket styling, bar-tack stitching and chambray lining.', 320.00, 380.00, 9,  false),

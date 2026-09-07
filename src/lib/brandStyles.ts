@@ -11,8 +11,9 @@ import type { CSSProperties } from "react";
  * look (Bape's camo, Supreme's red box, Chrome Hearts' silver) rather than
  * reproducing their artwork.
  *
- * Real logo files override the wordmark entirely: drop one at
- * public/brands/<slug>.svg and point the brand's logo_url at it.
+ * An SVG at public/brands/<slug>.svg, pointed at by the brand's logo_url, adds
+ * an emblem above the wordmark. It is painted through a CSS mask, so it must be
+ * a solid single-colour silhouette; see BrandMark.
  */
 
 export type BrandStyle = {
@@ -42,6 +43,22 @@ const camo: CSSProperties = {
   ].join(", "),
 };
 
+// Gallery Dept's paint-studio floor: charcoal spatter over a cool grey ground.
+const splatter: CSSProperties = {
+  backgroundColor: "#dedbd4",
+  backgroundImage: [
+    "radial-gradient(ellipse 9% 6% at 18% 22%, #1a1a1a 70%, transparent 71%)",
+    "radial-gradient(ellipse 5% 4% at 33% 12%, #1a1a1a 70%, transparent 71%)",
+    "radial-gradient(ellipse 12% 8% at 72% 30%, #1a1a1a 70%, transparent 71%)",
+    "radial-gradient(ellipse 4% 3% at 60% 38%, #1a1a1a 70%, transparent 71%)",
+    "radial-gradient(ellipse 10% 7% at 26% 74%, #1a1a1a 70%, transparent 71%)",
+    "radial-gradient(ellipse 6% 4% at 84% 71%, #1a1a1a 70%, transparent 71%)",
+    "radial-gradient(ellipse 7% 5% at 50% 88%, #1a1a1a 70%, transparent 71%)",
+    "radial-gradient(ellipse 4% 3% at 88% 88%, #1a1a1a 70%, transparent 71%)",
+    "radial-gradient(ellipse 5% 4% at 8% 30%, #1a1a1a 70%, transparent 71%)",
+  ].join(", "),
+};
+
 // Off-White's diagonal crosswalk stripe. The wordmark carries a white halo so
 // it stays legible as it crosses both the dark and light bands.
 const crosswalk: CSSProperties = {
@@ -52,7 +69,7 @@ const crosswalk: CSSProperties = {
 export const brandStyles: Record<string, BrandStyle> = {
   bape: {
     label: "BAPE",
-    markClass: "font-[family-name:var(--font-collegiate)] tracking-[0.06em]",
+    markClass: "font-[family-name:var(--font-geometric)] tracking-[0.04em]",
     hover: {
       style: camo,
       textStyle: { color: "#ffffff", textShadow: "0 2px 10px rgba(0,0,0,0.55)" },
@@ -71,18 +88,6 @@ export const brandStyles: Record<string, BrandStyle> = {
     },
   },
 
-  "palm-angels": {
-    label: "PALM ANGELS",
-    markClass: "font-light tracking-[0.34em]",
-    hover: {
-      style: {
-        backgroundImage:
-          "linear-gradient(160deg, #ffb36b 0%, #ff5f6d 55%, #b83a72 100%)",
-      },
-      textStyle: { color: "#ffffff", textShadow: "0 2px 12px rgba(0,0,0,0.35)" },
-    },
-  },
-
   supreme: {
     label: "Supreme",
     markClass: "font-[family-name:var(--font-geometric)] tracking-[-0.02em]",
@@ -93,25 +98,53 @@ export const brandStyles: Record<string, BrandStyle> = {
     },
   },
 
-  rhude: {
-    label: "RHUDE",
-    markClass: "font-medium tracking-[0.3em]",
+  // Bespoke condensed bold caps, tight spacing, no crest: pure typography,
+  // the way the house reset it under Gvasalia.
+  balenciaga: {
+    label: "BALENCIAGA",
+    markClass: "font-[family-name:var(--font-collegiate)] tracking-[-0.005em]",
     hover: {
-      style: {
-        backgroundImage: "linear-gradient(150deg, #d8c9ab 0%, #bda98a 100%)",
-      },
-      textStyle: { color: "#2a2119" },
+      style: { backgroundColor: "#0a0a0a" },
+      textStyle: { color: "#ffffff" },
     },
   },
 
-  stussy: {
-    label: "Stüssy",
-    markClass: "font-[family-name:var(--font-marker)] tracking-[0.01em]",
-    markStyle: { transform: "rotate(-3deg)" },
+  // Slender, elongated serif caps, widely set. Bone and sand are the house's
+  // own ground; the lettering stays black on it.
+  amiri: {
+    label: "AMIRI",
+    markClass: "font-[family-name:var(--font-didone)] font-normal tracking-[0.2em]",
     hover: {
-      // Inverted rather than white-on-white: the tile already sits on paper.
-      style: { backgroundColor: "#111111" },
-      textStyle: { color: "#f5f4f1" },
+      style: {
+        backgroundImage: "linear-gradient(150deg, #f1ebdf 0%, #d5c9b2 100%)",
+      },
+      textStyle: { color: "#12100c" },
+    },
+  },
+
+  // Hand-painted and distressed. The house is a paint studio first, so the
+  // colourway is spattered rather than flat.
+  "gallery-dept": {
+    label: "GALLERY DEPT.",
+    markClass: "font-[family-name:var(--font-marker)] tracking-[0.01em]",
+    markStyle: { transform: "rotate(-1.5deg)" },
+    hover: {
+      style: splatter,
+      textStyle: { color: "#101010" },
+    },
+  },
+
+  // Gothic caps against a votive glow: the label's religious and angelic
+  // motifs, without borrowing any of its artwork.
+  godspeed: {
+    label: "GODSPEED",
+    markClass: "font-[family-name:var(--font-blackletter)] tracking-[0.08em]",
+    hover: {
+      style: {
+        backgroundImage:
+          "radial-gradient(circle at 50% 24%, #f7e2a6 0%, #c99a38 17%, #4a3a17 45%, #14110b 100%)",
+      },
+      textStyle: { color: "#fbf3de", textShadow: "0 2px 10px rgba(0,0,0,0.45)" },
     },
   },
 

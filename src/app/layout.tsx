@@ -20,8 +20,8 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 
 /**
  * Display faces used only by <BrandMark />, one per house, chosen to match
- * each brand's own typographic register (collegiate block, geometric oblique,
- * blackletter, marker script). Single weight, latin subset, swap-on-load.
+ * each brand's own typographic register (condensed block, geometric,
+ * blackletter, Didone serif, marker script). Single weight, latin subset, swap-on-load.
  */
 const anton = Anton({
   variable: "--font-collegiate",
@@ -44,7 +44,7 @@ const pirataOne = Pirata_One({
 const bodoni = Bodoni_Moda({
   variable: "--font-didone",
   subsets: ["latin"],
-  weight: "500",
+  weight: ["400", "500"],
   display: "swap",
 });
 const permanentMarker = Permanent_Marker({
@@ -70,7 +70,7 @@ export const metadata: Metadata = {
     template: "%s · Designer District",
   },
   description:
-    "Bape, Chrome Hearts, Palm Angels, Supreme and more. The house of the most wanted names in streetwear.",
+    "Bape, Chrome Hearts, Balenciaga, Amiri, Supreme and more. The house of the most wanted names in streetwear.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

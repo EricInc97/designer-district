@@ -199,8 +199,8 @@ Three things do not follow automatically and need a matching edit:
   ink artwork used on the current paper ground; `designer-district*-on-dark.png`
   is the paper artwork for a dark ground. Swap which one the JSX points at.
 - **Brand hover colourways** in `src/lib/brandStyles.ts` are literal hex, since
-  they are each house's own colours. Stussy's is the one that inverts with the
-  theme, because a near-white hover is invisible on a near-white tile.
+  they are each house's own colours. Amiri's and Gallery Dept's are the ones to
+  re-check when the theme flips, because a pale hover is invisible on a pale tile.
 - **`/ph/[label]`** generates placeholder SVGs from the palette by hand. Its
   `Cache-Control` deliberately revalidates rather than being `immutable`, so a
   palette change actually reaches browsers holding the old colourway.
@@ -238,16 +238,26 @@ hydration mismatches.
 
 `prefers-reduced-motion` drops the pulse and shortens the hold to 400ms.
 
-### Brand wordmarks
+### Brand marks
 
-`<BrandMark />` renders each house's name in a face matching its own
-typographic register, collegiate block for Bape, blackletter for Chrome
-Hearts, heavy geometric oblique for Supreme, marker script for Stüssy, wide
-spaced caps for Palm Angels and Rhude.
+`<BrandMark />` renders each house in a face matching its own typographic
+register: heavy geometric for Bape, blackletter for Chrome Hearts and Godspeed,
+geometric oblique for Supreme, condensed block caps for Balenciaga, a Didone
+serif for Amiri and Casablanca, marker script for Gallery Dept.
+
+Two houses lead with an emblem instead. `public/brands/bape.svg` and
+`public/brands/chrome-hearts.svg` are single-colour silhouettes, and
+`BrandMark` stacks them above the wordmark whenever `logo_url` points at an
+`.svg`. They are painted through a **CSS mask** rather than dropped in as an
+`<img>`, with `background-color: currentColor`, so the emblem flips to the
+house's hover ink alongside the live text instead of staying stuck black. That
+is also why they must be flat silhouettes: a multi-colour SVG would be
+flattened to one colour by the mask. Any other file extension is rendered as a
+plain `<img>` and keeps its own colours.
 
 The site menu (the burger, left of the header) is the primary way into the
-catalog: brands sit at the top of it, above search and account, each row using
-the same crossfade as the grid tiles.
+catalog. Designers sit one level down from the root panel, each row using the
+same crossfade as the grid tiles.
 
 Its overlay is portalled to `<body>`, and must stay that way. `SiteMenu` renders
 inside the header, and the header has a `backdrop-filter`; that establishes a
@@ -255,20 +265,22 @@ containing block for fixed-position descendants, so an un-portalled
 `fixed inset-0` resolves against the 64px header instead of the viewport and the
 panel collapses to the height of its own title bar.
 
-On hover, a tile or menu row crossfades to that house's own colourway, built entirely from
-CSS gradients: Bape's camo, Supreme's red box, Chrome Hearts' chrome, Palm
-Angels' sunset, Rhude's sand, Stussy's white. See `hover` in
+On hover, a tile or menu row crossfades to that house's own colourway, built
+entirely from CSS gradients: Bape's camo, Supreme's red box, Chrome Hearts'
+chrome, Balenciaga's flat black, Amiri's bone, Gallery Dept's spattered studio
+floor, Godspeed's votive gold, Off-White's crosswalk. See `hover` in
 `src/lib/brandStyles.ts`.
 
-**The wordmarks are stand-ins, not the real logos.** Each brand's actual mark is their
-trademark and has to come from them, a press kit or your wholesale account -
-not from a logo-aggregator site. To swap one in:
+**These are stand-ins, not the real logos.** The wordmarks are set in
+lookalike faces and the two emblems are drawn here from scratch; every house's
+actual mark is their trademark and has to come from them, a press kit or your
+wholesale account, not from a logo-aggregator site. To swap one in:
 
 1. Drop the file at `public/brands/<slug>.svg` (or `.png`).
 2. Set that brand's `logo_url` column to `/brands/<slug>.svg`.
 
 `BrandMark` renders the file the moment `logo_url` points at a real asset and
-falls back to the wordmark otherwise. No code change needed.
+falls back to the wordmark alone otherwise. No code change needed.
 
 ## Replacing the placeholder imagery
 
