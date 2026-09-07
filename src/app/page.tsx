@@ -36,6 +36,15 @@ export default async function HomePage() {
               className="w-[72%]"
             />
           </div>
+
+          {/* Medium weight rather than semibold: enough to carry under the
+              logo without competing with it. */}
+          <p
+            className="mt-8 max-w-md animate-rise text-base font-medium leading-relaxed text-ink-dim sm:text-lg"
+            style={{ animationDelay: "80ms" }}
+          >
+            At Designer District we carry a wide variety of exclusive brands.
+          </p>
         </div>
       </section>
 
@@ -50,10 +59,6 @@ export default async function HomePage() {
         <div className="mx-auto max-w-xl text-center">
           <p className="eyebrow">The Collection</p>
           <h1 className="display mt-1.5 text-3xl sm:text-4xl">Shop by brand</h1>
-          <p className="mt-2 text-sm leading-relaxed text-ink-faint">
-            Choose a house to see everything we hold from it: tees, hoodies,
-            outerwear, denim and accessories.
-          </p>
         </div>
 
         {brandList.length === 0 ? (
