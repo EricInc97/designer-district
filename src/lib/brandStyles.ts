@@ -42,6 +42,13 @@ const camo: CSSProperties = {
   ].join(", "),
 };
 
+// Off-White's diagonal crosswalk stripe. The wordmark carries a white halo so
+// it stays legible as it crosses both the dark and light bands.
+const crosswalk: CSSProperties = {
+  backgroundImage:
+    "repeating-linear-gradient(45deg, #111111 0 14px, #f5f4f1 14px 28px)",
+};
+
 export const brandStyles: Record<string, BrandStyle> = {
   bape: {
     label: "BAPE",
@@ -105,6 +112,44 @@ export const brandStyles: Record<string, BrandStyle> = {
       // Inverted rather than white-on-white: the tile already sits on paper.
       style: { backgroundColor: "#111111" },
       textStyle: { color: "#f5f4f1" },
+    },
+  },
+
+  // Uppercase, widely letterspaced, medium weight. The wordmark itself is
+  // black, not purple; the colour belongs to the brand, not the lettering.
+  "purple-brand": {
+    label: "PURPLE BRAND",
+    markClass: "font-medium tracking-[0.26em]",
+    hover: {
+      style: { backgroundColor: "#4b2a7b" },
+      textStyle: { color: "#ffffff" },
+    },
+  },
+
+  // Helvetica bold caps inside quotation marks, as Abloh set it.
+  "off-white": {
+    label: '"OFF-WHITE"',
+    markClass: "font-bold tracking-[-0.01em]",
+    hover: {
+      style: crosswalk,
+      textStyle: {
+        color: "#111111",
+        textShadow:
+          "0 0 6px #f5f4f1, 0 0 3px #f5f4f1, 0 0 2px #f5f4f1",
+      },
+    },
+  },
+
+  // High-contrast serif with heavy triangular serifs, set in black.
+  casablanca: {
+    label: "CASABLANCA",
+    markClass: "font-[family-name:var(--font-didone)] tracking-[0.12em]",
+    hover: {
+      style: {
+        backgroundImage:
+          "linear-gradient(135deg, #7fbfb2 0%, #efd9b4 52%, #d98a63 100%)",
+      },
+      textStyle: { color: "#2b2018" },
     },
   },
 };

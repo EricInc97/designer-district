@@ -44,7 +44,10 @@ insert into public.brands (name, slug, logo_url, description, sort_order) values
   ('Palm Angels',   'palm-angels',   null, 'Milanese tailoring filtered through Los Angeles skate culture.',           30),
   ('Supreme',       'supreme',       null, 'The downtown New York box logo. Skate, art and weekly drops since 1994.',   40),
   ('Rhude',         'rhude',         null, 'Rhuigi Villasenor''s luxury-meets-Americana take on LA streetwear.',       50),
-  ('Stussy',        'stussy',        null, 'The original streetwear signature. Surf, skate and sound system.',        60)
+  ('Stussy',        'stussy',        null, 'The original streetwear signature. Surf, skate and sound system.',        60),
+  ('Purple Brand',  'purple-brand',  null, 'Los Angeles denim label built on premium washes, painted wordmarks and a low-rise silhouette.', 70),
+  ('Off-White',     'off-white',     null, 'Virgil Abloh''s Milan house. Helvetica caps, quotation marks and the diagonal crosswalk stripe.', 80),
+  ('Casablanca',    'casablanca',    null, 'Charaf Tajer''s Paris label. Apres-sport luxury in silk, pastel prints and Mediterranean colour.', 90)
 on conflict (slug) do update
   set logo_url = excluded.logo_url,
       description = excluded.description,
@@ -85,7 +88,22 @@ from (values
   ('stussy','t-shirts',   'Basic Stock Logo Tee', 'basic-stock-logo-tee', 'The Stock logo in a soft-hand print on midweight cotton.', 65.00, null, 52, false),
   ('stussy','hoodies',    '8 Ball Fleece Hoodie', '8-ball-fleece-hoodie', 'Pigment-dyed heavyweight fleece with the 8 Ball graphic at the back.', 165.00, null, 23, true),
   ('stussy','outerwear',  'Work Shell Jacket',    'work-shell-jacket',    'Cotton-canvas work shell with corduroy collar and hand-warmer pockets.', 245.00, null, 9, false),
-  ('stussy','accessories','Stock Bucket Hat',     'stock-bucket-hat',     'Cotton-twill bucket hat with the embroidered Stock logo.', 75.00, null, 31, false)
+  ('stussy','accessories','Stock Bucket Hat',     'stock-bucket-hat',     'Cotton-twill bucket hat with the embroidered Stock logo.', 75.00, null, 31, false),
+  -- Purple Brand
+  ('purple-brand','denim',      'P001 Low Rise Skinny Jean', 'p001-low-rise-skinny-jean', 'Premium stretch denim in a low-rise skinny cut, with the painted wordmark down the leg and a cowhide patch at the back.', 295.00, null,   14, false),
+  ('purple-brand','denim',      'P005 Straight Leg Jean',    'p005-straight-leg-jean',    'Rigid straight-leg denim, five-pocket styling, bar-tack stitching and chambray lining.', 320.00, 380.00, 9,  false),
+  ('purple-brand','t-shirts',   'Painted Wordmark Tee',      'painted-wordmark-tee',      'Heavyweight cotton tee carrying the flocked wordmark across the chest.', 165.00, null,   22, false),
+  ('purple-brand','hoodies',    'Core Logo Hoodie',          'purple-core-logo-hoodie',   'Loop-back cotton hoodie with the letterspaced logo printed at the chest.', 285.00, null,   11, true),
+  -- Off-White
+  ('off-white','hoodies',    'Diag Arrow Hoodie',      'diag-arrow-hoodie',      'Cotton hoodie carrying the diagonal stripe at the back and the arrows motif at the chest.', 685.00, null,   7,  true),
+  ('off-white','t-shirts',   'Caravaggio Print Tee',   'caravaggio-print-tee',   'Oversized cotton tee with the Renaissance print at the back and quotation-mark lettering at the front.', 395.00, null,   16, false),
+  ('off-white','accessories','Industrial Belt',        'industrial-belt',        'The signature webbing belt in industrial yellow with a metal buckle and keeper.', 245.00, null,   19, false),
+  ('off-white','footwear',   'Out Of Office Sneaker',  'out-of-office-sneaker',  'Low-top leather sneaker with the arrows at the side and a chunky rubber sole.', 540.00, 620.00, 6,  true),
+  -- Casablanca
+  ('casablanca','outerwear', 'Laurel Silk Shirt',      'laurel-silk-shirt',      'Silk twill shirt with the laurel print, camp collar and mother-of-pearl buttons.', 720.00, null,   5,  true),
+  ('casablanca','t-shirts',  'Tennis Club Tee',        'tennis-club-tee',        'Cotton tee with the Tennis Club crest screen-printed at the chest.', 310.00, null,   18, false),
+  ('casablanca','outerwear', 'Monogram Track Jacket',  'monogram-track-jacket',  'Full-zip track jacket in monogram jacquard with contrast piping at the sleeve.', 890.00, 990.00, 4,  false),
+  ('casablanca','footwear',  'Casa Sport Sneaker',     'casa-sport-sneaker',     'Leather and suede low-top on a gum sole, with the monogram at the heel.', 495.00, null,   8,  false)
 ) as v(brand_slug, cat_slug, name, slug, description, price, compare_at, stock, featured)
 join public.brands b     on b.slug = v.brand_slug
 join public.categories c on c.slug = v.cat_slug

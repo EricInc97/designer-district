@@ -6,6 +6,7 @@ import {
   Archivo_Black,
   Pirata_One,
   Permanent_Marker,
+  Bodoni_Moda,
 } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
@@ -40,6 +41,12 @@ const pirataOne = Pirata_One({
   weight: "400",
   display: "swap",
 });
+const bodoni = Bodoni_Moda({
+  variable: "--font-didone",
+  subsets: ["latin"],
+  weight: "500",
+  display: "swap",
+});
 const permanentMarker = Permanent_Marker({
   variable: "--font-marker",
   subsets: ["latin"],
@@ -54,6 +61,7 @@ const fontVars = [
   archivoBlack.variable,
   pirataOne.variable,
   permanentMarker.variable,
+  bodoni.variable,
 ].join(" ");
 
 export const metadata: Metadata = {
