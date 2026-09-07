@@ -48,7 +48,9 @@ insert into public.brands (name, slug, logo_url, description, sort_order) values
   ('Godspeed',      'godspeed',      null, 'New York streetwear with a gothic streak. Religious motifs, boxy cuts and limited drops.', 70),
   ('Purple Brand',  'purple-brand',  null, 'Los Angeles denim label built on premium washes, painted wordmarks and a low-rise silhouette.', 80),
   ('Off-White',     'off-white',     null, 'Virgil Abloh''s Milan house. Helvetica caps, quotation marks and the diagonal crosswalk stripe.', 90),
-  ('Casablanca',    'casablanca',    null, 'Charaf Tajer''s Paris label. Apres-sport luxury in silk, pastel prints and Mediterranean colour.', 100)
+  ('Casablanca',    'casablanca',    null, 'Charaf Tajer''s Paris label. Apres-sport luxury in silk, pastel prints and Mediterranean colour.', 100),
+  ('Ksubi',         'ksubi',         '/brands/ksubi.png', 'Sydney denim house turned Los Angeles. Shredded washes, the scrawled signature and a hard rock-and-roll cut.', 110),
+  ('Essentials',    'essentials',    '/brands/essentials.png', 'Fear of God''s core line. Oversized basics in cement, taupe and bone, with the rubberised logo.', 120)
 on conflict (slug) do update
   set logo_url = excluded.logo_url,
       description = excluded.description,
@@ -109,7 +111,17 @@ from (values
   ('casablanca','outerwear', 'Laurel Silk Shirt',      'laurel-silk-shirt',      'Silk twill shirt with the laurel print, camp collar and mother-of-pearl buttons.', 720.00, null,   5,  true),
   ('casablanca','t-shirts',  'Tennis Club Tee',        'tennis-club-tee',        'Cotton tee with the Tennis Club crest screen-printed at the chest.', 310.00, null,   18, false),
   ('casablanca','outerwear', 'Monogram Track Jacket',  'monogram-track-jacket',  'Full-zip track jacket in monogram jacquard with contrast piping at the sleeve.', 890.00, 990.00, 4,  false),
-  ('casablanca','footwear',  'Casa Sport Sneaker',     'casa-sport-sneaker',     'Leather and suede low-top on a gum sole, with the monogram at the heel.', 495.00, null,   8,  false)
+  ('casablanca','footwear',  'Casa Sport Sneaker',     'casa-sport-sneaker',     'Leather and suede low-top on a gum sole, with the monogram at the heel.', 495.00, null,   8,  false),
+  -- Ksubi
+  ('ksubi','denim',        'Chitch Pure Dynamite Jean', 'chitch-pure-dynamite-jean', 'Slim tapered denim in a hard black wash, with the shredded knee and the scrawled signature at the back pocket.', 295.00, null,   12, true),
+  ('ksubi','denim',        'Van Winkle Vaporize Jean',  'van-winkle-vaporize-jean',  'Relaxed straight leg in a bleached stonewash, heavily abraded and repaired by hand.', 340.00, 395.00, 8,  false),
+  ('ksubi','t-shirts',     'Kash Signature Tee',        'kash-signature-tee',        'Boxy cotton tee with the scrawled logo printed oversized across the chest.', 135.00, null,   24, false),
+  ('ksubi','hoodies',      'Seeing Lines Hoodie',       'seeing-lines-hoodie',       'Heavyweight brushed-back hoodie with the Seeing Lines graphic at the back.', 265.00, null,   10, true),
+  -- Essentials
+  ('essentials','hoodies',     'Pull-Over Logo Hoodie', 'essentials-pull-over-logo-hoodie', 'Oversized cotton-blend hoodie in cement, with the rubberised logo at the chest and a dropped shoulder.', 110.00, null,   38, true),
+  ('essentials','t-shirts',    '3D Silicone Logo Tee',  '3d-silicone-logo-tee',            'Heavyweight jersey tee with the raised silicone logo and a boxy, longline cut.', 70.00,  null,   52, false),
+  ('essentials','outerwear',   'Nylon Coach Jacket',    'essentials-nylon-coach-jacket',   'Water-repellent nylon coach jacket with a snap placket and the flocked logo at the back.', 180.00, 210.00, 16, true),
+  ('essentials','accessories', 'Knit Logo Beanie',      'essentials-knit-logo-beanie',     'Ribbed wool-blend beanie with the woven logo patch at the cuff.', 60.00,  null,   45, false)
 ) as v(brand_slug, cat_slug, name, slug, description, price, compare_at, stock, featured)
 join public.brands b     on b.slug = v.brand_slug
 join public.categories c on c.slug = v.cat_slug

@@ -86,6 +86,9 @@ def main():
     print("chrome-hearts", key_line_art(f"{src}/chrome-hearts.png", "chrome-hearts.png"))
     print("gallery-dept ", key_line_art(f"{src}/gallery-dept.png", "gallery-dept.png",
                                         on_white=True))
+    print("ksubi        ", key_line_art(f"{src}/ksubi.png", "ksubi.png", on_white=True))
+    print("essentials   ", key_line_art(f"{src}/essentials.png", "essentials.png",
+                                        on_white=True))
     # Paper cut: the lettering has to stop being white or it vanishes on the tile.
     print("bape         ", key_palette(f"{src}/bape.png", "bape.png",
                                        [brown, white, tan], remap={white: INK}))

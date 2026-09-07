@@ -186,6 +186,31 @@ export const brandStyles: Record<string, BrandStyle> = {
     },
   },
 
+  // Australian denim, and the mark is a black scrawl, so the colourway is the
+  // stonewash rather than raw indigo: the artwork is ink and needs a light
+  // ground to read on.
+  ksubi: {
+    label: "KSUBI",
+    markClass: "font-[family-name:var(--font-marker)] tracking-[0.02em]",
+    hover: {
+      style: {
+        backgroundImage: "linear-gradient(160deg, #cad7e6 0%, #93a8c6 100%)",
+      },
+      textStyle: { color: "#121820" },
+    },
+  },
+
+  // The house's own cement-and-taupe ground, which its collections are built
+  // on and which the ink lockup sits on cleanly.
+  essentials: {
+    label: ["ESSENTIALS", "FEAR OF GOD"],
+    markClass: "font-[family-name:var(--font-geometric)] tracking-[-0.01em]",
+    hover: {
+      style: { backgroundColor: "#b4a89b" },
+      textStyle: { color: "#141210" },
+    },
+  },
+
   // High-contrast serif with heavy triangular serifs, set in black.
   casablanca: {
     label: "CASABLANCA",

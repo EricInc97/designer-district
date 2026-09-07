@@ -245,10 +245,11 @@ one, and otherwise falls back to a wordmark set in a face matching that house's
 register: geometric oblique for Supreme, condensed block caps for Balenciaga, a
 Didone serif for Amiri and Casablanca, gothic for Godspeed.
 
-Bape, Chrome Hearts and Gallery Dept. have real artwork in `public/brands/`.
+Bape, Chrome Hearts, Gallery Dept., Ksubi and Essentials have real artwork in
+`public/brands/`.
 Each was keyed off the flat ground it was supplied on by
 `scripts/key_brand_logo.py`, so none of them carries a visible box. Line art
-(Chrome Hearts, Gallery Dept.) has its luminance turned into the alpha channel
+(everything but Bape) has its luminance turned into the alpha channel
 and is repainted in ink; the multi-colour Bape lockup is unblended per pixel
 against its own palette, which brings the antialiased edges back as partial
 alpha rather than a dark fringe. Re-run it against new source files to
@@ -263,9 +264,11 @@ lettering on black, which disappears on the paper tile, so there are two files:
 | `bape-on-dark.png` | The camo colourway, via `hover.logoUrl`. Lettering as drawn. |
 
 `BrandMark` takes a `hovered` prop, set by the crossfade layer that sits on the
-colourway, and prefers `hover.logoUrl` when the house defines one. Chrome Hearts
-and Gallery Dept. need only one cut each: their hover grounds (chrome, spattered
-grey) are both light, so the ink artwork reads on either.
+colourway, and prefers `hover.logoUrl` when the house defines one. Bape is the
+only house that needs two cuts so far. **A house whose logo is ink needs a light
+hover ground**, which is why Chrome Hearts got chrome, Gallery Dept. a spattered
+grey, Ksubi a stonewash rather than raw indigo, and Essentials its own cement
+taupe. Pick a dark colourway for one of those and the mark disappears into it.
 
 A `label` array in `brandStyles` is an explicit two-line lockup and each line is
 held together; a plain string label still wraps when a tile is too narrow.
