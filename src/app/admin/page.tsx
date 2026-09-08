@@ -118,7 +118,7 @@ export default async function AdminOverviewPage() {
             value: Number(b.revenue),
             sub: money(b.revenue),
           }))}
-          format={(n) => money(n)}
+          format="money"
           emptyLabel="No sales in this window."
         />
 

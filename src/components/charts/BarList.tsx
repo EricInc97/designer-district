@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { money } from "@/lib/format";
 
 export type BarDatum = { label: string; value: number; sub?: string };
 
@@ -13,15 +14,21 @@ export type BarDatum = { label: string; value: number; sub?: string };
 export default function BarList({
   title,
   data,
-  format = (n) => n.toLocaleString(),
+  format = "number",
   emptyLabel = "No data yet.",
 }: {
   title: string;
   data: BarDatum[];
-  format?: (n: number) => string;
+  /**
+   * A named variant rather than a formatter function. This is a client
+   * component, and a function cannot cross the server boundary: passing one
+   * from a server page throws at render, not at build.
+   */
+  format?: "number" | "money";
   emptyLabel?: string;
 }) {
   const [hover, setHover] = useState<number | null>(null);
+  const render = (n: number) => (format === "money" ? money(n) : n.toLocaleString());
   const max = Math.max(...data.map((d) => d.value), 1);
 
   return (
@@ -47,7 +54,7 @@ export default function BarList({
                   className="shrink-0 text-sm text-ink-dim"
                   style={{ fontVariantNumeric: "tabular-nums" }}
                 >
-                  {format(d.value)}
+                  {render(d.value)}
                 </span>
               </div>
 
