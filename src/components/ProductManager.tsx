@@ -1,13 +1,15 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { ExternalLink, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import Link from "next/link";
 import {
   saveProduct,
   togglePublished,
   deleteProduct,
   type AdminResult,
 } from "@/app/admin/actions";
+import ProductImageUploader from "@/components/ProductImageUploader";
 import { money } from "@/lib/format";
 import type { Brand, Category, Product } from "@/lib/types";
 
@@ -31,6 +33,9 @@ export default function ProductManager({ products, brands, categories, can }: Pr
 
   const draft = editing ?? null;
   const formOpen = creating || editing !== null;
+
+  const brandName = (id: string) =>
+    brands.find((b) => b.id === id)?.name ?? "Unassigned";
 
   function close() {
     setCreating(false);
@@ -85,6 +90,15 @@ export default function ProductManager({ products, brands, categories, can }: Pr
           </div>
 
           {draft && <input type="hidden" name="id" value={draft.id} />}
+
+          {/* Assigned by the database on insert, off a sequence, so it is shown
+              rather than edited. */}
+          <p className="mt-4 text-xs text-ink-faint">
+            Item number{" "}
+            <span className="font-mono text-ink">
+              {draft?.sku ?? "assigned on save"}
+            </span>
+          </p>
 
           <div className="mt-6 grid gap-5 sm:grid-cols-2">
             <div className="sm:col-span-2">
@@ -197,15 +211,9 @@ export default function ProductManager({ products, brands, categories, can }: Pr
             </div>
 
             <div className="sm:col-span-2">
-              <label htmlFor="image_url" className="eyebrow">
-                Image URL
-              </label>
-              <input
-                id="image_url"
-                name="image_url"
-                defaultValue={draft?.image_url ?? ""}
-                placeholder="Leave blank to auto-generate a placeholder"
-                className={inputClass}
+              <ProductImageUploader
+                imageUrl={draft?.image_url ?? null}
+                gallery={draft?.gallery ?? null}
               />
             </div>
 
@@ -303,6 +311,11 @@ export default function ProductManager({ products, brands, categories, can }: Pr
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm">{product.name}</p>
               <p className="mt-0.5 text-xs text-ink-faint">
+                <span className="font-mono">{product.sku}</span>
+                {" · "}
+                {brandName(product.brand_id)}
+              </p>
+              <p className="mt-0.5 text-xs text-ink-faint">
                 {money(product.price)} ·{" "}
                 <span className={product.stock_count <= 3 ? "text-danger" : ""}>
                   {product.stock_count} in stock
@@ -322,6 +335,17 @@ export default function ProductManager({ products, brands, categories, can }: Pr
             </span>
 
             <div className="flex shrink-0 items-center gap-2">
+              {product.is_published && (
+                <Link
+                  href={`/products/${product.id}`}
+                  target="_blank"
+                  aria-label={`View ${product.name} on the storefront`}
+                  className="grid h-8 w-8 place-items-center rounded-full text-ink-faint transition-colors hover:bg-paper-sunken hover:text-ink"
+                >
+                  <ExternalLink size={14} aria-hidden />
+                </Link>
+              )}
+
               {can.publish && (
                 <form action={togglePublished}>
                   <input type="hidden" name="id" value={product.id} />

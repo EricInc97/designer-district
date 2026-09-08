@@ -43,8 +43,9 @@ not by key secrecy. `.env.local` is gitignored.
 |---|---|
 | `supabase/01_schema.sql` | Tables, enums, triggers, the recommendation, checkout, refund and analytics functions |
 | `supabase/02_rls.sql` | Row-level security on every table, the privilege guards, and realtime for live chat |
-| `supabase/03_seed.sql` | The scope catalogue, 6 brands, 6 categories and 24 products |
+| `supabase/03_seed.sql` | The scope catalogue, 12 brands, 6 categories and 48 products |
 | `supabase/04_hardening.sql` | Revokes RPC access to trigger functions, closes the write RPCs to anon, moves `pg_trgm` out of `public` |
+| `supabase/05_product_media.sql` | Item numbers (the `sku` column, its sequence and trigger) and the `product-images` storage bucket with its policies |
 
 ### 4. Make yourself master admin
 
@@ -183,7 +184,7 @@ src/
   lib/                          supabase clients, auth, tracking, formatting
   store/cart.ts                 zustand cart (localStorage-persisted)
   proxy.ts                      session refresh + route gating
-supabase/                       01_schema · 02_rls · 03_seed
+supabase/                       01_schema · 02_rls · 03_seed · 04_hardening · 05_product_media
 ```
 
 ## Theming
@@ -296,12 +297,60 @@ wholesale account. To add one: drop the file at `public/brands/<slug>.<ext>`,
 set that brand's `logo_url`, and add a `hover.logoUrl` cut if the artwork was
 drawn for the opposite ground. No code change either way.
 
+## Adding products
+
+`/admin/products` is the whole loop: photography, price, brand, description,
+stock. It needs the `products.manage` scope, which `master_admin` holds
+implicitly.
+
+**Photographs go straight from the browser to Supabase Storage**, never through
+the server action. A server action body is capped at 1MB by default and product
+photography passes that immediately, so `<ProductImageUploader />` uploads to
+the `product-images` bucket and submits only the resulting public URLs, in two
+hidden fields. The first image is `image_url`, the one the storefront leads
+with; the rest become `gallery`, and the product page shows them as thumbnails.
+
+The bucket is public, because product photography is public by definition and a
+public bucket means `<img src>` works with no signing round-trip. Writing is a
+different matter: the bucket's RLS policies gate insert, update and delete on
+`has_scope('products.manage')`, the same scope that gates editing the product
+row. The component being on screen is never what grants the upload. Files are
+capped at 5MB and limited to PNG, JPEG, WebP and AVIF by the bucket itself.
+
+Removing an image only detaches it, unless this editing session uploaded it, in
+which case the file is binned too. An image the product arrived with may be
+referenced somewhere the form cannot see.
+
+### Item numbers
+
+Every product carries one, in the form `DD-BAP-00042`: the house's code taken
+from its slug, then a counter. It is assigned by a database trigger off a
+sequence, not by the application, so two people saving at the same moment cannot
+land on the same number, and a product created by the seed file gets one exactly
+like a product created through the form. The column is `not null` with a unique
+index.
+
+Gaps are normal and expected. A rejected insert still consumes a sequence value,
+because the trigger runs before the RLS check that turns it down. An item number
+is an identifier, not a count.
+
+The number shows in the admin list, in the editor, and on the product page, so a
+shopper can quote it back on a support ticket.
+
+### Where a saved product goes
+
+The storefront has no "all products" route by design: a product is reachable
+only through its house. Saving therefore rebuilds `/brands/<slug>` as well as
+`/`, `/brands`, `/search` and the product's own page, and the success message
+names both the item number and the brand it landed under. An unpublished product
+is saved but stays out of all of them.
+
 ## Replacing the placeholder imagery
 
-Seeded products point at `/ph/<slug>`, a route that renders a deterministic SVG.
-Real product photography and brand logos are licensed assets, so nothing is
-hotlinked. Point `products.image_url` / `brands.logo_url` at your own CDN or a
-Supabase Storage bucket and the route simply stops being called.
+Products with no uploaded photograph fall back to `/ph/<slug>`, a route that
+renders a deterministic SVG, so the grid never has holes in it. Uploading an
+image through `/admin/products` replaces it; the route simply stops being called
+for that product.
 
 ## Deploying to Vercel
 

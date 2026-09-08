@@ -135,7 +135,7 @@ export default async function ProductPage({ params }: Props) {
               )}
             </div>
 
-            <p className="mt-3 text-xs uppercase tracking-[0.18em]">
+            <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs uppercase tracking-[0.18em]">
               {product.stock_count === 0 ? (
                 <span className="text-ink-faint">Sold out</span>
               ) : product.stock_count <= 3 ? (
@@ -144,6 +144,12 @@ export default async function ProductPage({ params }: Props) {
                 </span>
               ) : (
                 <span className="text-success">In stock</span>
+              )}
+              {/* The item number, so a shopper can quote it back on a ticket. */}
+              {product.sku && (
+                <span className="font-mono normal-case tracking-normal text-ink-faint">
+                  {product.sku}
+                </span>
               )}
             </p>
 

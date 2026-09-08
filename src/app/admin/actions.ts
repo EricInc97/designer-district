@@ -18,9 +18,23 @@ const slugify = (s: string) =>
     .replace(/^-+|-+$/g, "")
     .slice(0, 60);
 
+/** The uploader submits the gallery as JSON; anything else is treated as empty. */
+function parseGallery(raw: FormDataEntryValue | null): string[] {
+  if (typeof raw !== "string" || !raw.trim()) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((u): u is string => typeof u === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Create or update a product. RLS enforces products.manage, this never
  * second-guesses it, it just surfaces the database's answer.
+ *
+ * The item number is not set here: a trigger assigns it on insert, off a
+ * sequence, so two people saving at once cannot collide on one.
  */
 export async function saveProduct(
   _prev: AdminResult,
@@ -44,6 +58,13 @@ export async function saveProduct(
     .map((s) => s.trim().toUpperCase())
     .filter(Boolean);
 
+  const imageUrl = text(formData, "image_url");
+  // The main image is stored in image_url; keeping a copy in the gallery would
+  // show it twice on the product page.
+  const gallery = parseGallery(formData.get("gallery")).filter(
+    (u) => u !== imageUrl,
+  );
+
   const payload = {
     name,
     brand_id: brandId,
@@ -53,7 +74,8 @@ export async function saveProduct(
     compare_at_price: formData.get("compare_at_price")
       ? Number(formData.get("compare_at_price"))
       : null,
-    image_url: text(formData, "image_url") ?? `/ph/${slugify(name)}`,
+    image_url: imageUrl ?? `/ph/${slugify(name)}`,
+    gallery,
     sizes: sizes.length > 0 ? sizes : ["S", "M", "L", "XL"],
     stock_count: Math.max(0, Number(formData.get("stock_count")) || 0),
     is_published: formData.get("is_published") === "on",
@@ -61,17 +83,42 @@ export async function saveProduct(
     updated_at: new Date().toISOString(),
   };
 
-  const { error } = id
-    ? await supabase.from("products").update(payload).eq("id", id)
+  const { data: saved, error } = id
+    ? await supabase
+        .from("products")
+        .update(payload)
+        .eq("id", id)
+        .select("id, sku")
+        .single()
     : await supabase
         .from("products")
-        .insert({ ...payload, slug: `${slugify(name)}-${Date.now().toString(36)}` });
+        .insert({ ...payload, slug: `${slugify(name)}-${Date.now().toString(36)}` })
+        .select("id, sku")
+        .single();
 
   if (error) return { ok: false, message: error.message };
 
+  // A product is only reachable through its house, so the brand page is the
+  // one that has to be rebuilt for it to appear on the storefront at all.
+  const { data: brand } = await supabase
+    .from("brands")
+    .select("slug")
+    .eq("id", brandId)
+    .single();
+
   revalidatePath("/admin/products");
   revalidatePath("/");
-  return { ok: true, message: id ? "Product updated." : "Product created." };
+  revalidatePath("/brands");
+  revalidatePath("/search");
+  if (brand?.slug) revalidatePath(`/brands/${brand.slug}`);
+  if (saved?.id) revalidatePath(`/products/${saved.id}`);
+
+  return {
+    ok: true,
+    message: id
+      ? `Saved. Item ${saved?.sku ?? ""} is live under ${brand?.slug ?? "its brand"}.`
+      : `Created as item ${saved?.sku ?? ""}, filed under ${brand?.slug ?? "its brand"}.`,
+  };
 }
 
 /** Publish toggle, split out so it can be granted separately from editing. */

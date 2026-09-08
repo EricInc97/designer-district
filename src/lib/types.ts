@@ -28,6 +28,7 @@ export type Product = {
   id: string;
   brand_id: string;
   category_id: string | null;
+  sku: string;
   name: string;
   slug: string | null;
   description: string | null;

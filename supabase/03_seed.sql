@@ -57,6 +57,9 @@ on conflict (slug) do update
       sort_order = excluded.sort_order;
 
 -- ---------------- PRODUCTS ----------------
+-- No sku column here on purpose: 05_product_media.sql installs a trigger that
+-- assigns the item number off a sequence, for seeded and admin-created rows
+-- alike.
 insert into public.products
   (brand_id, category_id, name, slug, description, price, compare_at_price, image_url, sizes, stock_count, is_published, is_featured)
 select b.id, c.id, v.name, v.slug, v.description, v.price, v.compare_at, '/ph/' || v.slug,
