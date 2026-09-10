@@ -9,6 +9,7 @@ import {
   deleteProduct,
   type AdminResult,
 } from "@/app/admin/actions";
+import ProductImage from "@/components/ProductImage";
 import ProductImageUploader from "@/components/ProductImageUploader";
 import { money } from "@/lib/format";
 import type { Brand, Category, Product } from "@/lib/types";
@@ -72,7 +73,12 @@ export default function ProductManager({ products, brands, categories, can }: Pr
       {formOpen && (
         <form
           action={submit}
-          key={draft?.id ?? "new"}
+          // Remounting on the id of the last successful create is what clears
+          // the form, the image uploader included, before the next product.
+          // Without it "New product" reuses the same key, React keeps the
+          // subtree, and the previous product's photographs are still attached.
+          // A failed save leaves savedId untouched, so the typing survives.
+          key={draft?.id ?? `new-${state?.savedId ?? "blank"}`}
           className="rounded-xl border border-rule bg-paper-raised p-6 animate-fade-in"
         >
           <div className="flex items-center justify-between">
@@ -301,9 +307,9 @@ export default function ProductManager({ products, brands, categories, can }: Pr
             key={product.id}
             className="flex flex-wrap items-center gap-4 bg-paper-raised px-5 py-4"
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={product.image_url ?? "/ph/product"}
+            <ProductImage
+              src={product.image_url}
+              slug={product.slug}
               alt=""
               className="h-16 w-14 shrink-0 rounded-md object-cover bg-paper-sunken"
             />

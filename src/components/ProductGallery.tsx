@@ -1,13 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import ProductImage from "@/components/ProductImage";
 
 export default function ProductGallery({
   images,
   alt,
+  slug,
 }: {
   images: string[];
   alt: string;
+  slug?: string | null;
 }) {
   const [active, setActive] = useState(0);
   const shots = images.length > 0 ? images : ["/ph/product"];
@@ -29,8 +32,12 @@ export default function ProductGallery({
                     : "border-rule hover:border-rule-strong"
                 }`}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={src} alt="" className="h-full w-full object-cover" />
+                <ProductImage
+                  src={src}
+                  slug={slug}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
               </button>
             </li>
           ))}
@@ -38,10 +45,10 @@ export default function ProductGallery({
       )}
 
       <div className="flex-1 overflow-hidden rounded-xl bg-paper-sunken">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+        <ProductImage
           key={shots[active]}
           src={shots[active]}
+          slug={slug}
           alt={alt}
           className="aspect-[4/5] w-full object-cover animate-fade-in"
         />

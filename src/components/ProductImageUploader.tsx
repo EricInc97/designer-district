@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { ImagePlus, Loader2, Star, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import ProductImage from "@/components/ProductImage";
 
 const BUCKET = "product-images";
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -40,9 +41,6 @@ export default function ProductImageUploader({
   const [images, setImages] = useState<string[]>(() => [
     ...new Set([imageUrl, ...(gallery ?? [])].filter((u): u is string => isUploaded(u))),
   ]);
-  // Anything added in this session can be cleaned up if it is removed again;
-  // anything that arrived with the product is only ever detached.
-  const [added, setAdded] = useState<string[]>([]);
   const [pending, setPending] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -75,21 +73,23 @@ export default function ProductImageUploader({
       setImages((prev) =>
         prev.includes(data.publicUrl) ? prev : [...prev, data.publicUrl],
       );
-      setAdded((prev) => [...prev, data.publicUrl]);
       setPending((n) => n - 1);
     }
   }
 
-  async function remove(url: string) {
+  /**
+   * Detaches the image from this product. It deliberately does NOT delete the
+   * file from storage.
+   *
+   * An earlier version binned anything uploaded in the same session, on the
+   * theory that removing a fresh upload was undoing a mistake. That was wrong:
+   * a session spans more than one product, so the file being removed could
+   * already be the saved photograph of a product created a minute ago, and
+   * deleting it left that row pointing at nothing. An unreferenced file costs
+   * a few kilobytes; a destroyed photograph cannot be recovered.
+   */
+  const remove = (url: string) =>
     setImages((prev) => prev.filter((u) => u !== url));
-
-    // Only bin the file if this session put it there. An image the product
-    // arrived with might be referenced somewhere this form cannot see.
-    if (!added.includes(url)) return;
-    setAdded((prev) => prev.filter((u) => u !== url));
-    const path = url.split(`/${BUCKET}/`)[1];
-    if (path) await createClient().storage.from(BUCKET).remove([path]);
-  }
 
   const makePrimary = (url: string) =>
     setImages((prev) => [url, ...prev.filter((u) => u !== url)]);
@@ -108,8 +108,7 @@ export default function ProductImageUploader({
             key={url}
             className="group relative h-28 w-24 overflow-hidden rounded-lg border border-rule bg-paper-sunken"
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={url} alt="" className="h-full w-full object-cover" />
+            <ProductImage src={url} alt="" className="h-full w-full object-cover" />
 
             {i === 0 && (
               <span className="absolute inset-x-0 top-0 bg-ink/80 py-1 text-center text-[9px] uppercase tracking-[0.16em] text-paper">

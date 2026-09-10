@@ -4,7 +4,13 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { UserRole } from "@/lib/types";
 
-export type AdminResult = { ok: boolean; message: string } | null;
+export type AdminResult = {
+  ok: boolean;
+  message: string;
+  /** Set on a successful product save. The editor keys the "new" form on it,
+   *  so creating one product cannot leak its state into the next. */
+  savedId?: string;
+} | null;
 
 const text = (fd: FormData, key: string) => {
   const v = fd.get(key);
@@ -115,6 +121,7 @@ export async function saveProduct(
 
   return {
     ok: true,
+    savedId: saved?.id,
     message: id
       ? `Saved. Item ${saved?.sku ?? ""} is live under ${brand?.slug ?? "its brand"}.`
       : `Created as item ${saved?.sku ?? ""}, filed under ${brand?.slug ?? "its brand"}.`,

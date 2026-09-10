@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { money } from "@/lib/format";
 import AddToCartButton from "@/components/AddToCartButton";
+import ProductImage from "@/components/ProductImage";
 import type { ProductWithBrand } from "@/lib/types";
 
 type Props = {
@@ -24,11 +25,10 @@ export default function ProductCard({ product, brandName, showBrand = true }: Pr
         className="relative block overflow-hidden rounded-lg bg-paper-sunken"
       >
         <div className="aspect-[4/5] overflow-hidden">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={product.image_url ?? `/ph/${product.slug ?? "product"}`}
+          <ProductImage
+            src={product.image_url}
+            slug={product.slug}
             alt={product.name}
-            loading="lazy"
             className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]"
           />
         </div>
