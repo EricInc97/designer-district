@@ -25,10 +25,15 @@ on conflict (key) do update
       sort_order = excluded.sort_order;
 
 -- ---------------- CATEGORIES ----------------
+-- Listed alphabetically wherever they are shown, so the order here is only
+-- the order they are created in.
 insert into public.categories (name, slug) values
   ('Hoodies',     'hoodies'),
   ('T-Shirts',    't-shirts'),
+  ('Polo Shirts', 'polo-shirts'),
+  ('Shirts',      'shirts'),
   ('Outerwear',   'outerwear'),
+  ('Bottoms',     'bottoms'),
   ('Denim',       'denim'),
   ('Accessories', 'accessories'),
   ('Footwear',    'footwear')
@@ -57,6 +62,11 @@ on conflict (slug) do update
       sort_order = excluded.sort_order;
 
 -- ---------------- PRODUCTS ----------------
+-- DEMO DATA, for a fresh project only. On a store that already has a real
+-- catalog this re-inserts 48 products that are not yours; the brands and
+-- categories above are safe to re-run, this block is not. Skip it, or clear the
+-- catalog first if that is genuinely what you want.
+--
 -- No sku column here on purpose: 05_product_media.sql installs a trigger that
 -- assigns the item number off a sequence, for seeded and admin-created rows
 -- alike.

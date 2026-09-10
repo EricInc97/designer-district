@@ -43,7 +43,7 @@ not by key secrecy. `.env.local` is gitignored.
 |---|---|
 | `supabase/01_schema.sql` | Tables, enums, triggers, the recommendation, checkout, refund and analytics functions |
 | `supabase/02_rls.sql` | Row-level security on every table, the privilege guards, and realtime for live chat |
-| `supabase/03_seed.sql` | The scope catalogue, 12 brands, 6 categories and 48 products |
+| `supabase/03_seed.sql` | The scope catalogue, 12 brands, 9 categories and 48 demo products |
 | `supabase/04_hardening.sql` | Revokes RPC access to trigger functions, closes the write RPCs to anon, moves `pg_trgm` out of `public` |
 | `supabase/05_product_media.sql` | Item numbers (the `sku` column, its sequence and trigger) and the `product-images` storage bucket with its policies |
 
