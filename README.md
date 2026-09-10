@@ -311,15 +311,21 @@ hidden fields. The first image is `image_url`, the one the storefront leads
 with; the rest become `gallery`, and the product page shows them as thumbnails.
 
 The bucket is public, because product photography is public by definition and a
-public bucket means `<img src>` works with no signing round-trip. Writing is a
-different matter: the bucket's RLS policies gate insert, update and delete on
-`has_scope('products.manage')`, the same scope that gates editing the product
-row. The component being on screen is never what grants the upload. Files are
+public bucket means `<img src>` works with no signing round-trip. Uploading is
+gated on `has_scope('products.manage')`, the same scope that gates editing the
+product row, so the component being on screen is never what grants it. Files are
 capped at 5MB and limited to PNG, JPEG, WebP and AVIF by the bucket itself.
 
-Removing an image only detaches it, unless this editing session uploaded it, in
-which case the file is binned too. An image the product arrived with may be
-referenced somewhere the form cannot see.
+**Nothing can delete or overwrite an object**, by design: the bucket has no
+update or delete policy. Removing an image in the editor only detaches it from
+the product. An unreferenced file costs a few kilobytes; a destroyed photograph
+cannot be recovered, and an earlier build that tried to be tidy about it
+deleted photographs that saved products were still pointing at. Cleaning up
+orphans is a dashboard or service-role job.
+
+Because a file can still go missing by other means, `<ProductImage />` falls
+back to the generated `/ph/` placeholder on error rather than letting the
+browser draw a broken-image icon.
 
 ### Item numbers
 

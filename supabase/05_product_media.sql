@@ -105,13 +105,17 @@ create policy product_images_insert on storage.objects
   for insert to authenticated
   with check (bucket_id = 'product-images' and public.has_scope('products.manage'));
 
-drop policy if exists product_images_update on storage.objects;
-create policy product_images_update on storage.objects
-  for update to authenticated
-  using (bucket_id = 'product-images' and public.has_scope('products.manage'))
-  with check (bucket_id = 'product-images' and public.has_scope('products.manage'));
-
-drop policy if exists product_images_delete on storage.objects;
-create policy product_images_delete on storage.objects
-  for delete to authenticated
-  using (bucket_id = 'product-images' and public.has_scope('products.manage'));
+-- No update or delete policy, deliberately.
+--
+-- Every upload takes a fresh uuid path, so nothing legitimately overwrites an
+-- existing object, and nothing in the app needs to delete one: deleting a
+-- product removes the row and leaves the file, and the uploader only detaches
+-- an image from a product.
+--
+-- An earlier build of the uploader did delete, and destroyed photographs that
+-- saved products were still pointing at. Withholding the permission here is
+-- what actually prevents that, because it holds for every client already
+-- deployed rather than depending on shipping new JavaScript. Housekeeping of
+-- unreferenced files is a dashboard or service-role job, both of which bypass
+-- RLS; note that Postgres also blocks deleting from storage.objects directly,
+-- so it has to go through the Storage API.
