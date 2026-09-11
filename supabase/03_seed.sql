@@ -40,12 +40,16 @@ insert into public.categories (name, slug) values
 on conflict (slug) do nothing;
 
 -- ---------------- BRANDS ----------------
--- logo_url is the house's own mark. Where it is null, BrandMark falls back to
+-- logo_url is the house's own mark. The paths below are the copies in
+-- public/brands, which only exist once the app is deployed; a live store can
+-- instead point at the brand-logos bucket from 06_brand_logos.sql, which is
+-- swappable without a deploy. Re-running this block resets that.
+-- Where it is null, BrandMark falls back to
 -- a wordmark set in a lookalike face. Drop an asset at public/brands/<slug>.<ext>
 -- and point this column at '/brands/<slug>.<ext>' to use the real one.
 insert into public.brands (name, slug, logo_url, description, sort_order) values
   ('Bape',          'bape',          '/brands/bape.png', 'A Bathing Ape. Ura-Harajuku camo, shark hoodies and 1st Camo since 1993.', 10),
-  ('Chrome Hearts', 'chrome-hearts', '/brands/chrome-hearts.png', 'Hollywood-born sterling silver, leather and gothic cross motifs.',          20),
+  ('Chrome Hearts', 'chrome-hearts', '/brands/chrome-hearts.svg', 'Hollywood-born sterling silver, leather and gothic cross motifs.',          20),
   ('Supreme',       'supreme',       null, 'The downtown New York box logo. Skate, art and weekly drops since 1994.',   30),
   ('Amiri',         'amiri',         null, 'Mike Amiri''s Los Angeles house. Rock-and-roll tailoring, hand-distressed denim and bone-and-black restraint.', 40),
   ('Balenciaga',    'balenciaga',    null, 'The Paris house rebuilt around utility. Condensed logo type, exaggerated volume and the sneaker that started it.', 50),

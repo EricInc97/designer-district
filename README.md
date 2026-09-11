@@ -45,6 +45,7 @@ not by key secrecy. `.env.local` is gitignored.
 | `supabase/02_rls.sql` | Row-level security on every table, the privilege guards, and realtime for live chat |
 | `supabase/03_seed.sql` | The scope catalogue, 12 brands, 9 categories and 48 demo products |
 | `supabase/04_hardening.sql` | Revokes RPC access to trigger functions, closes the write RPCs to anon, moves `pg_trgm` out of `public` |
+| `supabase/06_brand_logos.sql` | The `brand-logos` bucket, so a brand mark can be swapped without a deploy |
 | `supabase/05_product_media.sql` | Item numbers (the `sku` column, its sequence and trigger) and the `product-images` storage bucket with its policies |
 
 ### 4. Make yourself master admin
@@ -247,7 +248,11 @@ register: geometric oblique for Supreme, condensed block caps for Balenciaga, a
 Didone serif for Amiri and Casablanca, gothic for Godspeed.
 
 Bape, Chrome Hearts, Gallery Dept., Ksubi and Essentials have real artwork in
-`public/brands/`.
+`public/brands/`. Chrome Hearts is a true vector: the supplied line art was
+traced to Bezier paths with potrace (`potracer`, the pure-Python port) at 3x,
+so the blackletter stays sharp at any size instead of softening the way the
+210px raster it replaced did. The other four are rasters keyed off their
+ground.
 Each was keyed off the flat ground it was supplied on by
 `scripts/key_brand_logo.py`, so none of them carries a visible box. Line art
 (everything but Bape) has its luminance turned into the alpha channel
