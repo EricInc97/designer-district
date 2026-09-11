@@ -6,6 +6,7 @@ import { supabaseConfigured } from "@/lib/supabase/config";
 import SetupNotice from "@/components/SetupNotice";
 import ProductCard from "@/components/ProductCard";
 import BrandMark from "@/components/BrandMark";
+import { styleFor } from "@/lib/brandStyles";
 import RecommendationRail from "@/components/RecommendationRail";
 import type { Brand, ProductWithBrand } from "@/lib/types";
 
@@ -119,8 +120,19 @@ export default async function BrandPage({ params, searchParams }: Props) {
           </nav>
 
           <div className="flex flex-col gap-8 sm:flex-row sm:items-center">
-            <div className="flex w-full max-w-xs shrink-0 items-center justify-center rounded-xl border border-rule bg-paper-raised px-6 py-10">
-              <BrandMark brand={brand} size="lg" decorative />
+            {/* The house colourway, the same ground the tile crossfades to on
+                the homepage, rather than a neutral panel. `hovered` goes with
+                it so a mark drawn for a dark ground gets its own cut. */}
+            <div
+              className="flex w-full max-w-xs shrink-0 items-center justify-center overflow-hidden rounded-xl border border-rule px-6 py-10"
+              style={styleFor(brand.slug).hover.style}
+            >
+              <span
+                className="flex items-center justify-center"
+                style={styleFor(brand.slug).hover.textStyle}
+              >
+                <BrandMark brand={brand} size="lg" decorative hovered className="!text-current" />
+              </span>
             </div>
 
             <div className="min-w-0">
