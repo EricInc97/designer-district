@@ -289,11 +289,19 @@ containing block for fixed-position descendants, so an un-portalled
 `fixed inset-0` resolves against the 64px header instead of the viewport and the
 panel collapses to the height of its own title bar.
 
-On hover, a tile or menu row crossfades to that house's own colourway, built
-entirely from CSS gradients: Bape's camo, Supreme's red box, Chrome Hearts'
-chrome, Balenciaga's flat black, Amiri's bone, Gallery Dept's spattered studio
-floor, Godspeed's votive gold, Off-White's crosswalk. See `hover` in
+Every tile carries its house's own colourway as its ground, built entirely from
+CSS gradients: Bape's camo, Supreme's red box, Chrome Hearts' chrome,
+Balenciaga's flat black, Amiri's bone, Gallery Dept's spattered studio floor,
+Godspeed's votive gold, Off-White's crosswalk. See `hover` in
 `src/lib/brandStyles.ts`.
+
+The colourway used to be a hover reveal crossfading up from a cream panel, which
+meant a touch device, where nothing hovers, saw a different page from a desktop.
+The touch version was the one that read better, so it is the one that stayed:
+the ground is always the house's and hover is a small lift of the mark. Menu
+rows still crossfade, because twelve saturated rows in a list is a different
+proposition from twelve tiles in a grid, and that is what the
+`@media (hover: none)` rule in `globals.css` is still there for.
 
 **The wordmarks are still stand-ins.** Houses without a file in
 `public/brands/` are set in lookalike faces, not their real marks. Every brand's
