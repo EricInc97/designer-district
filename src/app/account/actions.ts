@@ -125,3 +125,29 @@ export async function signOut() {
   await supabase.auth.signOut();
   redirect("/");
 }
+
+/**
+ * Records a personalisation decision.
+ *
+ * Writing the column is what matters: a trigger on profiles turns a decline
+ * into an actual erasure, dropping the buyer profile and detaching the
+ * behaviour behind it. The cookie the banner also sets is only so the tracker
+ * can answer the question without a round trip.
+ */
+export async function setPersonalisationConsent(granted: boolean) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  // Anonymous visitors get the cookie and nothing else; there is no profile to
+  // attach a decision to until they sign in.
+  if (!user) return;
+
+  await supabase
+    .from("profiles")
+    .update({ personalisation_consent: granted })
+    .eq("id", user.id);
+
+  revalidatePath("/account");
+}

@@ -14,6 +14,7 @@ import Footer from "@/components/Footer";
 import CartDrawer from "@/components/CartDrawer";
 import RecommendationPopup from "@/components/RecommendationPopup";
 import Splash from "@/components/Splash";
+import ConsentBanner from "@/components/ConsentBanner";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -95,6 +96,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           }}
         />
         <Splash />
+        <ConsentBanner />
         <Navbar />
         <main className="flex-1">{children}</main>
         <Footer />

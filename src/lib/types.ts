@@ -64,6 +64,8 @@ export type Profile = {
   store_credit: number;
   created_at: string;
   updated_at: string;
+  personalisation_consent: boolean | null;
+  consent_updated_at: string | null;
 };
 
 export type AppScope = {
@@ -159,6 +161,34 @@ export type Analytics = {
   top_brands: { brand_name: string; revenue: number }[];
   top_searches: { term: string; n: number }[];
   revenue_series: { day: string; revenue: number }[];
+};
+
+export type BuyerProfileRow = {
+  user_id: string;
+  segment: string;
+  segment_confidence: number | string;
+  views_90d: number;
+  searches_90d: number;
+  orders_lifetime: number;
+  distinct_brands: number;
+  distinct_categories: number;
+  top_brand_id: string | null;
+  top_brand_share: number | string;
+  top_category_id: string | null;
+  top_category_share: number | string;
+  avg_viewed_price: number | string;
+  max_viewed_price: number | string;
+  price_band: string;
+  sale_affinity: number | string;
+  primary_country: string | null;
+  primary_region: string | null;
+  primary_city: string | null;
+  first_seen_at: string | null;
+  last_seen_at: string | null;
+  computed_at: string;
+  profiles: { email: string | null; full_name: string | null } | null;
+  brands: { name: string; slug: string } | null;
+  categories: { name: string } | null;
 };
 
 /** Minimal shape so `createClient<Database>()` stays generic-friendly. */

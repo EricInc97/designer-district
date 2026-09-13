@@ -1,6 +1,7 @@
 "use client";
 
 import { SESSION_COOKIE } from "@/lib/constants";
+import { readConsent } from "@/lib/consent";
 
 /**
  * Client-side behaviour tracking. Every event carries the anonymous session id
@@ -26,6 +27,11 @@ type TrackBody =
   | { type: "view"; productId: string; source?: string };
 
 function send(body: TrackBody) {
+  // The banner is not decoration: a decline stops the event at the source,
+  // before anything leaves the browser. The server checks again, because a
+  // cookie is the client's word for it.
+  if (readConsent() === "denied") return;
+
   const payload = JSON.stringify({ ...body, sessionId: getSessionId() });
 
   // keepalive so the event survives the navigation that usually follows it.

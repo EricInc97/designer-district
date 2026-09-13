@@ -20,6 +20,11 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
       label: "Products",
       show: staff.can("products.view") || staff.can("products.manage"),
     },
+    {
+      href: "/admin/audience",
+      label: "Audience",
+      show: staff.can("customers.view"),
+    },
     { href: "/admin/tickets", label: "Tickets", show: staff.can("tickets.view") },
     { href: "/admin/staff", label: "Staff", show: staff.isMaster },
   ].filter((l) => l.show);

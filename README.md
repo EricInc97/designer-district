@@ -45,6 +45,7 @@ not by key secrecy. `.env.local` is gitignored.
 | `supabase/02_rls.sql` | Row-level security on every table, the privilege guards, and realtime for live chat |
 | `supabase/03_seed.sql` | The scope catalogue, 12 brands, 9 categories and 48 demo products |
 | `supabase/04_hardening.sql` | Revokes RPC access to trigger functions, closes the write RPCs to anon, moves `pg_trgm` out of `public` |
+| `supabase/07_buyer_profiles.sql` | Personalisation consent, request-geo columns, the `buyer_profiles` table and the classifier behind it |
 | `supabase/06_brand_logos.sql` | The `brand-logos` bucket, so a brand mark can be swapped without a deploy |
 | `supabase/05_product_media.sql` | Item numbers (the `sku` column, its sequence and trigger) and the `product-images` storage bucket with its policies |
 
@@ -122,32 +123,91 @@ created by the person who owns the email address.
 
 ## The recommendation algorithm
 
-`public.recommend_products(session_id, user_id, limit)` scores every published,
-in-stock product against the visitor's recent behaviour:
+Two memories, added together in `public.recommend_products()`.
 
-| Weight | Signal |
+**Short memory** is the browser session: brand and category affinity from the
+last 100 views, search terms, and a log-damped popularity term. It works before
+anyone signs in, which is the point of it.
+
+**Long memory** is the buyer profile, and only exists for a signed-in customer
+who opted in. It survives a cleared cookie and follows them to a second device,
+which is the whole reason it is keyed on the account rather than the session.
+
+| Term | Weight |
 |---|---|
-| ×3.0 | **Brand affinity**, brands whose products they viewed |
-| ×2.0 | **Category affinity**, categories they viewed |
-| ×2.5 | **Search-term match**, their last 20 queries against name, description and brand |
-| ×0.5 | **Popularity**, views in the last 30 days, `ln`-damped so hits don't dominate |
+| Session brand affinity | 3.0 x views |
+| Session category affinity | 2.0 x views |
+| Search term match | 2.5 x matches |
+| Popularity, 30 days | 0.5 x ln(1+n) |
+| Profile's favoured house | 4.0 x share |
+| Profile's favoured category | 2.5 x share |
+| Price fit against their average | 2.0, falling off with distance |
+| Discounted, for a bargain hunter | 2.0 |
 
-Anything already viewed is excluded, so it always surfaces something new.
+The profile terms are scaled by *share*, not presence: a house that takes 90% of
+someone's attention counts for more than one scraping 56%.
 
-Events are collected by `POST /api/track` from `src/lib/track.ts`, searches from
-the nav typeahead and the `/search` page, views from every product page. Anonymous
-visitors are tracked by a `dd_sid` cookie minted in `proxy.ts`, so recommendations
-work before anyone signs in and carry over once they do.
+Reading `buyer_profiles` is itself the consent check. No row exists unless the
+customer said yes, so an unconsented shopper falls through to exactly the
+behaviour that was there before, with no branch needed to arrange it.
 
-Surfaced two ways:
+### Buyer profiles
 
-- **`<RecommendationRail />`**, inline section (`layout="rail"`) or sidebar column
-  (`layout="sidebar"`, used on `/search`).
-- **`<RecommendationPopup />`**, bottom-left card, global. Appears after 9 seconds,
-  and only when the top results score above zero. A zero score means we'd be showing
-  random stock, so it stays quiet. Dismissal is remembered for the session.
+`compute_buyer_profile(user_id)` derives a segment from 90 days of viewing.
+First match wins, so the order is the priority:
 
----
+| Segment | Fires when |
+|---|---|
+| Too early to say | Fewer than 5 views |
+| Bargain hunter | 35%+ of views are on discounted products |
+| Top of the range | Average viewed price in the catalog's top 10% |
+| Label loyalist | 55%+ of views on one house |
+| Category specialist | 60%+ of views in one category |
+| Explorer | 5+ houses, none above a third |
+| Regular | Active, no single signal dominant |
+
+Confidence is `min(1, views/20)`. It measures evidence, not how cleanly the rule
+fired: a segment drawn from three views is a guess whatever the shares look like.
+
+**Price thresholds are percentiles of the live catalog**, not fixed numbers, so
+"top of the range" keeps meaning something as the range moves. There is a guard
+on that: if the catalog is priced at a single point every percentile collapses
+onto the same number, `avg >= p90` becomes true for anyone who has viewed
+anything, and the entire customer base files under luxury. Price only speaks
+when there is a spread for it to speak with; otherwise the band reads
+`No signal` and the price rules sit out.
+
+Profiles refresh through `touch_buyer_profile()`, called by the tracking
+endpoint after a view lands. It rebuilds only when the profile is more than ten
+minutes stale, so a burst of page views costs one rebuild rather than one each,
+and no scheduled job is needed.
+
+### Location
+
+From `x-vercel-ip-country`, `-country-region` and `-city`, which the platform
+attaches to every request on every plan. **No package and no third-party lookup
+is needed**; `@vercel/functions` exposes the same values through
+`geolocation()`, but it is a typed wrapper over these three headers and not
+worth a dependency. `NextRequest.geo` was removed in Next 15.
+
+**The IP is never read or stored.** A city is all a recommendation can use, and
+the address is the part that identifies a person.
+
+### Consent
+
+Three states, because "never asked" has to be distinguishable from "said no" or
+the banner nags someone who already declined. The cookie is what the tracker
+reads, since it must answer synchronously in the browser;
+`profiles.personalisation_consent` is the record of truth.
+
+Declining is not a display preference. A trigger on the column deletes the
+buyer profile and sets `user_id` to null on that person's views and searches, so
+the history survives as anonymous popularity signal with nothing pointing back
+at them, and the profile cannot be rebuilt. The tracker also stops sending, and
+the endpoint checks again on arrival, because a cookie is the client's word for
+it.
+
+Staff see the result at `/admin/audience`, behind `customers.view`.
 
 ## Money and stock
 

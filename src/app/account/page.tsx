@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import SettingsForm from "@/components/SettingsForm";
+import PersonalisationToggle from "@/components/PersonalisationToggle";
 import { money, dateShort, titleCase } from "@/lib/format";
 import type { Profile, CreditEntry } from "@/lib/types";
 
@@ -27,6 +28,10 @@ export default async function AccountSettingsPage() {
   return (
     <div className="space-y-14">
       <SettingsForm profile={profile ?? null} />
+
+      <PersonalisationToggle
+        consent={profile?.personalisation_consent ?? null}
+      />
 
       {ledger.length > 0 && (
         <section className="border-t border-rule pt-10">
