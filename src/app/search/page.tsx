@@ -50,15 +50,23 @@ export default async function SearchPage({ searchParams }: Props) {
 
   const [{ data: brandRows }, { data: categoryRows }] = await Promise.all([
     supabase.from("brands").select("*").eq("is_active", true).order("sort_order"),
-    supabase.from("categories").select("*").order("name"),
+    supabase.from("categories").select("*").order("sort_order"),
   ]);
 
   const brands = (brandRows ?? []) as Brand[];
   const categories = (categoryRows ?? []) as Category[];
 
+  // A brand or category that matches nothing is a filter that cannot be
+  // satisfied, not an absent one. Silently dropping it used to hand back the
+  // whole catalog, which is how a stale link (?category=t-shirts, say, from
+  // before tees folded into Shirts) turned into "here is everything".
+  const unknownFilter =
+    (Boolean(brand) && !brands.some((b) => b.slug === brand)) ||
+    (Boolean(category) && !categories.some((c) => c.slug === category));
+
   let results: ProductWithBrand[] = [];
 
-  if (!idle) {
+  if (!idle && !unknownFilter) {
     let query = supabase
       .from("products")
       .select("*, brands(id, name, slug, logo_url)")
@@ -67,14 +75,11 @@ export default async function SearchPage({ searchParams }: Props) {
     if (term) {
       query = query.or(`name.ilike.%${term}%,description.ilike.%${term}%`);
     }
-    if (brand) {
-      const match = brands.find((b) => b.slug === brand);
-      if (match) query = query.eq("brand_id", match.id);
-    }
-    if (category) {
-      const match = categories.find((c) => c.slug === category);
-      if (match) query = query.eq("category_id", match.id);
-    }
+    const brandMatch = brands.find((b) => b.slug === brand);
+    if (brandMatch) query = query.eq("brand_id", brandMatch.id);
+
+    const categoryMatch = categories.find((c) => c.slug === category);
+    if (categoryMatch) query = query.eq("category_id", categoryMatch.id);
     if (onlyFeatured) query = query.eq("is_featured", true);
     // PostgREST cannot compare two columns, so narrow to rows that have a
     // compare-at price and settle the actual discount below.

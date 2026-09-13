@@ -16,7 +16,7 @@ type Props = {
 };
 
 type Row = ProductWithBrand & {
-  categories: { id: string; name: string; slug: string } | null;
+  categories: { id: string; name: string; slug: string; sort_order: number } | null;
 };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -51,7 +51,7 @@ export default async function BrandPage({ params, searchParams }: Props) {
 
   const { data: products } = await supabase
     .from("products")
-    .select("*, brands(id, name, slug, logo_url), categories(id, name, slug)")
+    .select("*, brands(id, name, slug, logo_url), categories(id, name, slug, sort_order)")
     .eq("brand_id", brand.id)
     .eq("is_published", true)
     .order("is_featured", { ascending: false })
@@ -60,15 +60,16 @@ export default async function BrandPage({ params, searchParams }: Props) {
   const all = (products ?? []) as unknown as Row[];
 
   // Only offer the categories this house actually stocks, in catalog order.
-  const categories: { name: string; slug: string }[] = [];
+  const categories: { name: string; slug: string; sort_order: number }[] = [];
   for (const product of all) {
     const c = product.categories;
     if (!c) continue;
     if (!categories.some((x) => x.slug === c.slug)) {
-      categories.push({ name: c.name, slug: c.slug });
+      categories.push({ name: c.name, slug: c.slug, sort_order: c.sort_order });
     }
   }
-  categories.sort((a, b) => a.name.localeCompare(b.name));
+  // Catalog order, not alphabetical: shirts first, accessories last.
+  categories.sort((a, b) => a.sort_order - b.sort_order);
 
   const active = categories.some((c) => c.slug === category) ? category : "";
   const shown = active

@@ -19,7 +19,7 @@ export default async function AdminProductsPage() {
     await Promise.all([
       supabase.from("products").select("*").order("updated_at", { ascending: false }),
       supabase.from("brands").select("*").order("sort_order"),
-      supabase.from("categories").select("*").order("name"),
+      supabase.from("categories").select("*").order("sort_order"),
     ]);
 
   return (

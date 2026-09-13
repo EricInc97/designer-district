@@ -20,7 +20,7 @@ export default async function Navbar() {
 
     const [{ data: brandRows }, { data: categoryRows }, profile] = await Promise.all([
       supabase.from("brands").select("*").eq("is_active", true).order("sort_order"),
-      supabase.from("categories").select("*").order("name"),
+      supabase.from("categories").select("*").order("sort_order"),
       user
         ? supabase.from("profiles").select("role").eq("id", user.id).single()
         : Promise.resolve({ data: null }),
