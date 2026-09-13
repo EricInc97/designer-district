@@ -15,11 +15,15 @@ export async function GET(request: Request) {
 
   const sessionId = url.searchParams.get("sid") ?? jar.get(SESSION_COOKIE)?.value ?? null;
   const limit = Math.min(Number(url.searchParams.get("limit")) || 8, 24);
+  // The product being looked at, when there is one. It turns the shelf from
+  // "more of what you like" into "what goes with this".
+  const anchor = url.searchParams.get("anchor") || null;
 
   const { data, error } = await supabase.rpc("recommend_products", {
     p_session_id: sessionId,
     p_user_id: user?.id ?? null,
     p_limit: limit,
+    p_anchor_product_id: anchor,
   });
 
   if (error) {

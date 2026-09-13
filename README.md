@@ -45,6 +45,7 @@ not by key secrecy. `.env.local` is gitignored.
 | `supabase/02_rls.sql` | Row-level security on every table, the privilege guards, and realtime for live chat |
 | `supabase/03_seed.sql` | The scope catalogue, 12 brands, 9 categories and 48 demo products |
 | `supabase/04_hardening.sql` | Revokes RPC access to trigger functions, closes the write RPCs to anon, moves `pg_trgm` out of `public` |
+| `supabase/08_outfit_recommendations.sql` | The category complement graph and `live_viewers()` |
 | `supabase/07_buyer_profiles.sql` | Personalisation consent, request-geo columns, the `buyer_profiles` table and the classifier behind it |
 | `supabase/06_brand_logos.sql` | The `brand-logos` bucket, so a brand mark can be swapped without a deploy |
 | `supabase/05_product_media.sql` | Item numbers (the `sku` column, its sequence and trigger) and the `product-images` storage bucket with its policies |
@@ -143,6 +144,11 @@ which is the whole reason it is keyed on the account rather than the session.
 | Profile's favoured category | 2.5 x share |
 | Price fit against their average | 2.0, falling off with distance |
 | Discounted, for a bargain hunter | 2.0 |
+| **Complements the anchor's category** | **6.0 x pairing weight** |
+| Same house as the anchor | 1.5 |
+| Price tier near the anchor | 1.5, falling off with distance |
+| Category stock depth | 1.0 x share of the deepest |
+| Live: distinct sessions, last hour | 1.2 x ln(1+n) |
 
 The profile terms are scaled by *share*, not presence: a house that takes 90% of
 someone's attention counts for more than one scraping 56%.
@@ -150,6 +156,51 @@ someone's attention counts for more than one scraping 56%.
 Reading `buyer_profiles` is itself the consent check. No row exists unless the
 customer said yes, so an unconsented shopper falls through to exactly the
 behaviour that was there before, with no branch needed to arrange it.
+
+### Outfit building
+
+On a product page the shelf answers a different question. Passing
+`p_anchor_product_id` switches `recommend_products()` from "more of what you
+like" to "what goes with this", and the complement term at 6.0 is dominant by
+design: a stale browsing affinity should not outrank the thing in front of them.
+
+Pairings live in `category_complements`, as data rather than a CASE in the
+scorer. They are directional, because socks pair with a shirt more readily than
+a shirt pairs with socks: the anchor is what the shopper already wants.
+Accessories complements itself, which is how someone looking at socks gets more
+socks alongside the rest of the outfit. Socks are filed under accessories in
+this catalog.
+
+Diversity matters more than raw score here. Without it the top ten for a
+t-shirt came back as nine pairs of shorts, which is not an outfit. Each further
+item from one category is worth 2.2 less, so the best of another category
+overtakes the second-best of this one. The penalty applies only when there is
+an anchor: without one, a shopper devoted to a single house should still be
+shown that house.
+
+An anchored shelf also stops excluding already-seen products. They have not
+bought it, they were comparing.
+
+### Stock
+
+Sold-out products were always excluded. The scorer now also weighs category
+stock depth, so a complement category holding one lonely unit is not pushed as
+hard as one that can dress a hundred people, and the shelf leans towards what
+can actually be fulfilled.
+
+### Live activity
+
+`live_viewers(product_id)` counts distinct sessions on a product in the last ten
+minutes, and the product page shows it once it reaches two. One viewer is the
+shopper themselves, and saying so is both useless and faintly embarrassing.
+
+The same signal over the last hour feeds the recommender as a trending term.
+Distinct sessions only, so one person refreshing cannot manufacture a trend.
+
+It must be `security definer`. `product_views` is readable only by its owner or
+by staff with `analytics.view`, so as an invoker it counted the caller's own
+rows and returned 0 for every shopper. It returns a single integer, never a
+row, and clamps its own window.
 
 ### Buyer profiles
 

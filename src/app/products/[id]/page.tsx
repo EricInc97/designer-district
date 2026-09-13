@@ -8,6 +8,7 @@ import SetupNotice from "@/components/SetupNotice";
 import ProductGallery from "@/components/ProductGallery";
 import ProductBuyPanel from "@/components/ProductBuyPanel";
 import ProductViewTracker from "@/components/ProductViewTracker";
+import LiveViewers from "@/components/LiveViewers";
 import ProductCard from "@/components/ProductCard";
 import RecommendationRail from "@/components/RecommendationRail";
 import { money } from "@/lib/format";
@@ -153,6 +154,8 @@ export default async function ProductPage({ params }: Props) {
               )}
             </p>
 
+            <LiveViewers productId={product.id} />
+
             {product.description && (
               <p className="mt-7 text-sm leading-relaxed text-ink-dim">
                 {product.description}
@@ -202,7 +205,11 @@ export default async function ProductPage({ params }: Props) {
         )}
       </div>
 
-      <RecommendationRail title="Based on your browsing" limit={4} />
+      <RecommendationRail
+        title="Goes with this"
+        limit={4}
+        anchor={product.id}
+      />
     </>
   );
 }

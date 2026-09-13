@@ -11,19 +11,24 @@ type Props = {
   limit?: number;
   /** "rail" = horizontal strip under content, "sidebar" = stacked column. */
   layout?: "rail" | "sidebar";
+  /** The product being viewed, if any. Switches the shelf to outfit building. */
+  anchor?: string;
 };
 
 export default function RecommendationRail({
   title = "Picked for you",
   limit = 8,
   layout = "rail",
+  anchor,
 }: Props) {
   const [items, setItems] = useState<Recommendation[]>([]);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/recommendations?limit=${limit}`)
+    const qs = new URLSearchParams({ limit: String(limit) });
+    if (anchor) qs.set("anchor", anchor);
+    fetch(`/api/recommendations?${qs}`)
       .then((r) => r.json())
       .then((json) => {
         if (!cancelled) {
@@ -35,7 +40,7 @@ export default function RecommendationRail({
     return () => {
       cancelled = true;
     };
-  }, [limit]);
+  }, [limit, anchor]);
 
   // Nothing to say is better than a shelf of noise.
   if (!loaded || items.length === 0) return null;
