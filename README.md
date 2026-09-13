@@ -208,7 +208,15 @@ Three things do not follow automatically and need a matching edit:
   palette change actually reaches browsers holding the old colourway.
 
 The favicon keeps a dark ground on purpose: a white-on-white icon disappears in
-a light browser tab strip.
+a light browser tab strip. It is the dome only, with the palms cropped away,
+because at 16px the fronds are noise.
+
+The `.ico` is written by hand rather than through Pillow's `sizes=` argument,
+which resizes from one image and would apply the same treatment to every size.
+Line art loses its strokes when it is averaged down, so each size is rendered
+separately and the smaller ones have their strokes dilated first: 9px of
+dilation at 16, 5 at 32, 3 at 48 and 64, none above that. Without it the rings
+grey out into a smudge. See the generator note in this file's history.
 
 ## Branding
 
@@ -219,7 +227,9 @@ The Designer District lockup lives in `public/brand/`:
 | `designer-district.png` | Hero headline, footer |
 | `designer-district-mark.png` | Dome only, for compact contexts |
 | `designer-district-wordmark.png` | Header centre. Cut from the logo and recomposed onto one line, so the lettering and its slits match the logo exactly rather than approximating the face with a web font |
-| `src/app/icon.png` | Favicon (opaque ground so it reads on a light tab bar) |
+| `src/app/favicon.ico` | Tab icon. The dome alone, on an opaque ink ground so it reads against a light tab strip |
+| `src/app/icon.png` | 512px icon, same artwork |
+| `src/app/apple-icon.png` | 180px, for an iOS home screen |
 
 All three are keyed to transparency from the source artwork: luminance becomes
 the alpha channel, so every antialiased edge survives and the white line art
