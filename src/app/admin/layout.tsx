@@ -25,6 +25,11 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
       label: "Audience",
       show: staff.can("customers.view"),
     },
+    {
+      href: "/admin/brands",
+      label: "Brand artwork",
+      show: staff.can("products.manage"),
+    },
     { href: "/admin/tickets", label: "Tickets", show: staff.can("tickets.view") },
     { href: "/admin/staff", label: "Staff", show: staff.isMaster },
   ].filter((l) => l.show);

@@ -45,6 +45,22 @@ export type Product = {
   updated_at: string;
 };
 
+export type BrandMedia = {
+  id: string;
+  brand_id: string;
+  kind: "hero" | "lookbook";
+  image_url: string;
+  headline: string | null;
+  subhead: string | null;
+  cta_label: string | null;
+  cta_href: string | null;
+  /** Whether overlaid type should be light or dark on this photograph. */
+  ink: "light" | "dark";
+  sort_order: number;
+  is_published: boolean;
+  created_at: string;
+};
+
 export type ProductWithBrand = Product & {
   brands: Pick<Brand, "id" | "name" | "slug" | "logo_url"> | null;
 };

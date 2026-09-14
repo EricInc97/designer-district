@@ -237,3 +237,73 @@ export async function setStaffAccess(
   revalidatePath("/admin/staff");
   return { ok: true, message: "Access updated." };
 }
+
+/**
+ * Create or update one piece of brand campaign artwork.
+ *
+ * The image itself is already in storage by the time this runs; the uploader
+ * puts it there from the browser for the same reason product photography goes
+ * that way, a server action body is capped at 1MB.
+ */
+export async function saveBrandMedia(
+  _prev: AdminResult,
+  formData: FormData,
+): Promise<AdminResult> {
+  const supabase = await createClient();
+
+  const id = text(formData, "id");
+  const brandId = text(formData, "brand_id");
+  const imageUrl = text(formData, "image_url");
+
+  if (!brandId) return { ok: false, message: "Pick a brand." };
+  if (!imageUrl) return { ok: false, message: "Upload an image first." };
+
+  const payload = {
+    brand_id: brandId,
+    kind: formData.get("kind") === "hero" ? "hero" : "lookbook",
+    image_url: imageUrl,
+    headline: text(formData, "headline"),
+    subhead: text(formData, "subhead"),
+    cta_label: text(formData, "cta_label"),
+    cta_href: text(formData, "cta_href"),
+    ink: formData.get("ink") === "dark" ? "dark" : "light",
+    sort_order: Math.max(0, Number(formData.get("sort_order")) || 100),
+    is_published: formData.get("is_published") === "on",
+  };
+
+  const { error } = id
+    ? await supabase.from("brand_media").update(payload).eq("id", id)
+    : await supabase.from("brand_media").insert(payload);
+
+  if (error) return { ok: false, message: error.message };
+
+  const { data: brand } = await supabase
+    .from("brands")
+    .select("slug")
+    .eq("id", brandId)
+    .single();
+
+  revalidatePath("/admin/brands");
+  if (brand?.slug) revalidatePath(`/brands/${brand.slug}`);
+
+  return {
+    ok: true,
+    message: id ? "Artwork updated." : "Artwork added.",
+    savedId: id ?? undefined,
+  };
+}
+
+export async function deleteBrandMedia(formData: FormData) {
+  const id = String(formData.get("id") ?? "");
+  const slug = String(formData.get("brand_slug") ?? "");
+  if (!id) return;
+
+  const supabase = await createClient();
+  // Only the row goes. The file stays in the bucket, as everywhere else here:
+  // an unreferenced image costs a few kilobytes, a destroyed one cannot be got
+  // back, and this form cannot see what else might point at it.
+  await supabase.from("brand_media").delete().eq("id", id);
+
+  revalidatePath("/admin/brands");
+  if (slug) revalidatePath(`/brands/${slug}`);
+}

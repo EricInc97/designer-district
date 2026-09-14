@@ -45,6 +45,7 @@ not by key secrecy. `.env.local` is gitignored.
 | `supabase/02_rls.sql` | Row-level security on every table, the privilege guards, and realtime for live chat |
 | `supabase/03_seed.sql` | The scope catalogue, 12 brands, 9 categories and 48 demo products |
 | `supabase/04_hardening.sql` | Revokes RPC access to trigger functions, closes the write RPCs to anon, moves `pg_trgm` out of `public` |
+| `supabase/09_brand_media.sql` | Campaign and lookbook artwork for brand pages, and the `brand-media` bucket |
 | `supabase/08_outfit_recommendations.sql` | The category complement graph and `live_viewers()` |
 | `supabase/07_buyer_profiles.sql` | Personalisation consent, request-geo columns, the `buyer_profiles` table and the classifier behind it |
 | `supabase/06_brand_logos.sql` | The `brand-logos` bucket, so a brand mark can be swapped without a deploy |
@@ -374,6 +375,30 @@ than an effect body, which keeps it clear of cascading-render lint and of
 hydration mismatches.
 
 `prefers-reduced-motion` drops the pulse and shortens the hold to 400ms.
+
+### Brand pages
+
+A brand page follows the shape a house's own site uses: a full-bleed campaign
+shot at the top, then product groups broken up by editorial bands rather than
+one unbroken run of tiles. Both come from `brand_media`, managed at
+`/admin/brands`.
+
+`kind` is the slot, not the subject. One `hero` at the top, any number of
+`lookbook` bands dropped between groups in `sort_order`. A band deliberately
+breaks out of the page's max width with `left-1/2 w-screen -translate-x-1/2`;
+the grid above and below is held to a column, and the band only reads as an
+interruption if it runs to the edges. Watch that it does not introduce
+horizontal overflow on a phone when you change it.
+
+Overlaid type carries its own gradient scrim rather than trusting the
+photograph to be dark where the words land, and `ink` says which way round.
+Whoever uploads the image knows; working it out at render time is not worth
+the cost.
+
+**A house with no artwork is a designed state, not an empty one.** It falls back
+to its own colourway with its mark centred, the same ground its tile uses on the
+homepage, so arriving on the page feels like walking through the tile. Most
+houses will sit in that state for a while, so it has to hold up.
 
 ### Brand marks
 

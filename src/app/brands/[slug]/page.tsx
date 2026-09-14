@@ -5,10 +5,10 @@ import { createClient } from "@/lib/supabase/server";
 import { supabaseConfigured } from "@/lib/supabase/config";
 import SetupNotice from "@/components/SetupNotice";
 import ProductCard from "@/components/ProductCard";
-import BrandMark from "@/components/BrandMark";
-import { styleFor } from "@/lib/brandStyles";
+import BrandCampaign from "@/components/BrandCampaign";
+import BrandLookbook from "@/components/BrandLookbook";
 import RecommendationRail from "@/components/RecommendationRail";
-import type { Brand, ProductWithBrand } from "@/lib/types";
+import type { Brand, BrandMedia, ProductWithBrand } from "@/lib/types";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -49,15 +49,28 @@ export default async function BrandPage({ params, searchParams }: Props) {
 
   if (!brand) notFound();
 
-  const { data: products } = await supabase
-    .from("products")
-    .select("*, brands(id, name, slug, logo_url), categories(id, name, slug, sort_order)")
-    .eq("brand_id", brand.id)
-    .eq("is_published", true)
-    .order("is_featured", { ascending: false })
-    .order("created_at", { ascending: false });
+  const [{ data: products }, { data: mediaRows }] = await Promise.all([
+    supabase
+      .from("products")
+      .select("*, brands(id, name, slug, logo_url), categories(id, name, slug, sort_order)")
+      .eq("brand_id", brand.id)
+      .eq("is_published", true)
+      .order("is_featured", { ascending: false })
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("brand_media")
+      .select("*")
+      .eq("brand_id", brand.id)
+      .eq("is_published", true)
+      .order("sort_order", { ascending: true }),
+  ]);
 
   const all = (products ?? []) as unknown as Row[];
+
+  // One hero at the top, the rest dropped between product groups in order.
+  const media = (mediaRows ?? []) as BrandMedia[];
+  const hero = media.find((m) => m.kind === "hero") ?? null;
+  const lookbook = media.filter((m) => m.kind === "lookbook");
 
   // Only offer the categories this house actually stocks, in catalog order.
   const categories: { name: string; slug: string; sort_order: number }[] = [];
@@ -99,10 +112,13 @@ export default async function BrandPage({ params, searchParams }: Props) {
 
   return (
     <>
+      {/* ---------------- CAMPAIGN ---------------- */}
+      <BrandCampaign brand={brand} media={hero} />
+
       {/* ---------------- BRAND HEADER ---------------- */}
       <header className="border-b border-rule">
-        <div className="mx-auto max-w-7xl px-5 sm:px-8 py-10 sm:py-14">
-          <nav aria-label="Breadcrumb" className="mb-8">
+        <div className="mx-auto max-w-7xl px-5 sm:px-8 py-8 sm:py-10">
+          <nav aria-label="Breadcrumb" className="mb-6">
             <ol className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-ink-faint">
               <li>
                 <Link href="/" className="hover:text-ink transition-colors">
@@ -120,30 +136,23 @@ export default async function BrandPage({ params, searchParams }: Props) {
             </ol>
           </nav>
 
-          <div className="flex flex-col gap-8 sm:flex-row sm:items-center">
-            {/* The house colourway, the same ground the tile crossfades to on
-                the homepage, rather than a neutral panel. `hovered` goes with
-                it so a mark drawn for a dark ground gets its own cut. */}
-            <div
-              className="flex w-full max-w-xs shrink-0 items-center justify-center overflow-hidden rounded-xl border border-rule px-6 py-10"
-              style={styleFor(brand.slug).hover.style}
-            >
-              <span
-                className="flex items-center justify-center"
-                style={styleFor(brand.slug).hover.textStyle}
-              >
-                <BrandMark brand={brand} size="lg" decorative hovered className="!text-current" />
-              </span>
-            </div>
-
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
             <div className="min-w-0">
               <h1 className="sr-only">{brand.name}</h1>
+              {/* The mark already led the campaign above, so here it is a
+                  wordmark at reading size rather than a second lockup. */}
+              <p className="eyebrow">The Collection</p>
+              <p className="display mt-1.5 text-2xl sm:text-3xl">{brand.name}</p>
               {brand.description && (
-                <p className="max-w-xl text-sm leading-relaxed text-ink-dim">
+                <p className="mt-3 max-w-xl text-sm leading-relaxed text-ink-dim">
                   {brand.description}
                 </p>
               )}
             </div>
+
+            <p className="shrink-0 text-xs uppercase tracking-[0.18em] text-ink-faint">
+              {all.length} {all.length === 1 ? "piece" : "pieces"}
+            </p>
           </div>
         </div>
       </header>
@@ -197,23 +206,31 @@ export default async function BrandPage({ params, searchParams }: Props) {
           </div>
         ) : (
           <div className="space-y-16">
-            {groups.map((group) => (
-              <section key={group.name}>
-                <div className="border-b border-rule pb-4">
-                  <h2 className="display text-2xl">{group.name}</h2>
-                </div>
+            {groups.map((group, i) => (
+              <div key={group.name} className="space-y-16">
+                <section>
+                  <div className="border-b border-rule pb-4">
+                    <h2 className="display text-2xl">{group.name}</h2>
+                  </div>
 
-                <div className="mt-8 grid grid-cols-2 gap-x-5 gap-y-10 sm:grid-cols-3 lg:grid-cols-4">
-                  {group.items.map((product) => (
-                    <ProductCard
-                      key={product.id}
-                      product={product}
-                      brandName={brand.name}
-                      showBrand={false}
-                    />
-                  ))}
-                </div>
-              </section>
+                  <div className="mt-8 grid grid-cols-2 gap-x-5 gap-y-10 sm:grid-cols-3 lg:grid-cols-4">
+                    {group.items.map((product) => (
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        brandName={brand.name}
+                        showBrand={false}
+                      />
+                    ))}
+                  </div>
+                </section>
+
+                {/* A band after every group but the last, so the page breathes
+                    instead of running as one long grid. */}
+                {lookbook[i] && i < groups.length - 1 && (
+                  <BrandLookbook media={lookbook[i]} />
+                )}
+              </div>
             ))}
           </div>
         )}
