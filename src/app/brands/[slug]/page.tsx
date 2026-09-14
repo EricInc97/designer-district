@@ -246,7 +246,7 @@ export default async function BrandPage({ params, searchParams }: Props) {
         )}
       </div>
 
-      <RecommendationRail title="You may also like" limit={4} />
+      <RecommendationRail title="You may also like" limit={4} tone="quiet" />
     </>
   );
 }

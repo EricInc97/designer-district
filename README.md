@@ -400,6 +400,18 @@ to its own colourway with its mark centred, the same ground its tile uses on the
 homepage, so arriving on the page feels like walking through the tile. Most
 houses will sit in that state for a while, so it has to hold up.
 
+### How loud a shelf is
+
+`RecommendationRail` takes a `tone`. `feature` is the default and looks like
+part of the page: catalog-sized cards, which is right on a product page where
+what goes with the thing in front of you is the point. `quiet` is an aside,
+small rows on their own ground behind a rule.
+
+A brand page uses `quiet`, and the reason is not only visual. That shelf
+regularly contains other houses' products, so at catalog size and catalog
+spacing it read as more of *this* brand's stock. The house is named on every
+row for the same reason.
+
 ### Product rails
 
 Each category on a brand page is a horizontally scrolling row rather than a
