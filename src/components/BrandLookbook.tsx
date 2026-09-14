@@ -5,15 +5,17 @@ import type { BrandMedia } from "@/lib/types";
  * An editorial band between product groups: a full-bleed shot with the
  * collection title laid over it and a way through to the products.
  *
- * Breaks out of the page's max-width on purpose. The grid above and below is
- * held to a column; this is the thing that interrupts it, and it only reads as
- * an interruption if it runs to the edges.
+ * Runs edge to edge because it is a full-width sibling of the product grids,
+ * which constrain themselves. It used to break out of a shared container with
+ * `left-1/2 w-screen -translate-x-1/2`, and that was wrong: 100vw counts the
+ * scrollbar and the content box does not, so on a desktop it overhung by half
+ * a scrollbar at each edge and the whole page scrolled sideways 8px.
  */
 export default function BrandLookbook({ media }: { media: BrandMedia }) {
   const onDark = media.ink !== "dark";
 
   return (
-    <section className="relative left-1/2 w-screen -translate-x-1/2 overflow-hidden">
+    <section className="relative w-full overflow-hidden">
       <div className="relative min-h-[50vh] sm:min-h-[62vh]">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img

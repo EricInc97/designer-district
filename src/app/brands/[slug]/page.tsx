@@ -191,9 +191,9 @@ export default async function BrandPage({ params, searchParams }: Props) {
       )}
 
       {/* ---------------- PRODUCTS ---------------- */}
-      <div className="mx-auto max-w-7xl px-5 sm:px-8 py-12">
+      <div className="py-12">
         {all.length === 0 ? (
-          <div className="py-20 text-center">
+          <div className="mx-auto max-w-7xl px-5 py-20 text-center sm:px-8">
             <p className="text-sm text-ink-dim">
               Nothing live from {brand.name} right now.
             </p>
@@ -208,7 +208,7 @@ export default async function BrandPage({ params, searchParams }: Props) {
           <div className="space-y-16">
             {groups.map((group, i) => (
               <div key={group.name} className="space-y-16">
-                <section>
+                <section className="mx-auto max-w-7xl px-5 sm:px-8">
                   <div className="border-b border-rule pb-4">
                     <h2 className="display text-2xl">{group.name}</h2>
                   </div>
