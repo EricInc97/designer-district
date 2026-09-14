@@ -90,8 +90,12 @@ grant execute on function public.live_viewers(uuid, int) to anon, authenticated;
 -- recommend_products() gains p_anchor_product_id. The full weight table is in
 -- the README; the additions this file is responsible for are:
 --
---   outfit   complement weight x 6.0, dominant by design, plus same-house and
---            price-tier nudges so a pairing reads as deliberate
+--   outfit   complement weight x 6.0, plus same-house and price-tier nudges so
+--            a pairing reads as deliberate. With an anchor the complement is
+--            also a hard filter, not just a weight: a category that does not
+--            pair with the anchor cannot appear at all. A shirt does not
+--            complement a shirt; accessories complement accessories, which is
+--            how socks still return socks.
 --   stock    category stock depth, so a complement holding one lonely unit is
 --            not pushed as hard as one that can dress a hundred people
 --   live     distinct sessions in the last hour, log damped
@@ -101,6 +105,19 @@ grant execute on function public.live_viewers(uuid, int) to anon, authenticated;
 -- another category overtakes the second-best of this one. Nine pairs of shorts
 -- is not an outfit. Without an anchor the penalty is off, because a shopper
 -- devoted to one house should still be shown that house.
+--
+-- Two things the first version got wrong, both found by testing against a real
+-- browsing history rather than a fresh session:
+--
+--   Affinity was a raw view count. Twenty views of one house scored 3.0 x 20 =
+--   60 against an outfit term worth at most 6, so a shopper who had been
+--   browsing shirts was answered with eight more shirts. Affinity is now a
+--   share of recent views, bounded to [0,1], and can reorder the shelf but not
+--   choose its contents.
+--
+--   This catalog carries many products under one name, so the shelf showed
+--   "Chrome hearts T-shirt" five times. Results are deduplicated on house plus
+--   name, keeping the best scoring of each.
 --
 -- The body is long and lives with the migration that introduced it. Re-running
 -- this file recreates the complement graph and live_viewers only.

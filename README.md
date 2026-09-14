@@ -171,6 +171,20 @@ Accessories complements itself, which is how someone looking at socks gets more
 socks alongside the rest of the outfit. Socks are filed under accessories in
 this catalog.
 
+The complement is a **filter as well as a weight**. A category that does not
+pair with the anchor cannot appear at all, which is what keeps shirts off a
+shirt's shelf while still letting socks return socks. Affinity reorders that
+set; it cannot choose its contents.
+
+Affinity is a **share** of recent views, not a count. As a raw count it was
+unbounded: twenty views of one house scored 60 against an outfit term worth at
+most 6, and a shopper who had been browsing shirts got eight more shirts. That
+only shows up when you test with a real browsing history behind you.
+
+Results are **deduplicated on house plus name**. This catalog carries many
+products under one name, so the shelf was showing "Chrome hearts T-shirt" five
+times over, which is noise however well it scores.
+
 Diversity matters more than raw score here. Without it the top ten for a
 t-shirt came back as nine pairs of shorts, which is not an outfit. Each further
 item from one category is worth 2.2 less, so the best of another category
