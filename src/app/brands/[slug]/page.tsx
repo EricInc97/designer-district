@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { supabaseConfigured } from "@/lib/supabase/config";
 import SetupNotice from "@/components/SetupNotice";
 import ProductCard from "@/components/ProductCard";
+import ProductRail from "@/components/ProductRail";
 import BrandCampaign from "@/components/BrandCampaign";
 import BrandLookbook from "@/components/BrandLookbook";
 import RecommendationRail from "@/components/RecommendationRail";
@@ -213,15 +214,24 @@ export default async function BrandPage({ params, searchParams }: Props) {
                     <h2 className="display text-2xl">{group.name}</h2>
                   </div>
 
-                  <div className="mt-8 grid grid-cols-2 gap-x-5 gap-y-10 sm:grid-cols-3 lg:grid-cols-4">
-                    {group.items.map((product) => (
-                      <ProductCard
-                        key={product.id}
-                        product={product}
-                        brandName={brand.name}
-                        showBrand={false}
-                      />
-                    ))}
+                  <div className="mt-8">
+                    <ProductRail label={group.name}>
+                      {group.items.map((product) => (
+                        <div
+                          key={product.id}
+                          /* Two on a phone, three on a tablet, four on a
+                             desktop: the same density the grid had, so the
+                             page reads the same and only the gesture changes. */
+                          className="w-[46%] shrink-0 snap-start sm:w-[31%] lg:w-[23%]"
+                        >
+                          <ProductCard
+                            product={product}
+                            brandName={brand.name}
+                            showBrand={false}
+                          />
+                        </div>
+                      ))}
+                    </ProductRail>
                   </div>
                 </section>
 
