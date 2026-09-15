@@ -412,33 +412,6 @@ regularly contains other houses' products, so at catalog size and catalog
 spacing it read as more of *this* brand's stock. The house is named on every
 row for the same reason.
 
-### Product rails
-
-Each category on a brand page is a horizontally scrolling row rather than a
-grid. Touch gets the native swipe and nothing else; arrows appear only where
-there is a pointer, because overlaying them on a phone costs two cards' width
-to duplicate a gesture people already have. The scroller is focusable and
-labelled, so it is reachable from the keyboard.
-
-Three things in `ProductRail` are load-bearing and easy to undo by accident:
-
-- **The cards are direct children of the scroller.** Their widths are
-  percentages, so a wrapping flex track would size itself to its content and
-  leave those percentages resolving against the wrong box. Wrapping them dropped
-  a phone from two cards across to one.
-- **`scroll-pl` must match `px`.** Mandatory snapping aligns a card to the
-  snapport, and without scroll-padding the snapport is the padding box, so the
-  row settles at `scrollLeft: 32` instead of `0` and the left arrow is live on
-  arrival with nothing to go back to.
-- **The arrows are never gated on the measurement.** A row with nothing to
-  scroll is at both ends at once and the disabled styling already removes them,
-  so a late measurement costs nothing instead of losing the arrows entirely.
-
-Measuring overflow is the fiddly part. A single `requestAnimationFrame` raced
-layout and reported content and container equal; the fix is two frames plus one
-late call once layout has settled. `measure()` only reads live DOM, so extra
-calls are free and idempotent.
-
 ### Brand marks
 
 `<BrandMark />` renders a house's own logo file when `brands.logo_url` points at
