@@ -211,6 +211,46 @@ export const brandStyles: Record<string, BrandStyle> = {
     },
   },
 
+  // A heavy slab serif wordmark, set plain. The ground is the Americana the
+  // house works in rather than anything louder.
+  rhude: {
+    label: "RHUDE",
+    markClass: "font-medium tracking-[0.3em]",
+    hover: {
+      style: {
+        backgroundImage: "linear-gradient(150deg, #d8c9ab 0%, #bda98a 100%)",
+      },
+      textStyle: { color: "#2a2119" },
+    },
+  },
+
+  // Arched varsity lettering, so the colourway is the one that type belongs
+  // on: a deep collegiate navy, with the white cut of the mark over it.
+  vale: {
+    label: "VALE",
+    markClass: "font-[family-name:var(--font-collegiate)] tracking-[0.1em]",
+    hover: {
+      style: { backgroundColor: "#17203a" },
+      textStyle: { color: "#ffffff" },
+      logoUrl: "https://dphfetxmgooyuzexrloy.supabase.co/storage/v1/object/public/brand-logos/vale-on-dark.png",
+    },
+  },
+
+  // Flames and a star, so the ground is an ember rather than a flat colour,
+  // and the mark switches to its white cut to sit on it.
+  hellstar: {
+    label: "HELLSTAR",
+    markClass: "font-[family-name:var(--font-geometric)] tracking-[0.06em]",
+    hover: {
+      style: {
+        backgroundImage:
+          "radial-gradient(circle at 50% 120%, #e8552a 0%, #8c1f16 45%, #3a0e0e 100%)",
+      },
+      textStyle: { color: "#ffffff" },
+      logoUrl: "https://dphfetxmgooyuzexrloy.supabase.co/storage/v1/object/public/brand-logos/hellstar-on-dark.png",
+    },
+  },
+
   // High-contrast serif with heavy triangular serifs, set in black.
   casablanca: {
     label: "CASABLANCA",

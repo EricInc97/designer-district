@@ -61,7 +61,10 @@ insert into public.brands (name, slug, logo_url, description, sort_order) values
   ('Off-White',     'off-white',     null, 'Virgil Abloh''s Milan house. Helvetica caps, quotation marks and the diagonal crosswalk stripe.', 90),
   ('Casablanca',    'casablanca',    null, 'Charaf Tajer''s Paris label. Apres-sport luxury in silk, pastel prints and Mediterranean colour.', 100),
   ('Ksubi',         'ksubi',         '/brands/ksubi.png', 'Sydney denim house turned Los Angeles. Shredded washes, the scrawled signature and a hard rock-and-roll cut.', 110),
-  ('Essentials',    'essentials',    '/brands/essentials.png', 'Fear of God''s core line. Oversized basics in cement, taupe and bone, with the rubberised logo.', 120)
+  ('Essentials',    'essentials',    '/brands/essentials.png', 'Fear of God''s core line. Oversized basics in cement, taupe and bone, with the rubberised logo.', 120),
+  ('Rhude',         'rhude',         'https://dphfetxmgooyuzexrloy.supabase.co/storage/v1/object/public/brand-logos/rhude.png', 'Rhuigi Villasenor''s Los Angeles house. Luxury tailoring filtered through Americana and motorsport.', 130),
+  ('Vale',          'vale',          'https://dphfetxmgooyuzexrloy.supabase.co/storage/v1/object/public/brand-logos/vale.png', 'Arched varsity lettering on heavyweight cotton. Collegiate cuts, worn off campus.', 140),
+  ('Hellstar',      'hellstar',      'https://dphfetxmgooyuzexrloy.supabase.co/storage/v1/object/public/brand-logos/hellstar.png', 'Los Angeles graphic wear built on flame and star iconography.', 150)
 on conflict (slug) do update
   set logo_url = excluded.logo_url,
       description = excluded.description,
@@ -140,7 +143,22 @@ from (values
   ('essentials','hoodies',     'Pull-Over Logo Hoodie', 'essentials-pull-over-logo-hoodie', 'Oversized cotton-blend hoodie in cement, with the rubberised logo at the chest and a dropped shoulder.', 110.00, null,   38, true),
   ('essentials','shirts',    '3D Silicone Logo Tee',  '3d-silicone-logo-tee',            'Heavyweight jersey tee with the raised silicone logo and a boxy, longline cut.', 70.00,  null,   52, false),
   ('essentials','outerwear',   'Nylon Coach Jacket',    'essentials-nylon-coach-jacket',   'Water-repellent nylon coach jacket with a snap placket and the flocked logo at the back.', 180.00, 210.00, 16, true),
-  ('essentials','accessories', 'Knit Logo Beanie',      'essentials-knit-logo-beanie',     'Ribbed wool-blend beanie with the woven logo patch at the cuff.', 60.00,  null,   45, false)
+  ('essentials','accessories', 'Knit Logo Beanie',      'essentials-knit-logo-beanie',     'Ribbed wool-blend beanie with the woven logo patch at the cuff.', 60.00,  null,   45, false),
+  -- Rhude
+  ('rhude','shirts',     'Rhude Moonlight Tee',   'rhude-moonlight-tee',   'Garment-dyed cotton tee with the motorsport graphic at the back.', 295.00, null, 6,  true),
+  ('rhude','hoodies',    'Rhude Logo Hoodie',     'rhude-logo-hoodie',     'Loop-back cotton hoodie with the tonal flocked wordmark across the chest.', 545.00, null, 4, false),
+  ('rhude','bottoms',    'Rhude Snap Track Pant', 'rhude-snap-track-pant', 'Satin track pant with a full side-snap placket and contrast piping.', 620.00, null, 3, false),
+  ('rhude','accessories','Rhude Logo Cap',        'rhude-logo-cap',        'Cotton-twill six-panel with the embroidered wordmark.', 185.00, null, 8, false),
+  -- Vale
+  ('vale','shirts',   'Vale Arch Logo Tee',    'vale-arch-logo-tee',    'Heavyweight cotton tee with the arched varsity lettering at the chest.', 95.00,  null, 14, true),
+  ('vale','hoodies',  'Vale Varsity Hoodie',   'vale-varsity-hoodie',   'Brushed-back fleece hoodie with the arch printed across the chest.', 165.00, null, 9, false),
+  ('vale','bottoms',  'Vale Campus Sweatpant', 'vale-campus-sweatpant', 'Heavyweight fleece sweatpant with a tapered leg and ribbed cuff.', 140.00, null, 7, false),
+  ('vale','shirts',   'Vale Long Sleeve',      'vale-long-sleeve',      'Long-sleeve cotton tee with the arch at the chest and a hit at the back.', 110.00, null, 11, false),
+  -- Hellstar
+  ('hellstar','shirts',     'Hellstar Flame Tee',        'hellstar-flame-tee',        'Washed cotton tee carrying the flame profile at the back.', 120.00, null, 16, true),
+  ('hellstar','hoodies',    'Hellstar Starburst Hoodie', 'hellstar-starburst-hoodie', 'Heavyweight hoodie with the star and flame graphic across the back.', 240.00, null, 6, true),
+  ('hellstar','bottoms',    'Hellstar Flame Sweatshort', 'hellstar-flame-sweatshort', 'Fleece sweatshort with the flame print down the leg.', 130.00, null, 10, false),
+  ('hellstar','accessories','Hellstar Logo Beanie',      'hellstar-logo-beanie',      'Ribbed cuffed beanie with the embroidered circle mark.', 70.00, null, 12, false)
 ) as v(brand_slug, cat_slug, name, slug, description, price, compare_at, stock, featured)
 join public.brands b     on b.slug = v.brand_slug
 join public.categories c on c.slug = v.cat_slug
