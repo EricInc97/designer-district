@@ -7,6 +7,7 @@ import ProductImage from "@/components/ProductImage";
 
 const MAX_BYTES = 10 * 1024 * 1024;
 const ACCEPT = "image/png,image/jpeg,image/webp,image/avif";
+const ACCEPTED = new Set(ACCEPT.split(","));
 
 /**
  * One image, straight from the browser to a storage bucket, submitted with the
@@ -32,10 +33,18 @@ export default function SingleImageUpload({
   const [url, setUrl] = useState<string>(initial ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dropping, setDropping] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  // dragenter and dragleave fire for every child crossed, so a plain boolean
+  // flickers; counting entries against leaves does not.
+  const depth = useRef(0);
 
   async function upload(file: File) {
     setError(null);
+    if (file.type && !ACCEPTED.has(file.type)) {
+      setError(`${file.name} is not an image the store accepts.`);
+      return;
+    }
     if (file.size > MAX_BYTES) {
       setError(`${file.name} is larger than 10 MB.`);
       return;
@@ -66,7 +75,36 @@ export default function SingleImageUpload({
       <p className="eyebrow">{label}</p>
       <input type="hidden" name={name} value={url} />
 
-      <div className="mt-2 flex items-start gap-3">
+      <div
+        onDragEnter={(e) => {
+          if (!Array.from(e.dataTransfer.types).includes("Files")) return;
+          depth.current += 1;
+          setDropping(true);
+        }}
+        onDragOver={(e) => {
+          // Without this the browser navigates to the dropped file instead.
+          if (Array.from(e.dataTransfer.types).includes("Files")) e.preventDefault();
+        }}
+        onDragLeave={(e) => {
+          if (!Array.from(e.dataTransfer.types).includes("Files")) return;
+          depth.current -= 1;
+          if (depth.current <= 0) {
+            depth.current = 0;
+            setDropping(false);
+          }
+        }}
+        onDrop={(e) => {
+          if (!Array.from(e.dataTransfer.types).includes("Files")) return;
+          e.preventDefault();
+          depth.current = 0;
+          setDropping(false);
+          const file = e.dataTransfer.files?.[0];
+          if (file) void upload(file);
+        }}
+        className={`mt-2 flex items-start gap-3 rounded-xl border-2 border-dashed p-3 transition-colors ${
+          dropping ? "border-ink bg-paper-sunken" : "border-transparent"
+        }`}
+      >
         {url ? (
           <div className="group relative h-28 w-44 overflow-hidden rounded-lg border border-rule bg-paper-sunken">
             <ProductImage src={url} alt="" className="h-full w-full object-cover" />

@@ -1,13 +1,14 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ImagePlus, Loader2, Star, X } from "lucide-react";
+import { GripVertical, ImagePlus, Loader2, Star, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import ProductImage from "@/components/ProductImage";
 
 const BUCKET = "product-images";
 const MAX_BYTES = 5 * 1024 * 1024;
 const ACCEPT = "image/png,image/jpeg,image/webp,image/avif";
+const ACCEPTED = new Set(ACCEPT.split(","));
 
 /** The generated placeholder route is not a real photograph. */
 const isUploaded = (url: string | null | undefined) =>
@@ -24,6 +25,11 @@ const isUploaded = (url: string | null | undefined) =>
  * Write access is the storage bucket's own RLS policy, gated on the same
  * `products.manage` scope that gates editing the product, so this component
  * being reachable is never what grants the upload.
+ *
+ * Two kinds of dragging happen in here and they must not be confused: files
+ * coming in from the desktop, and thumbnails being reordered within the strip.
+ * `dataTransfer.types` tells them apart, since a file drag always carries
+ * "Files" and a thumbnail drag never does.
  */
 export default function ProductImageUploader({
   imageUrl,
@@ -43,13 +49,22 @@ export default function ProductImageUploader({
   ]);
   const [pending, setPending] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [dropping, setDropping] = useState(false);
+  const [dragging, setDragging] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // dragenter and dragleave fire for every child the pointer crosses, so a
+  // plain boolean flickers. Counting entries against leaves does not.
+  const depth = useRef(0);
 
   async function upload(files: File[]) {
     setError(null);
     const supabase = createClient();
 
     for (const file of files) {
+      if (file.type && !ACCEPTED.has(file.type)) {
+        setError(`${file.name} is not an image the store accepts.`);
+        continue;
+      }
       if (file.size > MAX_BYTES) {
         setError(`${file.name} is larger than 5 MB.`);
         continue;
@@ -94,6 +109,22 @@ export default function ProductImageUploader({
   const makePrimary = (url: string) =>
     setImages((prev) => [url, ...prev.filter((u) => u !== url)]);
 
+  const isFileDrag = (e: React.DragEvent) =>
+    Array.from(e.dataTransfer.types).includes("Files");
+
+  /** Reorders live under the pointer, so the strip shows the result as you go. */
+  const dragOverThumb = (e: React.DragEvent, to: number) => {
+    if (isFileDrag(e) || dragging === null || dragging === to) return;
+    e.preventDefault();
+    setImages((prev) => {
+      const next = [...prev];
+      const [moved] = next.splice(dragging, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+    setDragging(to);
+  };
+
   return (
     <div>
       <p className="eyebrow">Images</p>
@@ -102,60 +133,115 @@ export default function ProductImageUploader({
       <input type="hidden" name="image_url" value={images[0] ?? ""} />
       <input type="hidden" name="gallery" value={JSON.stringify(images.slice(1))} />
 
-      <div className="mt-2 flex flex-wrap gap-3">
-        {images.map((url, i) => (
-          <div
-            key={url}
-            className="group relative h-28 w-24 overflow-hidden rounded-lg border border-rule bg-paper-sunken"
-          >
-            <ProductImage src={url} alt="" className="h-full w-full object-cover" />
+      <div
+        onDragEnter={(e) => {
+          if (!isFileDrag(e)) return;
+          depth.current += 1;
+          setDropping(true);
+        }}
+        onDragOver={(e) => {
+          // Without this the browser navigates to the dropped file instead.
+          if (isFileDrag(e)) e.preventDefault();
+        }}
+        onDragLeave={(e) => {
+          if (!isFileDrag(e)) return;
+          depth.current -= 1;
+          if (depth.current <= 0) {
+            depth.current = 0;
+            setDropping(false);
+          }
+        }}
+        onDrop={(e) => {
+          if (!isFileDrag(e)) return;
+          e.preventDefault();
+          depth.current = 0;
+          setDropping(false);
+          const files = Array.from(e.dataTransfer.files);
+          if (files.length) void upload(files);
+        }}
+        className={`mt-2 rounded-xl border-2 border-dashed p-3 transition-colors ${
+          dropping
+            ? "border-ink bg-paper-sunken"
+            : "border-transparent bg-transparent"
+        }`}
+      >
+        <div className="flex flex-wrap gap-3">
+          {images.map((url, i) => (
+            <div
+              key={url}
+              draggable
+              onDragStart={(e) => {
+                setDragging(i);
+                e.dataTransfer.effectAllowed = "move";
+                // Firefox ignores a drag that sets no data at all.
+                e.dataTransfer.setData("text/plain", String(i));
+              }}
+              onDragOver={(e) => dragOverThumb(e, i)}
+              onDragEnd={() => setDragging(null)}
+              onDrop={(e) => {
+                if (!isFileDrag(e)) e.preventDefault();
+                setDragging(null);
+              }}
+              className={`group relative h-28 w-24 cursor-grab overflow-hidden rounded-lg border border-rule bg-paper-sunken active:cursor-grabbing ${
+                dragging === i ? "opacity-40 ring-2 ring-ink" : ""
+              }`}
+            >
+              <ProductImage src={url} alt="" className="h-full w-full object-cover" />
 
-            {i === 0 && (
-              <span className="absolute inset-x-0 top-0 bg-ink/80 py-1 text-center text-[9px] uppercase tracking-[0.16em] text-paper">
-                Main
+              {i === 0 && (
+                <span className="absolute inset-x-0 top-0 bg-ink/80 py-1 text-center text-[9px] uppercase tracking-[0.16em] text-paper">
+                  Main
+                </span>
+              )}
+
+              <span
+                aria-hidden
+                className="absolute left-1 top-1 text-paper/70 opacity-0 transition-opacity group-hover:opacity-100"
+              >
+                <GripVertical size={14} />
               </span>
-            )}
 
-            <div className="absolute inset-x-0 bottom-0 flex justify-center gap-1 bg-ink/70 p-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-              {i > 0 && (
+              <div className="absolute inset-x-0 bottom-0 flex justify-center gap-1 bg-ink/70 p-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+                {i > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => makePrimary(url)}
+                    aria-label="Use as the main image"
+                    className="grid h-6 w-6 place-items-center rounded-full text-paper/80 hover:text-paper"
+                  >
+                    <Star size={12} aria-hidden />
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={() => makePrimary(url)}
-                  aria-label="Use as the main image"
+                  onClick={() => remove(url)}
+                  aria-label="Remove this image"
                   className="grid h-6 w-6 place-items-center rounded-full text-paper/80 hover:text-paper"
                 >
-                  <Star size={12} aria-hidden />
+                  <X size={12} aria-hidden />
                 </button>
-              )}
-              <button
-                type="button"
-                onClick={() => remove(url)}
-                aria-label="Remove this image"
-                className="grid h-6 w-6 place-items-center rounded-full text-paper/80 hover:text-paper"
-              >
-                <X size={12} aria-hidden />
-              </button>
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
 
-        {Array.from({ length: pending }, (_, i) => (
-          <div
-            key={`pending-${i}`}
-            className="grid h-28 w-24 place-items-center rounded-lg border border-dashed border-rule-strong bg-paper-sunken"
+          {Array.from({ length: pending }, (_, i) => (
+            <div
+              key={`pending-${i}`}
+              className="grid h-28 w-24 place-items-center rounded-lg border border-dashed border-rule-strong bg-paper-sunken"
+            >
+              <Loader2 size={16} className="animate-spin text-ink-faint" aria-hidden />
+            </div>
+          ))}
+
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            className="grid h-28 w-24 place-items-center gap-1 rounded-lg border border-dashed border-rule-strong text-ink-faint transition-colors hover:border-ink hover:text-ink"
           >
-            <Loader2 size={16} className="animate-spin text-ink-faint" aria-hidden />
-          </div>
-        ))}
-
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          className="grid h-28 w-24 place-items-center gap-1 rounded-lg border border-dashed border-rule-strong text-ink-faint transition-colors hover:border-ink hover:text-ink"
-        >
-          <ImagePlus size={18} aria-hidden />
-          <span className="text-[10px] uppercase tracking-[0.14em]">Add</span>
-        </button>
+            <ImagePlus size={18} aria-hidden />
+            <span className="text-[10px] uppercase tracking-[0.14em]">Add</span>
+          </button>
+        </div>
       </div>
 
       <input
@@ -172,8 +258,10 @@ export default function ProductImageUploader({
       />
 
       <p className="mt-2 text-xs text-ink-faint">
-        PNG, JPEG, WebP or AVIF, up to 5 MB each. The first image is the one the
-        storefront leads with. Leave this empty and a placeholder is generated.
+        Drop images anywhere in this box, or click Add. Drag a thumbnail to
+        reorder; the first one is what the storefront leads with. PNG, JPEG,
+        WebP or AVIF, up to 5 MB each. Leave it empty and a placeholder is
+        generated.
       </p>
 
       {error && (

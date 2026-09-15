@@ -488,6 +488,22 @@ drawn for the opposite ground. No code change either way.
 stock. It needs the `products.manage` scope, which `master_admin` holds
 implicitly.
 
+Images can be **dropped straight onto the box**, and **thumbnails dragged to
+reorder** — the first one is what the storefront leads with, so ordering is how
+you choose the main shot.
+
+Two kinds of drag happen in that box and they must not be confused: files
+arriving from the desktop, and a thumbnail being moved within the strip.
+`dataTransfer.types` separates them, since a file drag always carries `"Files"`
+and a thumbnail drag never does. Without that check, picking up a thumbnail lit
+the drop zone as though a file were incoming. `dragenter` and `dragleave` also
+fire for every child the pointer crosses, so the highlight counts entries
+against leaves rather than toggling a boolean, which would flicker.
+
+The star button stays alongside the dragging. Native drag and drop is not
+keyboard accessible, so promoting an image to main has to remain possible
+without a pointer.
+
 **Photographs go straight from the browser to Supabase Storage**, never through
 the server action. A server action body is capped at 1MB by default and product
 photography passes that immediately, so `<ProductImageUploader />` uploads to

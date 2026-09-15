@@ -96,7 +96,7 @@ export default function BrandMediaManager({
                 bucket="brand-media"
                 initial={draft?.image_url}
                 label="Photograph"
-                hint="Up to 10 MB. Shot wide: it runs edge to edge and is cropped to fill, so keep the subject away from the extremes."
+                hint="Drop an image here or click Upload. Up to 10 MB, shot wide: it runs edge to edge and is cropped to fill, so keep the subject away from the extremes."
               />
             </div>
 
