@@ -56,21 +56,21 @@ export default async function HomePage() {
             className="absolute inset-0"
             style={{
               background:
-                "radial-gradient(95% 72% at 50% 46%, rgba(255,255,255,0) 0%, rgba(255,255,255,0.45) 45%, rgba(255,255,255,0.85) 72%, var(--paper) 92%)",
+                "radial-gradient(105% 85% at 50% 46%, rgba(255,255,255,0) 0%, rgba(255,255,255,0.12) 55%, rgba(255,255,255,0.55) 82%, var(--paper) 100%)",
             }}
           />
           <div
-            className="absolute inset-x-0 top-0 h-24 sm:h-32"
+            className="absolute inset-x-0 top-0 h-16 sm:h-24"
             style={{
               background:
-                "linear-gradient(to bottom, var(--paper) 0%, rgba(255,255,255,0) 100%)",
+                "linear-gradient(to bottom, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0) 100%)",
             }}
           />
           <div
-            className="absolute inset-x-0 bottom-0 h-40 sm:h-56"
+            className="absolute inset-x-0 bottom-0 h-52 sm:h-64"
             style={{
               background:
-                "linear-gradient(to top, var(--paper) 12%, rgba(255,255,255,0) 100%)",
+                "linear-gradient(to top, var(--paper) 35%, rgba(255,255,255,0.75) 62%, rgba(255,255,255,0) 100%)",
             }}
           />
         </div>
