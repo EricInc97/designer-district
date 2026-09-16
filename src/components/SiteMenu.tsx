@@ -135,7 +135,7 @@ export default function SiteMenu({
         onClick={() => setOpen(true)}
         aria-label="Open menu"
         aria-expanded={open}
-        className="grid h-10 w-10 place-items-center rounded-full text-paper/70 transition-colors hover:bg-white/10 hover:text-paper"
+        className="grid h-10 w-10 place-items-center rounded-full text-ink-dim transition-colors hover:bg-paper-sunken hover:text-ink"
       >
         <Menu size={20} strokeWidth={1.75} aria-hidden />
       </button>

@@ -33,7 +33,7 @@ export default async function Navbar() {
   }
 
   return (
-    <header className="sticky top-0 z-40 border-b border-white/10 bg-ink">
+    <header className="sticky top-0 z-40 border-b border-rule bg-paper">
       <div className="mx-auto max-w-7xl px-4 sm:px-8">
         {/* Three fixed columns so the wordmark stays optically centred no
             matter how wide the flanking controls get. */}
@@ -53,10 +53,11 @@ export default async function Navbar() {
             className="justify-self-center transition-opacity hover:opacity-80"
           >
             {/* The wordmark cut straight from the logo, so the lettering and
-                its slits match exactly rather than approximating the face. */}
+                its slits match exactly rather than approximating the face.
+                The ink cut, not the white one: the bar is paper now. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/brand/designer-district-wordmark-on-dark.png"
+              src="/brand/designer-district-wordmark.png"
               alt="Designer District"
               width={900}
               height={61}
@@ -67,7 +68,7 @@ export default async function Navbar() {
           <nav aria-label="Account and cart" className="flex items-center justify-end gap-1">
             <Link
               href={user ? "/account" : "/login"}
-              className="grid h-10 w-10 place-items-center rounded-full text-paper/70 transition-colors hover:bg-white/10 hover:text-paper"
+              className="grid h-10 w-10 place-items-center rounded-full text-ink-dim transition-colors hover:bg-paper-sunken hover:text-ink"
               aria-label={user ? "Your account" : "Sign in"}
             >
               <User size={19} strokeWidth={1.6} aria-hidden />

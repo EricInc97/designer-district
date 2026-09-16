@@ -4,6 +4,10 @@ import Link from "next/link";
  * Minimal footer: the mark, one inline row of links, and the fine print.
  * Everything sits on a line and wraps, rather than stacking into columns,
  * so it stays short on a phone.
+ *
+ * Deliberately shallow. It is the end of the page, not a second navigation,
+ * and it was eating a screen and a half on a phone: the mark is now a third
+ * of the height it was and the fine print shares a single row with it.
  */
 const links = [
   { label: "All Brands", href: "/brands" },
@@ -18,12 +22,11 @@ export default function Footer() {
   // whole page, and a static footer would be painted underneath a fixed layer.
   // The paper ground also means the page still ends on something solid.
   return (
-    <footer className="relative z-10 border-t border-rule bg-paper mt-24">
-      <div className="mx-auto max-w-7xl px-5 sm:px-8 py-8">
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
-          {/* The full lockup as drawn: dome above, wordmark stacked under it.
-              Sized so those two lines of type stay legible rather than
-              collapsing into a smudge. */}
+    <footer className="relative z-10 border-t border-rule bg-paper mt-16">
+      <div className="mx-auto max-w-7xl px-5 sm:px-8 py-5">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+          {/* The full lockup as drawn: dome above, wordmark stacked under
+              it, small. */}
           <Link href="/" aria-label="Designer District, home" className="shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -32,12 +35,12 @@ export default function Footer() {
               width={800}
               height={618}
               loading="lazy"
-              className="h-20 w-auto sm:h-24"
+              className="h-12 w-auto sm:h-14"
             />
           </Link>
 
           <nav aria-label="Footer">
-            <ul className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <ul className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
               {links.map((link) => (
                 <li key={link.label}>
                   <Link
@@ -52,7 +55,7 @@ export default function Footer() {
           </nav>
         </div>
 
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-x-6 gap-y-1 border-t border-rule pt-4">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-1 border-t border-rule pt-3">
           <p className="text-xs text-ink-faint">
             © {new Date().getFullYear()} Designer District. All rights reserved.
           </p>
@@ -61,30 +64,6 @@ export default function Footer() {
           </p>
         </div>
 
-        {/* Required by the licence on the homepage photograph, not optional
-            decoration: CC BY asks for the author, a link to the licence, and a
-            note that the work was changed. */}
-        <p className="mt-3 text-[11px] leading-relaxed text-ink-faint">
-          Fly&rsquo;s Eye Dome photograph by{" "}
-          <a
-            href="https://commons.wikimedia.org/wiki/File:Buckminster_Fuller_Dome_Miami_Design_District.jpg"
-            target="_blank"
-            rel="noreferrer"
-            className="underline underline-offset-2 transition-colors hover:text-ink"
-          >
-            Phillip Pessar
-          </a>
-          , licensed under{" "}
-          <a
-            href="https://creativecommons.org/licenses/by/2.0/"
-            target="_blank"
-            rel="noreferrer"
-            className="underline underline-offset-2 transition-colors hover:text-ink"
-          >
-            CC BY 2.0
-          </a>
-          . Cropped and colour-adjusted.
-        </p>
       </div>
     </footer>
   );
