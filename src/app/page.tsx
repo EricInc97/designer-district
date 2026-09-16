@@ -64,15 +64,36 @@ export default async function HomePage() {
       {/* ---------------- HERO ---------------- */}
       <section className="relative">
         <div className="mx-auto flex max-w-7xl flex-col items-center px-5 py-20 text-center sm:px-8 sm:py-24">
-          {/* The transparent-ground artwork on a black disc, rather than the
-              square original: the lockup is wider than it is tall, so a
-              circular crop of the original would clip the wordmark. Held at
-              72% of the diameter to keep its corners inside the curve. The
-              disc sits on the photograph, so it carries a soft shadow to keep
-              it from looking pasted on, and it is held in from the full column
-              width on a phone: at max-w-sm it covered the dome behind it edge
-              to edge. Smaller, the dome shows as a ring around the disc. */}
-          <div className="grid aspect-square w-full max-w-[17.5rem] animate-rise place-items-center rounded-full bg-ink shadow-[0_30px_90px_-40px_rgba(0,0,0,0.9)] sm:max-w-md">
+          {/*
+            No disc behind the lockup any more. A solid black circle on a
+            photograph reads as a sticker laid over it rather than as part of
+            it, and the point of this page is the building.
+
+            What is left is the artwork itself — it already ships on a
+            transparent ground — over a smoked-glass halo: a backdrop blur with
+            a faint dark tint, masked by a radial gradient so it has no edge to
+            catch the eye and simply thins out into the photograph. The blur is
+            what makes the white lockup legible over the bright cells of the
+            dome without hiding them, and it echoes the dome's own translucent
+            shell rather than fighting it.
+
+            The mask fades the blur too, not only the tint: masking a
+            backdrop-filter is the whole reason this is a separate layer from
+            the image.
+          */}
+          <div className="relative grid aspect-square w-full max-w-[19rem] animate-rise place-items-center sm:max-w-md">
+            <div
+              aria-hidden
+              className="absolute inset-0 rounded-full backdrop-blur-[18px]"
+              style={{
+                backgroundColor: "rgba(0,0,0,0.38)",
+                maskImage:
+                  "radial-gradient(circle at 50% 50%, #000 42%, rgba(0,0,0,0.55) 62%, transparent 78%)",
+                WebkitMaskImage:
+                  "radial-gradient(circle at 50% 50%, #000 42%, rgba(0,0,0,0.55) 62%, transparent 78%)",
+              }}
+            />
+
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/brand/designer-district-on-dark.png"
@@ -80,7 +101,7 @@ export default async function HomePage() {
               width={800}
               height={618}
               fetchPriority="high"
-              className="w-[72%]"
+              className="relative w-[68%] [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.9))_drop-shadow(0_4px_22px_rgba(0,0,0,0.75))]"
             />
           </div>
 
