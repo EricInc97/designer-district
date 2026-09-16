@@ -14,8 +14,11 @@ const links = [
 ];
 
 export default function Footer() {
+  // Positioned and opaque: the homepage runs a fixed photograph behind the
+  // whole page, and a static footer would be painted underneath a fixed layer.
+  // The paper ground also means the page still ends on something solid.
   return (
-    <footer className="border-t border-rule mt-24">
+    <footer className="relative z-10 border-t border-rule bg-paper mt-24">
       <div className="mx-auto max-w-7xl px-5 sm:px-8 py-8">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
           {/* The full lockup as drawn: dome above, wordmark stacked under it.
