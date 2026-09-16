@@ -60,6 +60,31 @@ export default function Footer() {
             Brand names are trademarks of their respective owners.
           </p>
         </div>
+
+        {/* Required by the licence on the homepage photograph, not optional
+            decoration: CC BY asks for the author, a link to the licence, and a
+            note that the work was changed. */}
+        <p className="mt-3 text-[11px] leading-relaxed text-ink-faint">
+          Fly&rsquo;s Eye Dome photograph by{" "}
+          <a
+            href="https://commons.wikimedia.org/wiki/File:Buckminster_Fuller_Dome_Miami_Design_District.jpg"
+            target="_blank"
+            rel="noreferrer"
+            className="underline underline-offset-2 transition-colors hover:text-ink"
+          >
+            Phillip Pessar
+          </a>
+          , licensed under{" "}
+          <a
+            href="https://creativecommons.org/licenses/by/2.0/"
+            target="_blank"
+            rel="noreferrer"
+            className="underline underline-offset-2 transition-colors hover:text-ink"
+          >
+            CC BY 2.0
+          </a>
+          . Cropped and colour-adjusted.
+        </p>
       </div>
     </footer>
   );

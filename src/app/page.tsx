@@ -40,14 +40,20 @@ export default async function HomePage() {
         <picture>
           <source
             media="(max-width: 639px)"
+            type="image/webp"
+            srcSet="/brand/flys-eye-dome-tall.webp"
+          />
+          <source
+            media="(max-width: 639px)"
             srcSet="/brand/flys-eye-dome-tall.jpg"
           />
+          <source type="image/webp" srcSet="/brand/flys-eye-dome.webp" />
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/brand/flys-eye-dome.jpg"
             alt=""
             fetchPriority="high"
-            className="h-full w-full object-cover object-[50%_45%]"
+            className="h-full w-full object-cover object-[48%_45%]"
           />
         </picture>
       </div>
@@ -81,7 +87,7 @@ export default async function HomePage() {
           {/* White on a photograph needs more than colour: the shadow is what
               holds it together over the bright cells of the dome. */}
           <p
-            className="mt-8 max-w-md animate-rise text-base font-semibold leading-relaxed text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.95),0_2px_10px_rgba(0,0,0,0.9),0_0_36px_rgba(0,0,0,0.75)] sm:text-lg"
+            className="mt-8 max-w-md animate-rise text-base font-semibold leading-relaxed text-white [text-shadow:0_1px_2px_rgba(0,0,0,1),0_2px_8px_rgba(0,0,0,0.95),0_0_30px_rgba(0,0,0,0.85)] sm:text-lg"
             style={{ animationDelay: "80ms" }}
           >
             At Designer District we carry a wide variety of exclusive brands.
@@ -97,8 +103,8 @@ export default async function HomePage() {
       >
         {/* Centred and tightened: the block reads as one unit rather than
             three widely spaced lines. */}
-        <div className="mx-auto max-w-xl text-center [text-shadow:0_1px_3px_rgba(0,0,0,0.95),0_2px_10px_rgba(0,0,0,0.9),0_0_36px_rgba(0,0,0,0.75)]">
-          <p className="eyebrow !text-white/80">The Collection</p>
+        <div className="mx-auto max-w-xl text-center [text-shadow:0_1px_2px_rgba(0,0,0,1),0_2px_8px_rgba(0,0,0,0.95),0_0_30px_rgba(0,0,0,0.85)]">
+          <p className="eyebrow !text-white">The Collection</p>
           <h1 className="display mt-1.5 text-3xl text-white sm:text-4xl">
             Shop by brand
           </h1>
