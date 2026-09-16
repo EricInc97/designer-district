@@ -70,23 +70,23 @@ export default async function HomePage() {
             it, and the point of this page is the building.
 
             What is left is the artwork itself — it already ships on a
-            transparent ground — over a smoked-glass halo: a backdrop blur with
-            a faint dark tint, masked by a radial gradient so it has no edge to
-            catch the eye and simply thins out into the photograph. The blur is
-            what makes the white lockup legible over the bright cells of the
-            dome without hiding them, and it echoes the dome's own translucent
-            shell rather than fighting it.
+            transparent ground — over a clear glass halo: a backdrop blur with
+            no tint at all, masked by a radial gradient so it has no edge to
+            catch the eye and simply thins out into the photograph. The blur
+            alone softens the bright cells of the dome enough for the white
+            lockup to hold, and it echoes the dome's own translucent shell
+            rather than fighting it. Legibility past that is the artwork's own
+            pair of drop shadows, which is why they are layered rather than
+            single.
 
-            The mask fades the blur too, not only the tint: masking a
-            backdrop-filter is the whole reason this is a separate layer from
-            the image.
+            The mask fades the blur itself: masking a backdrop-filter is the
+            whole reason this is a separate layer from the image.
           */}
-          <div className="relative grid aspect-square w-full max-w-[19rem] animate-rise place-items-center sm:max-w-md">
+          <div className="relative grid aspect-square w-full max-w-[21rem] animate-rise place-items-center sm:max-w-lg">
             <div
               aria-hidden
               className="absolute inset-0 rounded-full backdrop-blur-[18px]"
               style={{
-                backgroundColor: "rgba(0,0,0,0.38)",
                 maskImage:
                   "radial-gradient(circle at 50% 50%, #000 42%, rgba(0,0,0,0.55) 62%, transparent 78%)",
                 WebkitMaskImage:
@@ -101,7 +101,7 @@ export default async function HomePage() {
               width={800}
               height={618}
               fetchPriority="high"
-              className="relative w-[68%] [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.9))_drop-shadow(0_4px_22px_rgba(0,0,0,0.75))]"
+              className="relative w-[76%] [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.9))_drop-shadow(0_4px_22px_rgba(0,0,0,0.75))]"
             />
           </div>
 
