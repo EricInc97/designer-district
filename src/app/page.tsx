@@ -19,13 +19,74 @@ export default async function HomePage() {
   return (
     <>
       {/* ---------------- HERO ---------------- */}
-      <section className="border-b border-rule">
-        <div className="mx-auto flex max-w-7xl flex-col items-center px-5 sm:px-8 py-14 sm:py-20 text-center">
+      {/*
+        The Fly's Eye Dome in the Miami Design District: the building the mark
+        was drawn from, so the homepage opens on the thing itself rather than a
+        stock backdrop.
+
+        It is washed out in the file, not only in CSS — desaturated and lifted
+        until its darkest pixel is a pale grey — so it behaves like paper stock
+        rather than a photograph, and so it still reads correctly if a gradient
+        fails to paint. The scrims then dissolve its edges into the page: a
+        radial one that clears the centre for the lockup and closes to solid
+        paper at the corners, and a taller fade at the foot so there is no seam
+        where the hero ends and the brand grid begins. No bottom rule for the
+        same reason.
+      */}
+      <section className="relative isolate overflow-hidden">
+        <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
+          {/* Two crops rather than one. The frame is landscape, and a phone
+              hero is portrait, so a single file cover-cropped would slice the
+              dome down to a few cells. The tall cut is centred on the dome. */}
+          <picture>
+            <source
+              media="(max-width: 639px)"
+              srcSet="/brand/flys-eye-dome-tall.jpg"
+            />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/brand/flys-eye-dome.jpg"
+              alt=""
+              fetchPriority="high"
+              className="animate-fade-in h-full w-full object-cover object-[50%_45%]"
+            />
+          </picture>
+
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                "radial-gradient(95% 72% at 50% 46%, rgba(255,255,255,0) 0%, rgba(255,255,255,0.45) 45%, rgba(255,255,255,0.85) 72%, var(--paper) 92%)",
+            }}
+          />
+          <div
+            className="absolute inset-x-0 top-0 h-24 sm:h-32"
+            style={{
+              background:
+                "linear-gradient(to bottom, var(--paper) 0%, rgba(255,255,255,0) 100%)",
+            }}
+          />
+          <div
+            className="absolute inset-x-0 bottom-0 h-40 sm:h-56"
+            style={{
+              background:
+                "linear-gradient(to top, var(--paper) 12%, rgba(255,255,255,0) 100%)",
+            }}
+          />
+        </div>
+
+        <div className="mx-auto flex max-w-7xl flex-col items-center px-5 py-20 text-center sm:px-8 sm:py-24">
           {/* The transparent-ground artwork on a black disc, rather than the
               square original: the lockup is wider than it is tall, so a
               circular crop of the original would clip the wordmark. Held at
-              72% of the diameter to keep its corners inside the curve. */}
-          <div className="grid aspect-square w-full max-w-sm animate-rise place-items-center rounded-full bg-ink sm:max-w-md">
+              72% of the diameter to keep its corners inside the curve. The
+              disc now sits on the photograph, so it carries a soft shadow to
+              keep it from looking pasted on, and it is held in from the full
+              column width on a phone: at max-w-sm it covered the dome behind
+              it edge to edge and the photograph read as nothing but a strip of
+              palm. Smaller, the dome shows as a ring around the disc, which is
+              the same composition the desktop hero has. */}
+          <div className="grid aspect-square w-full max-w-[17.5rem] animate-rise place-items-center rounded-full bg-ink shadow-[0_30px_90px_-40px_rgba(11,11,11,0.75)] sm:max-w-md">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/brand/designer-district-on-dark.png"
