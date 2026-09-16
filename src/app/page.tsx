@@ -129,6 +129,12 @@ export default async function HomePage() {
           <h1 className="display mt-1.5 text-3xl text-white sm:text-4xl">
             Shop by brand
           </h1>
+          {/* Said plainly, because it turned out not to be obvious: people
+              shown this page read the grid as a logo wall and did not try
+              clicking it. */}
+          <p className="mt-3 text-sm font-medium text-white sm:text-base">
+            Select a brand to view its products.
+          </p>
         </div>
 
         {brandList.length === 0 ? (
