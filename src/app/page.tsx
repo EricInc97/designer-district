@@ -76,8 +76,9 @@ export default async function HomePage() {
             alone softens the bright cells of the dome enough for the white
             lockup to hold, and it echoes the dome's own translucent shell
             rather than fighting it. Legibility past that is the artwork's own
-            pair of drop shadows, which is why they are layered rather than
-            single.
+            drop shadows, stacked three deep: a hairline rim to cut the white
+            from whatever is directly behind it, then two softer casts. The
+            backdrop carries no tint at all, so these are the whole of it.
 
             The mask fades the blur itself: masking a backdrop-filter is the
             whole reason this is a separate layer from the image.
@@ -101,7 +102,7 @@ export default async function HomePage() {
               width={800}
               height={618}
               fetchPriority="high"
-              className="relative w-[76%] [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.9))_drop-shadow(0_4px_22px_rgba(0,0,0,0.75))]"
+              className="relative w-[76%] [filter:drop-shadow(0_0_1px_rgba(0,0,0,0.95))_drop-shadow(0_1px_3px_rgba(0,0,0,0.95))_drop-shadow(0_6px_26px_rgba(0,0,0,0.8))]"
             />
           </div>
 
