@@ -112,7 +112,7 @@ export default function SingleImageUpload({
               type="button"
               onClick={() => setUrl("")}
               aria-label="Remove this image"
-              className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-ink/70 text-paper/80 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
+              className="absolute right-1 top-1 grid h-8 w-8 place-items-center rounded-full bg-ink/70 text-paper/80 opacity-100 transition-opacity focus:opacity-100 sm:h-6 sm:w-6 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
             >
               <X size={12} aria-hidden />
             </button>

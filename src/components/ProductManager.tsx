@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { Fragment, useActionState, useState } from "react";
 import { ExternalLink, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import {
@@ -24,7 +24,12 @@ type Props = {
 const inputClass =
   "mt-2 w-full rounded-lg border border-rule bg-paper px-4 py-3 text-sm text-ink outline-none placeholder:text-ink-faint focus:border-ink-faint transition-colors";
 
-export default function ProductManager({ products, brands, categories, can }: Props) {
+export default function ProductManager({
+  products,
+  brands,
+  categories,
+  can,
+}: Props) {
   const [editing, setEditing] = useState<Product | null>(null);
   const [creating, setCreating] = useState(false);
   const [state, submit, saving] = useActionState<AdminResult, FormData>(
@@ -32,11 +37,39 @@ export default function ProductManager({ products, brands, categories, can }: Pr
     null,
   );
 
+  // "all" keeps every house on screen, grouped; a brand id narrows to one.
+  const [brandFilter, setBrandFilter] = useState<string>("all");
+
   const draft = editing ?? null;
   const formOpen = creating || editing !== null;
 
   const brandName = (id: string) =>
     brands.find((b) => b.id === id)?.name ?? "Unassigned";
+
+  /**
+   * The catalog split by house, in the order the brands themselves are sorted
+   * rather than alphabetically, so it reads the same way the storefront does.
+   *
+   * One flat list of every product was fine at a dozen rows and useless at a
+   * hundred: finding the Bape hoodie meant scrolling past every other house.
+   * Anything whose brand_id no longer matches a row lands in a trailing
+   * "Unassigned" group rather than disappearing from the page.
+   */
+  const groups = [
+    ...brands.map((b) => ({
+      id: b.id,
+      name: b.name,
+      items: products.filter((p) => p.brand_id === b.id),
+    })),
+    {
+      id: "unassigned",
+      name: "Unassigned",
+      items: products.filter((p) => !brands.some((b) => b.id === p.brand_id)),
+    },
+  ].filter((g) => g.items.length > 0);
+
+  const shown =
+    brandFilter === "all" ? groups : groups.filter((g) => g.id === brandFilter);
 
   function close() {
     setCreating(false);
@@ -211,7 +244,9 @@ export default function ProductManager({ products, brands, categories, can }: Pr
               <input
                 id="sizes"
                 name="sizes"
-                defaultValue={(draft?.sizes ?? ["S", "M", "L", "XL"]).join(", ")}
+                defaultValue={(draft?.sizes ?? ["S", "M", "L", "XL"]).join(
+                  ", ",
+                )}
                 className={inputClass}
               />
             </div>
@@ -280,7 +315,9 @@ export default function ProductManager({ products, brands, categories, can }: Pr
               disabled={saving}
               className="inline-flex items-center gap-2 rounded-full bg-ink px-7 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-paper hover:opacity-90 disabled:opacity-60 transition-colors"
             >
-              {saving && <Loader2 size={13} className="animate-spin" aria-hidden />}
+              {saving && (
+                <Loader2 size={13} className="animate-spin" aria-hidden />
+              )}
               {draft ? "Save changes" : "Create product"}
             </button>
             <button
@@ -295,109 +332,171 @@ export default function ProductManager({ products, brands, categories, can }: Pr
       )}
 
       {/* ---------------- LIST ---------------- */}
+      {/* One chip per house that actually has stock, so the row does not fill
+          up with brands there is nothing to edit under. */}
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setBrandFilter("all")}
+          className={`rounded-full border px-4 py-2 text-xs uppercase tracking-[0.16em] transition-colors ${
+            brandFilter === "all"
+              ? "border-ink bg-ink text-paper"
+              : "border-rule-strong text-ink-dim hover:border-ink hover:text-ink"
+          }`}
+        >
+          All
+          <span className="ml-2 opacity-70">{products.length}</span>
+        </button>
+
+        {groups.map((g) => {
+          const on = g.id === brandFilter;
+          return (
+            <button
+              key={g.id}
+              type="button"
+              onClick={() => setBrandFilter(g.id)}
+              className={`rounded-full border px-4 py-2 text-xs uppercase tracking-[0.16em] transition-colors ${
+                on
+                  ? "border-ink bg-ink text-paper"
+                  : "border-rule-strong text-ink-dim hover:border-ink hover:text-ink"
+              }`}
+            >
+              {g.name}
+              <span className="ml-2 opacity-70">{g.items.length}</span>
+            </button>
+          );
+        })}
+      </div>
+
       <ul className="divide-y divide-rule overflow-hidden rounded-xl border border-rule">
-        {products.length === 0 && (
+        {shown.length === 0 && (
           <li className="bg-paper-raised px-5 py-14 text-center text-sm text-ink-faint">
-            No products yet.
+            {products.length === 0
+              ? "No products yet."
+              : "Nothing under this house yet."}
           </li>
         )}
 
-        {products.map((product) => (
-          <li
-            key={product.id}
-            className="flex flex-wrap items-center gap-4 bg-paper-raised px-5 py-4"
-          >
-            <ProductImage
-              src={product.image_url}
-              slug={product.slug}
-              alt=""
-              className="h-16 w-14 shrink-0 rounded-md object-cover bg-paper-sunken"
-            />
-
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm">{product.name}</p>
-              <p className="mt-0.5 text-xs text-ink-faint">
-                <span className="font-mono">{product.sku}</span>
+        {shown.map((group) => (
+          <Fragment key={group.id}>
+            {/* Deliberately not sticky. The list is rounded, which means the
+                ul carries overflow-hidden, and that makes the ul itself the
+                nearest scrollport: a sticky header then offsets from the top
+                of the list rather than the viewport and sits on top of the
+                first row it is meant to label. The chips above are what make a
+                long catalog navigable anyway. */}
+            <li className="flex items-center justify-between gap-3 border-y border-rule bg-paper-sunken px-5 py-2">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink">
+                {group.name}
+              </span>
+              <span className="text-[11px] text-ink-faint">
+                {group.items.length}
+                {group.items.length === 1 ? " item" : " items"}
                 {" · "}
-                {brandName(product.brand_id)}
-              </p>
-              <p className="mt-0.5 text-xs text-ink-faint">
-                {money(product.price)} ·{" "}
-                <span className={product.stock_count <= 3 ? "text-danger" : ""}>
-                  {product.stock_count} in stock
+                {group.items.filter((p) => p.is_published).length} live
+              </span>
+            </li>
+
+            {group.items.map((product) => (
+              <li
+                key={product.id}
+                className="flex flex-wrap items-center gap-4 bg-paper-raised px-5 py-4"
+              >
+                <ProductImage
+                  src={product.image_url}
+                  slug={product.slug}
+                  alt=""
+                  className="h-16 w-14 shrink-0 rounded-md object-cover bg-paper-sunken"
+                />
+
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm">{product.name}</p>
+                  <p className="mt-0.5 text-xs text-ink-faint">
+                    <span className="font-mono">{product.sku}</span>
+                    {" · "}
+                    {brandName(product.brand_id)}
+                  </p>
+                  <p className="mt-0.5 text-xs text-ink-faint">
+                    {money(product.price)} ·{" "}
+                    <span
+                      className={product.stock_count <= 3 ? "text-danger" : ""}
+                    >
+                      {product.stock_count} in stock
+                    </span>
+                    {product.is_featured && " · featured"}
+                  </p>
+                </div>
+
+                <span
+                  className={`shrink-0 rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.18em] ${
+                    product.is_published
+                      ? "border-success/50 text-success"
+                      : "border-rule-strong text-ink-faint"
+                  }`}
+                >
+                  {product.is_published ? "Live" : "Draft"}
                 </span>
-                {product.is_featured && " · featured"}
-              </p>
-            </div>
 
-            <span
-              className={`shrink-0 rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.18em] ${
-                product.is_published
-                  ? "border-success/50 text-success"
-                  : "border-rule-strong text-ink-faint"
-              }`}
-            >
-              {product.is_published ? "Live" : "Draft"}
-            </span>
+                <div className="flex shrink-0 items-center gap-2">
+                  {product.is_published && (
+                    <Link
+                      href={`/products/${product.id}`}
+                      target="_blank"
+                      aria-label={`View ${product.name} on the storefront`}
+                      className="grid h-8 w-8 place-items-center rounded-full text-ink-faint transition-colors hover:bg-paper-sunken hover:text-ink"
+                    >
+                      <ExternalLink size={14} aria-hidden />
+                    </Link>
+                  )}
 
-            <div className="flex shrink-0 items-center gap-2">
-              {product.is_published && (
-                <Link
-                  href={`/products/${product.id}`}
-                  target="_blank"
-                  aria-label={`View ${product.name} on the storefront`}
-                  className="grid h-8 w-8 place-items-center rounded-full text-ink-faint transition-colors hover:bg-paper-sunken hover:text-ink"
-                >
-                  <ExternalLink size={14} aria-hidden />
-                </Link>
-              )}
+                  {can.publish && (
+                    <form action={togglePublished}>
+                      <input type="hidden" name="id" value={product.id} />
+                      <input
+                        type="hidden"
+                        name="next"
+                        value={String(!product.is_published)}
+                      />
+                      <button
+                        type="submit"
+                        className="rounded-full border border-rule-strong px-4 py-1.5 text-[10px] uppercase tracking-[0.18em] text-ink-dim hover:text-ink hover:border-ink transition-colors"
+                      >
+                        {product.is_published ? "Unpublish" : "Publish"}
+                      </button>
+                    </form>
+                  )}
 
-              {can.publish && (
-                <form action={togglePublished}>
-                  <input type="hidden" name="id" value={product.id} />
-                  <input
-                    type="hidden"
-                    name="next"
-                    value={String(!product.is_published)}
-                  />
-                  <button
-                    type="submit"
-                    className="rounded-full border border-rule-strong px-4 py-1.5 text-[10px] uppercase tracking-[0.18em] text-ink-dim hover:text-ink hover:border-ink transition-colors"
-                  >
-                    {product.is_published ? "Unpublish" : "Publish"}
-                  </button>
-                </form>
-              )}
+                  {can.manage && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCreating(false);
+                        setEditing(product);
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                      }}
+                      className="grid h-8 w-8 place-items-center rounded-full text-ink-dim hover:text-ink hover:bg-paper-sunken transition-colors"
+                      aria-label={`Edit ${product.name}`}
+                    >
+                      <Pencil size={14} aria-hidden />
+                    </button>
+                  )}
 
-              {can.manage && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCreating(false);
-                    setEditing(product);
-                    window.scrollTo({ top: 0, behavior: "smooth" });
-                  }}
-                  className="grid h-8 w-8 place-items-center rounded-full text-ink-dim hover:text-ink hover:bg-paper-sunken transition-colors"
-                  aria-label={`Edit ${product.name}`}
-                >
-                  <Pencil size={14} aria-hidden />
-                </button>
-              )}
-
-              {can.remove && (
-                <form action={deleteProduct}>
-                  <input type="hidden" name="id" value={product.id} />
-                  <button
-                    type="submit"
-                    className="grid h-8 w-8 place-items-center rounded-full text-ink-faint hover:text-danger hover:bg-paper-sunken transition-colors"
-                    aria-label={`Delete ${product.name}`}
-                  >
-                    <Trash2 size={14} aria-hidden />
-                  </button>
-                </form>
-              )}
-            </div>
-          </li>
+                  {can.remove && (
+                    <form action={deleteProduct}>
+                      <input type="hidden" name="id" value={product.id} />
+                      <button
+                        type="submit"
+                        className="grid h-8 w-8 place-items-center rounded-full text-ink-faint hover:text-danger hover:bg-paper-sunken transition-colors"
+                        aria-label={`Delete ${product.name}`}
+                      >
+                        <Trash2 size={14} aria-hidden />
+                      </button>
+                    </form>
+                  )}
+                </div>
+              </li>
+            ))}
+          </Fragment>
         ))}
       </ul>
     </div>

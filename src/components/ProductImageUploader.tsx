@@ -196,29 +196,42 @@ export default function ProductImageUploader({
 
               <span
                 aria-hidden
-                className="absolute left-1 top-1 text-paper/70 opacity-0 transition-opacity group-hover:opacity-100"
+                className="absolute left-1 top-1 hidden text-paper/70 opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:hover)]:block"
               >
                 <GripVertical size={14} />
               </span>
 
-              <div className="absolute inset-x-0 bottom-0 flex justify-center gap-1 bg-ink/70 p-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+              {/*
+                Always on show, then hidden again only where a pointer can
+                actually hover.
+
+                It used to be opacity-0 until group-hover, which on a phone
+                meant "make this the main image" and "remove this image" could
+                not be reached at all: there is no hover on touch, so the bar
+                never appeared and the only way to fix a bad first photograph
+                was a desktop. `hover: hover` is the media query that asks
+                whether the pointer can hover rather than guessing from width,
+                so a laptop keeps the clean reveal and a phone keeps the
+                controls.
+              */}
+              <div className="absolute inset-x-0 bottom-0 flex justify-center gap-1.5 bg-ink/70 p-1 opacity-100 transition-opacity focus-within:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100">
                 {i > 0 && (
                   <button
                     type="button"
                     onClick={() => makePrimary(url)}
                     aria-label="Use as the main image"
-                    className="grid h-6 w-6 place-items-center rounded-full text-paper/80 hover:text-paper"
+                    className="grid h-8 w-8 place-items-center rounded-full text-paper/80 hover:text-paper sm:h-6 sm:w-6"
                   >
-                    <Star size={12} aria-hidden />
+                    <Star size={13} aria-hidden />
                   </button>
                 )}
                 <button
                   type="button"
                   onClick={() => remove(url)}
                   aria-label="Remove this image"
-                  className="grid h-6 w-6 place-items-center rounded-full text-paper/80 hover:text-paper"
+                  className="grid h-8 w-8 place-items-center rounded-full text-paper/80 hover:text-paper sm:h-6 sm:w-6"
                 >
-                  <X size={12} aria-hidden />
+                  <X size={13} aria-hidden />
                 </button>
               </div>
             </div>
@@ -259,9 +272,9 @@ export default function ProductImageUploader({
 
       <p className="mt-2 text-xs text-ink-faint">
         Drop images anywhere in this box, or click Add. Drag a thumbnail to
-        reorder; the first one is what the storefront leads with. PNG, JPEG,
-        WebP or AVIF, up to 5 MB each. Leave it empty and a placeholder is
-        generated.
+        reorder, or use the star to make one the main image; the first one is
+        what the storefront leads with. PNG, JPEG, WebP or AVIF, up to 5 MB
+        each. Leave it empty and a placeholder is generated.
       </p>
 
       {error && (
