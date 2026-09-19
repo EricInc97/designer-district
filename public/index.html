@@ -349,32 +349,6 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
 }
 .index b[data-live="1"] { opacity: 1; }
 
-/* ---- sound toggle ------------------------------------------------------ */
-.sound {
-  position: fixed;
-  left: var(--shell);
-  bottom: calc(var(--shell) * 0.8);
-  z-index: 5;
-  display: grid;
-  place-items: center;
-  width: 42px; height: 42px;
-  padding: 0;
-  border: 0;
-  border-radius: 999px;
-  background: rgba(255,255,255,.9);
-  color: var(--ink);
-  box-shadow: 0 4px 16px rgba(0,0,0,.35);
-  cursor: pointer;
-  pointer-events: auto;
-  transition: transform .2s ease, background .2s ease;
-}
-.sound:hover { transform: translateY(-2px); }
-.sound .wave { opacity: 0; transition: opacity .25s ease; }
-.sound .cross { opacity: 1; transition: opacity .25s ease; }
-.sound[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
-.sound[aria-pressed="true"] .wave { opacity: 1; }
-.sound[aria-pressed="true"] .cross { opacity: 0; }
-
 /* --- finale --- */
 /* The finale used to be a white card pasted over the view. It is projected
    onto the building that closes the street now: no ground of its own, white
@@ -501,18 +475,6 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
   <nav class="index" id="index" aria-label="Districts on this street"></nav>
   <p class="hint halo" id="hint">Scroll</p>
 
-  <!-- Nothing plays until this is pressed. Browsers will not start audio
-       without a gesture, and a page that makes noise at you uninvited
-       deserves to be closed. -->
-  <button class="sound" id="sound" type="button" aria-pressed="false" aria-label="Turn sound on">
-    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
-         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M11 5 6 9H3v6h3l5 4z" />
-      <path class="wave" d="M15.5 8.5a5 5 0 0 1 0 7" />
-      <path class="wave" d="M18.5 5.5a9 9 0 0 1 0 13" />
-      <path class="cross" d="M17 9.5l5 5M22 9.5l-5 5" />
-    </svg>
-  </button>
 </div>
 
 <!-- ## 05  IMPORT MAP -->
@@ -3465,12 +3427,14 @@ const sound = (() => {
    * burst of work at start-up instead of a permanent scheduling overhead.
    */
   async function renderBeat(sampleRate) {
-    const BPM = 88, BARS = 4;
+    const BPM = 88, BARS = 8;
     const beat = 60 / BPM, dur = BARS * 4 * beat;
-    const oc = new OfflineAudioContext(2, Math.ceil((dur + 0.5) * sampleRate), sampleRate);
+    const oc = new OfflineAudioContext(2, Math.ceil((dur + 0.6) * sampleRate), sampleRate);
 
     const bus = oc.createGain();
-    bus.gain.value = 0.85;
+    // Headroom. The fills and the busier second half push the peak to 0.91
+    // at 0.85, which is closer to the ceiling than a render wants to be.
+    bus.gain.value = 0.76;
     // Rolls the top off before it ever reaches the panner: this is a beat
     // heard through a doorway, not a mastered track.
     const warm = oc.createBiquadFilter();
@@ -3478,6 +3442,7 @@ const sound = (() => {
     bus.connect(warm); warm.connect(oc.destination);
 
     const nb = noiseBuffer(oc, 2);
+    const rb = rng(31415);           // fixed, so the loop is the same every load
 
     const burst = (t, len, type, freq, q, gain) => {
       const src = oc.createBufferSource(); src.buffer = nb; src.loop = true;
@@ -3501,16 +3466,19 @@ const sound = (() => {
       o.start(t); o.stop(t + 0.38);
     };
 
-    const snare = (t) => {
-      burst(t, 0.17, "highpass", 1500, 0.7, 0.34);
+    const snare = (t, gain = 1) => {
+      burst(t, 0.17, "highpass", 1500, 0.7, 0.34 * gain);
       const o = oc.createOscillator(); o.type = "triangle";
       o.frequency.setValueAtTime(190, t);
       const g = oc.createGain();
-      g.gain.setValueAtTime(0.28, t);
+      g.gain.setValueAtTime(0.28 * gain, t);
       g.gain.exponentialRampToValueAtTime(0.0001, t + 0.13);
       o.connect(g); g.connect(bus);
       o.start(t); o.stop(t + 0.14);
     };
+
+    const hat = (t, gain, open = false) =>
+      burst(t, open ? 0.22 : 0.045, "highpass", open ? 7000 : 8200, 0.9, gain);
 
     const voice = (t, note, len, gain, type = "triangle", detune = 0) => {
       const o = oc.createOscillator();
@@ -3524,47 +3492,106 @@ const sound = (() => {
       o.start(t); o.stop(t + len + 0.02);
     };
 
-    // Four bars, minor and unhurried. Roots F, Db, Ab, Eb.
+    /*
+     * Eight bars, not four, and no two of them the same.
+     *
+     * A four-bar loop with one kick pattern announces itself the second time
+     * round. What stops a loop sounding like a loop is not length on its own
+     * — it is having events that arrive on a longer cycle than the bar: the
+     * kick pattern changing at the halfway point, hats doubling up, a fill
+     * that only lands on bars four and eight, a motif that appears twice in
+     * the whole phrase. By the time all of those line up again the listener
+     * has stopped counting.
+     */
     const CHORDS = [
       { root: 29, notes: [53, 56, 60, 63, 67] },   // Fm9
       { root: 25, notes: [49, 53, 56, 60] },       // Dbmaj7
       { root: 32, notes: [56, 60, 63, 67] },       // Abmaj7
       { root: 27, notes: [51, 55, 58, 62] },       // Ebsus
     ];
+    // Second time through the progression, the chords are voiced higher.
+    const LIFT = [0, 0, 0, 0, 12, 7, 12, 7];
+
+    // Kick patterns, in sixteenths of a bar. Dealt out per bar.
+    const KICKS = [
+      [0, 6, 11],           // the main one
+      [0, 6, 11],
+      [0, 3, 8, 11],        // busier
+      [0, 6],               // sparse, leaving room for the fill
+      [0, 7, 10],
+      [0, 6, 11],
+      [0, 3, 8, 14],
+      [0, 8],
+    ];
+
+    const MOTIF = [0, 3, 5, 7, 10];               // F minor pentatonic degrees
 
     for (let bar = 0; bar < BARS; bar++) {
       const t0 = bar * 4 * beat;
+      const sixteenth = beat / 4;
       const ch = CHORDS[bar % CHORDS.length];
+      const lift = LIFT[bar];
+      const last = bar === 3 || bar === 7;        // the two fill bars
 
-      // Drums. Kick on 1, the and-of-2 and the and-of-3; snare on 2 and 4.
-      kick(t0);
-      kick(t0 + beat * 1.5, 0.75);
-      kick(t0 + beat * 2.75, 0.62);
-      snare(t0 + beat);
-      snare(t0 + beat * 3);
-
-      // Hats on eighths, swung, and never twice at the same weight.
-      for (let e = 0; e < 8; e++) {
-        const swing = e % 2 ? 0.055 * beat : 0;
-        burst(t0 + e * beat * 0.5 + swing, 0.045, "highpass", 8200, 0.9,
-              e % 2 ? 0.055 : 0.1);
+      for (const step of KICKS[bar]) {
+        kick(t0 + step * sixteenth, step === 0 ? 0.95 : 0.62 + rb() * 0.16);
       }
 
-      // Bass: root, then a push before the bar turns over.
+      snare(t0 + beat);
+      if (!last) snare(t0 + beat * 3);
+      // Ghost notes, quiet, in the second half of the phrase.
+      if (bar >= 4 && bar !== 7) snare(t0 + beat * 2.75, 0.22);
+
+      // Hats: eighths for the first half of the phrase, sixteenths after,
+      // with the odd open one to break the grid.
+      const div = bar < 4 ? 8 : 16;
+      for (let e = 0; e < div; e++) {
+        if (last && e > div * 0.72) continue;     // clear out for the fill
+        const swing = e % 2 ? 0.05 * beat * (8 / div) : 0;
+        const t = t0 + e * (4 * beat / div) + swing;
+        const open = div === 16 && e % 8 === 6 && rb() > 0.45;
+        hat(t, open ? 0.075 : (e % 2 ? 0.05 : 0.095), open);
+      }
+
+      // The fill: a short snare roll into the turnaround.
+      if (last) {
+        const n = bar === 7 ? 6 : 4;
+        for (let i = 0; i < n; i++) {
+          const t = t0 + beat * 3 + i * (beat / n);
+          snare(t, 0.35 + (i / n) * 0.6);
+        }
+      }
+
+      // Bass, with a walk-up on the fill bars.
       voice(t0, ch.root, beat * 1.4, 0.4, "sine");
       voice(t0 + beat * 2.5, ch.root + 12, beat * 0.45, 0.22, "sine");
-      voice(t0 + beat * 3.5, ch.root, beat * 0.45, 0.3, "sine");
+      if (last) {
+        voice(t0 + beat * 3.0, ch.root + 3, beat * 0.4, 0.3, "sine");
+        voice(t0 + beat * 3.5, ch.root + 5, beat * 0.4, 0.3, "sine");
+      } else {
+        voice(t0 + beat * 3.5, ch.root, beat * 0.45, 0.3, "sine");
+      }
 
-      // Keys, slightly detuned against themselves so they are not glassy.
+      // Keys, detuned against themselves, and higher second time round.
       ch.notes.forEach((n, i) => {
-        voice(t0 + 0.02 * i, n, beat * 3.6, 0.085, "triangle", -6);
-        voice(t0 + 0.02 * i, n, beat * 3.6, 0.065, "triangle", 7);
+        voice(t0 + 0.02 * i, n + lift, beat * 3.6, 0.082, "triangle", -6);
+        voice(t0 + 0.02 * i, n + lift, beat * 3.6, 0.062, "triangle", 7);
       });
+
+      // A motif, twice in eight bars, so it is an event rather than a part.
+      if (bar === 2 || bar === 6) {
+        const base = bar === 2 ? 65 : 72;
+        for (let i = 0; i < 4; i++) {
+          const deg = MOTIF[Math.floor(rb() * MOTIF.length)];
+          voice(t0 + beat * (0.5 + i * 0.75), base + deg, beat * 0.62,
+                0.07, "triangle", i % 2 ? 5 : -5);
+        }
+      }
     }
 
     // Vinyl: the dust that makes the rest of it sit back.
-    for (let i = 0; i < 130; i++) {
-      burst(Math.random() * dur, 0.006, "bandpass", 1800 + Math.random() * 4000, 1.4, 0.03);
+    for (let i = 0; i < 260; i++) {
+      burst(rb() * dur, 0.006, "bandpass", 1800 + rb() * 4000, 1.4, 0.03);
     }
 
     const rendered = await oc.startRendering();
@@ -3586,24 +3613,28 @@ const sound = (() => {
 
     // Palms: a band of noise, breathing.
     const leaves = ctx.createBiquadFilter();
-    leaves.type = "bandpass"; leaves.frequency.value = 2400; leaves.Q.value = 0.6;
-    // Well under the rest of the bed. Palms are a texture you notice when you
-    // stop and listen for them, not a weather event.
-    const leavesGain = ctx.createGain(); leavesGain.gain.value = 0.018;
+    // Lower and narrower than before: most of what read as "wind" was hiss
+    // up above 3k, which is exactly where noise is most obtrusive.
+    leaves.type = "bandpass"; leaves.frequency.value = 1500; leaves.Q.value = 1.1;
+    // Barely there. Twice now this has been the loudest thing in the mix
+    // when it should be the quietest — broadband noise carries far more than
+    // its gain suggests, because there is energy at every frequency the ear
+    // is sensitive to rather than a few.
+    const leavesGain = ctx.createGain(); leavesGain.gain.value = 0.0065;
     loop().connect(leaves); leaves.connect(leavesGain); leavesGain.connect(amb);
 
     const gust = ctx.createOscillator(); gust.frequency.value = 0.09;
-    const gustAmt = ctx.createGain(); gustAmt.gain.value = 0.011;
+    const gustAmt = ctx.createGain(); gustAmt.gain.value = 0.004;
     gust.connect(gustAmt); gustAmt.connect(leavesGain.gain); gust.start();
 
     const sweep = ctx.createOscillator(); sweep.frequency.value = 0.13;
-    const sweepAmt = ctx.createGain(); sweepAmt.gain.value = 450;
+    const sweepAmt = ctx.createGain(); sweepAmt.gain.value = 300;
     sweep.connect(sweepAmt); sweepAmt.connect(leaves.frequency); sweep.start();
 
     // Water against the coping.
     const water = ctx.createBiquadFilter();
     water.type = "lowpass"; water.frequency.value = 620; water.Q.value = 0.4;
-    const waterGain = ctx.createGain(); waterGain.gain.value = 0.035;
+    const waterGain = ctx.createGain(); waterGain.gain.value = 0.026;
     loop().connect(water); water.connect(waterGain); waterGain.connect(amb);
     const lap = ctx.createOscillator(); lap.frequency.value = 0.21;
     const lapAmt = ctx.createGain(); lapAmt.gain.value = 0.022;
@@ -3757,12 +3788,33 @@ const sound = (() => {
   };
 })();
 
+/**
+ * Sound starts on the first thing the visitor does, and there is no control
+ * for it on screen.
+ *
+ * A browser will not open an AudioContext without a user gesture, and
+ * scrolling is not one — the spec only counts pointer, touch and key events —
+ * so this listens for all three and starts on whichever lands first.
+ *
+ * With the button gone the only way to silence it is the tab's own mute, or
+ * the M key below, which is deliberately quiet about itself.
+ */
 {
-  const btn = document.getElementById("sound");
-  btn.addEventListener("click", async () => {
-    const isOn = await sound.toggle();
-    btn.setAttribute("aria-pressed", isOn ? "true" : "false");
-    btn.setAttribute("aria-label", isOn ? "Turn sound off" : "Turn sound on");
+  let armed = true;
+  const begin = async () => {
+    if (!armed) return;
+    armed = false;
+    for (const ev of ["pointerdown", "touchstart", "keydown"]) {
+      window.removeEventListener(ev, begin);
+    }
+    await sound.toggle();
+  };
+  for (const ev of ["pointerdown", "touchstart", "keydown"]) {
+    window.addEventListener(ev, begin, { passive: true });
+  }
+
+  addEventListener("keydown", (e) => {
+    if (e.key === "m" || e.key === "M") sound.toggle();
   });
 }
 
