@@ -39,7 +39,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Designer District</title>
-<meta name="description" content="Premium streetwear, fifteen houses, one street." />
+<meta name="description" content="Premium streetwear. Fifteen districts, one address." />
 <meta name="theme-color" content="#ffffff" />
 <link rel="icon" href="https://designer-district.vercel.app/favicon.ico" sizes="any" />
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
@@ -349,14 +349,26 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
 .index b[data-live="1"] { opacity: 1; }
 
 /* --- finale --- */
+/* The finale used to be a white card pasted over the view. It is projected
+   onto the building that closes the street now: no ground of its own, white
+   type, and the same layered halo the rest of the over-scene copy uses. */
 #p-end { place-items: center; text-align: center; }
-#p-end .card {
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  padding: clamp(2rem, 6vw, 3.5rem) clamp(1.6rem, 6vw, 4rem);
-  box-shadow: 0 30px 70px -34px rgba(0,0,0,.65);
+#p-end .card { padding: clamp(1rem, 4vw, 2rem); }
+#p-end img {
+  width: min(15rem, 52vw); height: auto; display: block; margin: 0 auto 1.6rem;
+  filter:
+    drop-shadow(0 0 1px rgba(0,0,0,.95))
+    drop-shadow(0 2px 6px rgba(0,0,0,.9))
+    drop-shadow(0 8px 30px rgba(0,0,0,.8));
 }
-#p-end img { width: min(15rem, 52vw); height: auto; display: block; margin: 0 auto 1.6rem; }
+#p-end .pill {
+  background: transparent;
+  color: #fff;
+  box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.85);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+#p-end .pill:hover { background: #fff; color: var(--ink); box-shadow: none; }
 
 /* --- loader, on the store's paper ground --- */
 #boot {
@@ -425,7 +437,7 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
         <img src="https://designer-district.vercel.app/brand/designer-district-on-dark.png"
              alt="Designer District" width="800" height="618" fetchpriority="high" />
       </div>
-      <p class="sub halo">At Designer District we carry a wide variety of exclusive brands.</p>
+      <p class="sub halo">Fifteen districts, one address.</p>
     </div>
   </section>
 
@@ -440,16 +452,15 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
       <p class="eyebrow" id="card-eyebrow">The Collection</p>
       <h3 class="display" id="card-name">&mdash;</h3>
       <p class="note" id="card-note">&mdash;</p>
-      <a class="pill" id="card-link" href="#">Shop the house</a>
+      <a class="pill" id="card-link" href="#">Shop the district</a>
     </div>
   </section>
 
-  <section class="panel" id="p-end">
-    <div class="card bracket">
-      <span class="br" aria-hidden="true"></span>
-      <img src="https://designer-district.vercel.app/brand/designer-district.png"
+  <section class="panel on-scene" id="p-end">
+    <div class="card halo">
+      <img src="https://designer-district.vercel.app/brand/designer-district-on-dark.png"
            alt="Designer District" width="800" height="618" loading="lazy" />
-      <p class="eyebrow">All fifteen houses</p>
+      <p class="eyebrow">All fifteen districts</p>
       <h2 class="display title">Everything, in one place.</h2>
       <a class="pill" id="enter" href="#" style="margin-top:1.8rem">Enter the store</a>
     </div>
@@ -458,9 +469,9 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
   <!-- Waypoints: one per house, pinned to its shopfront in screen space and
        clickable to travel there. Built in script because each needs the
        house's colourway and mark. -->
-  <div class="pins" id="pins" aria-label="Jump to a house"></div>
+  <div class="pins" id="pins" aria-label="Jump to a district"></div>
 
-  <nav class="index" id="index" aria-label="Brands on this street"></nav>
+  <nav class="index" id="index" aria-label="Districts on this street"></nav>
   <p class="hint halo" id="hint">Scroll</p>
 </div>
 
@@ -918,12 +929,8 @@ function texSign(brand) {
   let size = Math.round(H * 0.42);
   do { x.font = `700 ${size}px ${face}`; size -= 2; }
   while (x.measureText(label).width > W * 0.7 && size > 16);
-  x.fillText(label, W / 2, H * 0.46);
+  x.fillText(label, W / 2, H * 0.5);
 
-  x.globalAlpha = 0.66;
-  x.font = `600 ${Math.round(H * 0.1)}px ${face}`;
-  x.fillText(`${brand.live} PIECES`, W / 2, H * 0.76);
-  x.globalAlpha = 1;
 
   const m = H * 0.12, L = H * 0.16;
   x.strokeStyle = brand.ink; x.globalAlpha = 0.45; x.lineWidth = Math.max(2, H * 0.016);
@@ -955,17 +962,11 @@ function dressSign(canvasEl, texture, brand) {
     g.addColorStop(0, brand.bg[0]); g.addColorStop(1, brand.bg[1]);
     x.fillStyle = g; x.fillRect(0, 0, W, H);
 
-    const maxW = W * 0.62, maxH = H * 0.54;
+    const maxW = W * 0.66, maxH = H * 0.64;
     const k = Math.min(maxW / img.width, maxH / img.height);
     const w = img.width * k, h = img.height * k;
-    x.drawImage(img, (W - w) / 2, H * 0.44 - h / 2, w, h);
+    x.drawImage(img, (W - w) / 2, H * 0.5 - h / 2, w, h);
 
-    x.fillStyle = brand.ink;
-    x.textAlign = "center"; x.textBaseline = "middle";
-    x.globalAlpha = 0.62;
-    x.font = `600 ${Math.round(H * 0.1)}px ${getComputedStyle(document.body).fontFamily}`;
-    x.fillText(`${brand.live} PIECES`, W / 2, H * 0.82);
-    x.globalAlpha = 1;
 
     const m = H * 0.12, L = H * 0.16;
     x.strokeStyle = brand.ink; x.globalAlpha = 0.45; x.lineWidth = Math.max(2, H * 0.016);
@@ -1777,7 +1778,15 @@ const crowns = [];   // world positions of every crown, for the leaf spawner
    * leaving gaps wherever a building happens to be.
    */
   function plant(x, z, scale, phase) {
-    if (inBuilt(x, z)) return false;
+    // The trunk is not what collides. A frond runs about 7.8 units at full
+    // scale and radiates in every direction, so a palm whose base clears a
+    // wall by a metre still has half its crown inside the first floor —
+    // which is exactly what was happening along the kerb. Test the crown's
+    // reach, not the trunk.
+    const reach = 7.8 * scale;
+    for (const [dx, dz] of [[0, 0], [reach, 0], [-reach, 0], [0, reach], [0, -reach]]) {
+      if (inBuilt(x + dx, z + dz)) return false;
+    }
     addPalm(x, z, scale, phase);
     return true;
   }
@@ -1793,11 +1802,14 @@ const crowns = [];   // world positions of every crown, for the leaf spawner
   }
   // Down the alley, just inside the kerb on both sides. They used to stand
   // at ±15, which is now inside the buildings.
-  const kerbX = STREET.half - 2.1;
+  // Down the middle of the paseo rather than tight to the kerb, and smaller.
+  // At the kerb there is no scale at which a palm both looks like a palm and
+  // keeps its fronds out of the shopfront: the alley is only 22 wide and a
+  // full-size crown is 15 across.
   for (let i = 0; i < QUALITY.palmsRow * 2; i++) {
     const z = -40 - i * 7.6 - rand() * 2.2;
-    const sideX = (i % 2 === 0 ? -1 : 1) * kerbX;
-    plant(sideX, z, 0.82 + rand() * 0.22, rand() * 9);
+    const sideX = (i % 2 === 0 ? -1 : 1) * (STREET.half * 0.42);
+    plant(sideX, z, 0.58 + rand() * 0.14, rand() * 9);
   }
 
   const barkTex = asTexture(texBark(), { repeat: [1, 1] });
@@ -2386,11 +2398,14 @@ const monoliths = [];   // kept under the old name: sections 19 and 21 read it
     const sign = new THREE.Mesh(
       // 4:1, to match the sign texture exactly.
       new THREE.PlaneGeometry(8.0, 2.0),
+      // Matte. At roughness 0.5 with the sky in the environment map these
+      // caught a broad specular sheen straight off it and read as polished
+      // mirrors with a brand printed on them rather than as painted boards.
       new THREE.MeshStandardMaterial({
         map: signTex,
-        roughness: 0.5,
-        metalness: 0.04,
-        envMapIntensity: 0.6,
+        roughness: 0.92,
+        metalness: 0,
+        envMapIntensity: 0.12,
       })
     );
     sign.position.set(0, 6.4, 2.37);
@@ -2534,7 +2549,7 @@ const monoliths = [];   // kept under the old name: sections 19 and 21 read it
 
   const accentMesh = new THREE.Mesh(
     mergeGeometries(accent),
-    new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.48, metalness: 0.12 })
+    new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.72, metalness: 0.04 })
   );
   accentMesh.castShadow = true; accentMesh.receiveShadow = true;
   scene.add(accentMesh);
@@ -2855,12 +2870,37 @@ const monoliths = [];   // kept under the old name: sections 19 and 21 read it
       lip.translate(sx, 0.95, z);
       stone.push(lip);
 
-      // The shrub: three overlapping spheres, squashed.
-      for (let k = 0; k < 3; k++) {
-        const b = new THREE.SphereGeometry(0.52 + r() * 0.22, 7, 5);
-        b.scale(1, 0.72, 1);
-        b.translate(sx + (r() - 0.5) * 0.8, 1.35 + r() * 0.3, z + (r() - 0.5) * 0.8);
+      // Planting, not three grey-green balls.
+      //
+      // A shrub reads as a shrub because of its silhouette, so the mass is
+      // built from more, smaller, irregular lumps — each one a low-poly
+      // sphere pushed out of round — and then broken by a fan of blades,
+      // which is what actually says "tropical" at a glance. Two greens, so
+      // the clump has light and shade in it rather than one flat tone.
+      const clump = 5 + Math.floor(r() * 3);
+      for (let k = 0; k < clump; k++) {
+        const b = new THREE.SphereGeometry(0.3 + r() * 0.26, 6, 5);
+        const pos = b.attributes.position;
+        for (let v = 0; v < pos.count; v++) {
+          const f = 0.82 + r() * 0.36;                    // knock it out of round
+          pos.setXYZ(v, pos.getX(v) * f, pos.getY(v) * f * 0.8, pos.getZ(v) * f);
+        }
+        b.computeVertexNormals();
+        b.translate(sx + (r() - 0.5) * 1.15, 1.25 + r() * 0.55, z + (r() - 0.5) * 1.15);
         green.push(b);
+      }
+
+      // Blades fanning out of the middle.
+      const fan = 7 + Math.floor(r() * 4);
+      for (let k = 0; k < fan; k++) {
+        const a = (k / fan) * Math.PI * 2 + r() * 0.5;
+        const len = 0.9 + r() * 0.8;
+        const blade = new THREE.CylinderGeometry(0.012, 0.075, len, 3);
+        blade.translate(0, len / 2, 0);
+        blade.rotateZ(Math.cos(a) * (0.5 + r() * 0.45));
+        blade.rotateX(Math.sin(a) * (0.5 + r() * 0.45));
+        blade.translate(sx + (r() - 0.5) * 0.5, 1.15, z + (r() - 0.5) * 0.5);
+        green.push(blade);
       }
 
       // A bench every third planter.
@@ -2885,7 +2925,7 @@ const monoliths = [];   // kept under the old name: sections 19 and 21 read it
 
     const greenMesh = new THREE.Mesh(
       mergeGeometries(green),
-      new THREE.MeshStandardMaterial({ color: 0x5f9139, roughness: 0.95 })
+      new THREE.MeshStandardMaterial({ color: 0x55893a, roughness: 0.96, flatShading: true })
     );
     greenMesh.castShadow = true; greenMesh.receiveShadow = true;
     scene.add(greenMesh);
@@ -3196,9 +3236,9 @@ function showBrand(i) {
   card.maker.innerHTML = art
     ? `<img src="${art}" alt="${b.name}" />`
     : `<span>${b.name}</span>`;
-  card.eyebrow.textContent = `House ${String(i + 1).padStart(2, "0")} of ${BRANDS.length}`;
+  card.eyebrow.textContent = `District ${String(i + 1).padStart(2, "0")} of ${BRANDS.length}`;
   card.name.textContent = b.name;
-  card.note.textContent = `${b.note} ${b.live} pieces in stock.`;
+  card.note.textContent = b.note;
   card.link.href = `${SITE}/brands/${b.slug}`;
   card.link.textContent = `Shop ${b.name}`;
   indexItems.forEach((el, k) => { el.dataset.live = k === i ? "1" : "0"; });
