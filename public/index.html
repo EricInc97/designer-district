@@ -284,6 +284,53 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
 .brandcard p.note { margin: .6rem 0 0; font-size: .85rem; line-height: 1.6; color: var(--ink-dim); }
 .brandcard .pill { margin-top: 1.2rem; }
 
+/* ---- waypoints ----------------------------------------------------------
+   Markers that sit on the shopfronts themselves and travel with them. They
+   are HTML rather than sprites so the artwork stays crisp at any distance and
+   a tap target is a real button with a real focus ring. */
+.pins { position: fixed; inset: 0; pointer-events: none; }
+
+.pin {
+  position: absolute;
+  left: 0; top: 0;
+  display: grid;
+  place-items: center;
+  width: 58px; height: 58px;
+  margin: 0; padding: 6px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--pin-bg, #fff);
+  color: var(--pin-ink, #0b0b0b);
+  box-shadow: 0 4px 18px rgba(0,0,0,.4), 0 0 0 2px rgba(255,255,255,.85);
+  cursor: pointer;
+  pointer-events: auto;
+  will-change: transform, opacity;
+  transition: box-shadow .2s ease;
+}
+.pin::after {                       /* the little tail, so it reads as a pin */
+  content: "";
+  position: absolute;
+  bottom: -6px; left: 50%;
+  width: 12px; height: 12px;
+  translate: -50% 0;
+  rotate: 45deg;
+  background: inherit;
+  box-shadow: 2px 2px 0 rgba(255,255,255,.85);
+}
+.pin img { max-width: 100%; max-height: 100%; width: auto; height: auto; display: block; }
+.pin b {
+  font-size: 15px; font-weight: 800; letter-spacing: .02em; line-height: 1;
+}
+.pin:hover, .pin:focus-visible {
+  box-shadow: 0 8px 26px rgba(0,0,0,.5), 0 0 0 3px #fff;
+}
+.pin[data-live="1"] { box-shadow: 0 8px 26px rgba(0,0,0,.5), 0 0 0 3px var(--ink); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .pin { animation: pinIn .35s cubic-bezier(.2,1.3,.4,1) both; }
+}
+@keyframes pinIn { from { scale: .4; opacity: 0 } to { scale: 1; opacity: 1 } }
+
 /* The running order down the street. */
 .index {
   position: fixed; right: var(--shell); top: 50%; translate: 0 -50%;
@@ -407,6 +454,11 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
       <a class="pill" id="enter" href="#" style="margin-top:1.8rem">Enter the store</a>
     </div>
   </section>
+
+  <!-- Waypoints: one per house, pinned to its shopfront in screen space and
+       clickable to travel there. Built in script because each needs the
+       house's colourway and mark. -->
+  <div class="pins" id="pins" aria-label="Jump to a house"></div>
 
   <nav class="index" id="index" aria-label="Brands on this street"></nav>
   <p class="hint halo" id="hint">Scroll</p>
@@ -542,8 +594,11 @@ const BEATS = {
   // Nothing between the hero and the street on purpose: that stretch is the
   // camera swinging around the dome, and a caption over it would only be
   // something to read instead of looking.
-  brands: [0.200, 0.875],
-  end:    [0.910, 1.000],
+  // The street has to stay open until the last house is actually reachable.
+  // Hellstar sits at p 0.882, and with the beat closing at 0.875 its own
+  // waypoint landed you one notch past the end, card already gone.
+  brands: [0.200, 0.900],
+  end:    [0.925, 1.000],
 };
 
 // ## 07  UTILITIES — rng, easing, math
@@ -1901,12 +1956,12 @@ const monoliths = [];   // kept under the old name: sections 19 and 21 read it
         envMapIntensity: 0.6,
       })
     );
-    sign.position.set(0, 7.5, 0.5);
+    sign.position.set(0, 7.5, 0.55);
     sign.castShadow = true;
     sign.userData.brand = brand;
     g.add(sign);
 
-    monoliths.push({ brand, group: g, face: sign, z, x });
+    monoliths.push({ brand, group: g, face: sign, z, x, height: H });
   });
 
   // Perforated screens hung over the header band on most units. This is the
@@ -1919,14 +1974,21 @@ const monoliths = [];   // kept under the old name: sections 19 and 21 read it
     const rs = rng(31337);
     const perKind = [[], [], []];
 
+    // Strictly above the sign. The first version put the panel at y 8.0 and
+    // 0.05 proud of the facade, which is straight through the sign band at
+    // 6.05-8.95 — every screened shop had the top two thirds of its name
+    // hidden behind perforated metal. A screen only goes on a unit tall
+    // enough to have wall left over once the sign has had its share.
+    const SIGN_TOP = 9.15;
     monoliths.forEach((m, i) => {
-      if (rs() < 0.18) return;                       // a few left plain
+      const room = m.height - 0.7 - SIGN_TOP;
+      if (room < 1.2) return;                        // short units stay plain
+      if (rs() < 0.14) return;                       // and a few tall ones too
       const k = (i + Math.floor(rs() * 2)) % 3;
       const g = m.group;
       g.updateMatrixWorld(true);
-      const w = STREET.width - 1.0;
-      const panel = new THREE.PlaneGeometry(w, 2.6);
-      panel.translate(0, 8.0, 0.55);
+      const panel = new THREE.PlaneGeometry(STREET.width - 1.0, room);
+      panel.translate(0, SIGN_TOP + room / 2, 0.55);
       panel.applyMatrix4(g.matrixWorld);
       perKind[k].push(panel);
     });
@@ -2434,6 +2496,7 @@ const card = {
   link:    document.getElementById("card-link"),
 };
 const indexEl = document.getElementById("index");
+const pinsEl = document.getElementById("pins");
 const hintEl = document.getElementById("hint");
 document.getElementById("enter").href = SITE;
 
@@ -2470,6 +2533,122 @@ function readableBrand() {
   const i = Math.round((zAhead - STREET.from) / STREET.step);
   return clamp(i, 0, BRANDS.length - 1);
 }
+
+/**
+ * A marker per house, pinned to its shopfront and clickable to travel there.
+ *
+ * The lookup below is what makes "travel there" possible at all. The camera
+ * rides a Catmull-Rom curve, so there is no closed form for "which scroll
+ * position puts me outside shop seven" — the curve is sampled once at build
+ * time into a z-to-progress table, and a click binary-searches it. Sampling
+ * beats solving here: the curve is fixed, 400 samples cost nothing, and the
+ * answer only has to be good to about a metre.
+ */
+const TRAVEL = (() => {
+  const N = 400, zs = new Float32Array(N + 1), v = new THREE.Vector3();
+  for (let i = 0; i <= N; i++) { PATH.getPointAt(i / N, v); zs[i] = v.z; }
+  return (targetZ) => {
+    // z falls monotonically along the street, so a plain scan is enough and
+    // is immune to the wobble at the ends where the path turns.
+    let best = 0, bestD = Infinity;
+    for (let i = 0; i <= N; i++) {
+      const d = Math.abs(zs[i] - targetZ);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    return best / N;
+  };
+})();
+
+const pins = monoliths.map((m, i) => {
+  const b = m.brand;
+  const el = document.createElement("button");
+  el.type = "button";
+  el.className = "pin";
+  el.style.setProperty("--pin-bg", b.bg[0]);
+  el.style.setProperty("--pin-ink", b.ink);
+  el.setAttribute("aria-label", `Go to ${b.name}`);
+  const art = logoFor(b.slug);
+  el.innerHTML = art ? `<img src="${art}" alt="" />` : `<b>${b.name.slice(0, 2).toUpperCase()}</b>`;
+  el.addEventListener("click", () => {
+    // Stop in front of the shop, not level with it: LEAD is the same offset
+    // the card uses to decide which house you are looking at.
+    travelTo(TRAVEL(m.z + LEAD));
+  });
+  pinsEl.appendChild(el);
+  return { el, m, shown: false };
+});
+
+/**
+ * Scrolls to a point on the journey in a fixed length of time.
+ *
+ * Not `behavior: "smooth"`. The document is thirteen screens tall, and the
+ * native easing is distance-proportional — a jump from the first house to the
+ * last would crawl for several seconds and read as a hang. A waypoint should
+ * feel like a waypoint, so this takes the same 700ms whether the shop is next
+ * door or at the far end.
+ *
+ * Any real scroll input cancels it, so grabbing the wheel mid-flight hands
+ * control straight back instead of fighting.
+ */
+let travelling = 0;
+function travelTo(target) {
+  const max = document.documentElement.scrollHeight - innerHeight;
+  const from = window.scrollY;
+  const to = clamp(target, 0, 1) * max;
+  if (QUALITY.still || Math.abs(to - from) < 2) { scrollTo(0, to); return; }
+
+  const id = ++travelling;
+  const t0 = performance.now();
+  const DUR = 700;
+  let last = from;
+
+  const tick = (now) => {
+    if (id !== travelling) return;
+    // If the page moved for any reason other than this tween, the visitor did
+    // it — stand down.
+    if (Math.abs(window.scrollY - last) > 2) return;
+    const k = Math.min((now - t0) / DUR, 1);
+    const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+    last = from + (to - from) * e;
+    scrollTo(0, last);
+    if (k < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+const pinPos = new THREE.Vector3();
+
+/** Places every marker over its shopfront, and hides the ones out of frame. */
+function placePins(active, visible) {
+  for (let i = 0; i < pins.length; i++) {
+    const { el, m } = pins[i];
+    if (!visible) { if (pins[i].shown) { el.style.display = "none"; pins[i].shown = false; } continue; }
+
+    m.face.getWorldPosition(pinPos);
+    pinPos.y += 2.6;                              // float above the sign
+    const dist = pinPos.distanceTo(camera.position);
+    pinPos.project(camera);
+
+    const onScreen = pinPos.z > -1 && pinPos.z < 1
+      && Math.abs(pinPos.x) < 1.15 && Math.abs(pinPos.y) < 1.15
+      && dist < 78;
+
+    if (!onScreen) {
+      if (pins[i].shown) { el.style.display = "none"; pins[i].shown = false; }
+      continue;
+    }
+
+    const x = (pinPos.x * 0.5 + 0.5) * innerWidth;
+    const y = (-pinPos.y * 0.5 + 0.5) * innerHeight;
+    // Near markers are full size, far ones shrink away rather than crowding.
+    const k = clamp(1.15 - dist / 90, 0.42, 1);
+    el.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0) translate(-50%, -100%) scale(${k.toFixed(2)})`;
+    el.style.opacity = clamp(1.35 - dist / 70, 0.25, 1).toFixed(2);
+    el.dataset.live = i === active ? "1" : "0";
+    if (!pins[i].shown) { el.style.display = "grid"; pins[i].shown = true; }
+  }
+}
+pins.forEach((p) => { p.el.style.display = "none"; });
 
 let shownBrand = -1;
 function showBrand(i) {
@@ -2553,6 +2732,7 @@ function step(dt, t, p) {
   hintEl.style.opacity = p < 0.02 ? "0.75" : "0";
 
   if (inStreet) showBrand(readableBrand());
+  placePins(shownBrand, inStreet);
 
   composer.render();
 }
