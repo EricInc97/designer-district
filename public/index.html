@@ -526,14 +526,22 @@ const C = {
   poolShallow:new THREE.Color("#35c2c9"),
 
   domeRadius: 6,
-  domeSquash: 0.82,          // y scale — the real dome is not a true sphere
-  domeCut:    0.70,          // × PI, how far down from the pole the shell runs
+  // Measured off the reference rather than guessed. The real thing is close
+  // to a full sphere with the bottom cut away, not a hemisphere: it bulges
+  // out well past its own base and overhangs the plinth all the way round,
+  // which is most of what makes it read as a sphere resting in water.
+  domeSquash: 0.88,          // barely flattened
+  domeCut:    0.80,          // × PI — 144 degrees of arc, well under the equator
   // Twenty-one openings, not forty-four. The real dome's cells are enormous
   // relative to the sphere — roughly a third of its diameter each — and at
   // forty-four the shell read as a golf ball instead.
-  domeHoles:  21,
-  holeAngle:  0.305,     // angular radius of one opening, radians
-  rimTube:    0.235,     // thickness of the lip around it
+  // Cell size taken off the reference: an opening is about a quarter of the
+  // dome's width, which is an angular radius near 15 degrees. Twenty-one at
+  // 17.5 degrees was too few and too large, and the webbing between them too
+  // thin — the lips are the thickest part of the real shell.
+  domeHoles:  27,
+  holeAngle:  0.263,     // angular radius of one opening, radians
+  rimTube:    0.30,      // thickness of the lip around it
   plinthTop:  0.85,
 
   poolY:      -0.28,
@@ -631,6 +639,56 @@ const STYLE_H = {
   fluted: 11.0, monolith: 12.6, stacked: 12.2, screen: 10.4, folded: 11.4,
   curtain: 11.8, louvre: 10.2, arcade: 10.8, portal: 12.0, baguette: 11.2,
 };
+
+/**
+ * Where the street runs, and what stands around the plaza.
+ *
+ * Both live up here rather than next to the code that builds them because the
+ * palms are planted before any of it exists and need to know where not to
+ * stand. They were growing straight through the shopfronts.
+ */
+const STREET = {
+  half:  innerWidth / innerHeight < 1 ? 8.4 : 11.0,   // kerb to centre line
+  from:  -38,
+  step:  -7.6,
+  // Wider than the 15.2 per-side pitch on purpose, so neighbours overlap by
+  // 40cm instead of leaving a hairline crack between every pair.
+  width: 15.6,
+  depth: 14,
+};
+
+/**
+ * Blocks penning the plaza in.
+ *
+ * Without them the opening shot was a dome, two lumps of concrete and then
+ * bare ground running to a hard horizon — the plaza was a stage set standing
+ * in a field. The reference is nothing like that: it is a courtyard, closed
+ * on every side, and you cannot see out of it at all.
+ */
+const PLAZA_BLOCKS = [
+  { x0: -46, x1: -26, z0: -58, z1: -30, h: 15 },
+  { x0: -44, x1: -26, z0: -28, z1:  -2, h: 12 },
+  { x0: -46, x1: -27, z0:   0, z1:  24, h: 16 },
+  { x0: -42, x1: -26, z0:  26, z1:  46, h: 11 },
+  { x0:  26, x1:  46, z0: -58, z1: -30, h: 14 },
+  { x0:  26, x1:  44, z0: -28, z1:  -2, h: 17 },
+  { x0:  27, x1:  46, z0:   0, z1:  24, h: 12 },
+  { x0:  26, x1:  42, z0:  26, z1:  46, h: 15 },
+];
+
+/** True where a building already stands, so nothing else is planted in one. */
+function inBuilt(x, z) {
+  const ax = Math.abs(x);
+  // the two terraces, their fillers, and a little clearance
+  if (ax > STREET.half - 1.4 && ax < STREET.half + STREET.depth + 1.4
+      && z < -17 && z > -184) return true;
+  // the block closing the far end
+  if (z < -170 && z > -198 && ax < 31) return true;
+  for (const b of PLAZA_BLOCKS) {
+    if (x > b.x0 - 1.5 && x < b.x1 + 1.5 && z > b.z0 - 1.5 && z < b.z1 + 1.5) return true;
+  }
+  return false;
+}
 
 // Scroll choreography. Each panel owns a slice of the journey.
 const BEATS = {
@@ -1709,20 +1767,37 @@ const crowns = [];   // world positions of every crown, for the leaf spawner
     }
   }
 
+  /**
+   * Plants a palm, unless a building is already standing there.
+   *
+   * The ring was laid out on a radius with no idea the plaza had been built
+   * up around it, so trunks came up through shopfront glazing and fronds hung
+   * inside first floors. Each candidate is nudged outward a few times before
+   * being abandoned, which keeps the ring looking like a ring rather than
+   * leaving gaps wherever a building happens to be.
+   */
+  function plant(x, z, scale, phase) {
+    if (inBuilt(x, z)) return false;
+    addPalm(x, z, scale, phase);
+    return true;
+  }
+
   // A ring around the plaza, then two files down the promenade.
   const ring = QUALITY.palmsRing;
   for (let i = 0; i < ring; i++) {
     const a = (i / ring) * Math.PI * 2 + 0.3;
-    const r = 27 + rand() * 9;
-    addPalm(Math.cos(a) * r, Math.sin(a) * r * 0.8, 0.9 + rand() * 0.35, rand() * 9);
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const r = 21 + attempt * 2.6 + rand() * 4;
+      if (plant(Math.cos(a) * r, Math.sin(a) * r * 0.8, 0.9 + rand() * 0.35, rand() * 9)) break;
+    }
   }
   // Down the alley, just inside the kerb on both sides. They used to stand
   // at ±15, which is now inside the buildings.
-  const kerbX = (innerWidth / innerHeight < 1 ? 8.4 : 11.0) - 2.1;
+  const kerbX = STREET.half - 2.1;
   for (let i = 0; i < QUALITY.palmsRow * 2; i++) {
     const z = -40 - i * 7.6 - rand() * 2.2;
     const sideX = (i % 2 === 0 ? -1 : 1) * kerbX;
-    addPalm(sideX, z, 0.82 + rand() * 0.22, rand() * 9);
+    plant(sideX, z, 0.82 + rand() * 0.22, rand() * 9);
   }
 
   const barkTex = asTexture(texBark(), { repeat: [1, 1] });
@@ -1922,21 +1997,6 @@ const motes = (() => {
 // element another, then glass, metalwork, lit interiors and each perforated
 // screen pattern. Only the signs stay separate, because each is its own
 // texture.
-
-const STREET = {
-  half:  innerWidth / innerHeight < 1 ? 8.4 : 11.0,   // kerb to centre line
-  from:  -38,
-  // Pitch is set by how far the camera actually travels, not the other way
-  // round: at -8.75 the fifteenth house stood at -160 and the camera's street
-  // run ends near -145, so Hellstar was built, lit and never once named.
-  // A side steps twice this, and the shopfronts have to be narrower than that.
-  step:  -7.6,
-  // Wider than the 15.2 per-side pitch on purpose, so neighbours overlap by
-  // 40cm instead of leaving a hairline crack between every pair. At 15.0 the
-  // terrace had a 20cm slot at each seam and daylight came through it.
-  width: 15.6,
-  depth: 14,
-};
 
 const monoliths = [];   // kept under the old name: sections 19 and 21 read it
 
@@ -2427,6 +2487,37 @@ const monoliths = [];   // kept under the old name: sections 19 and 21 read it
     }
   }
 
+  // ── the courtyard wall ────────────────────────────────────────────────
+  // Plain masses, read only as a backdrop and never approached, so they are
+  // massing and glazing and nothing else.
+  {
+    const rp = rng(4242);
+    for (const b of PLAZA_BLOCKS) {
+      const w = b.x1 - b.x0, d = b.z1 - b.z0;
+      const cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2;
+      const grey = BASE_GREY.clone().offsetHSL(0, 0, (rp() - 0.5) * 0.06);
+
+      const body = new THREE.BoxGeometry(w, b.h, d);
+      body.translate(cx, b.h / 2, cz);
+      concrete.push(paint(body, grey));
+
+      const cap = new THREE.BoxGeometry(w + 0.6, 0.6, d + 0.6);
+      cap.translate(cx, b.h + 0.25, cz);
+      concrete.push(paint(cap, grey));
+
+      // Glazing on the face that looks at the plaza.
+      const facing = cx < 0 ? 1 : -1;
+      const fx = (cx < 0 ? b.x1 : b.x0) + facing * 0.06;
+      const floors = Math.max(2, Math.floor(b.h / 3.4));
+      for (let f = 0; f < floors; f++) {
+        const strip = new THREE.PlaneGeometry(d - 3, 1.9);
+        strip.rotateY(facing * Math.PI / 2);
+        strip.translate(fx, 2.6 + f * 3.4, cz);
+        glass.push(strip);
+      }
+    }
+  }
+
   const concreteTex = asTexture(texConcrete(), { repeat: [1, 1] });
 
   const shellMesh = new THREE.Mesh(
@@ -2836,8 +2927,10 @@ const monoliths = [];   // kept under the old name: sections 19 and 21 read it
 // walk away down the street without a snap.
 
 const PATH = new THREE.CatmullRomCurve3([
-  new THREE.Vector3(0, 3.0, 34),
-  new THREE.Vector3(0.5, 3.3, 25),
+  // Opens close in on the dome, the way the reference frames it, rather than
+  // from across an empty apron.
+  new THREE.Vector3(0, 3.0, 21),
+  new THREE.Vector3(0.6, 3.3, 18),
   new THREE.Vector3(9, 4.4, 16),
   new THREE.Vector3(13, 5.4, 2),
   new THREE.Vector3(9.5, 4.2, -12),
@@ -2853,9 +2946,9 @@ const PATH = new THREE.CatmullRomCurve3([
 ], false, "catmullrom", 0.4);
 
 const LOOK = new THREE.CatmullRomCurve3([
-  new THREE.Vector3(0, 6.6, 0),
-  new THREE.Vector3(0, 6.4, 0),
-  new THREE.Vector3(0, 5.6, 0),
+  new THREE.Vector3(0, 5.4, 0),
+  new THREE.Vector3(0, 5.4, 0),
+  new THREE.Vector3(0, 5.2, 0),
   new THREE.Vector3(0, 4.8, 0),
   new THREE.Vector3(0, 4.0, -8),
   new THREE.Vector3(0, 3.2, -34),
