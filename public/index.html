@@ -1,0 +1,2287 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!--
+  ═══════════════════════════════════════════════════════════════════════════
+  DESIGNER DISTRICT — Fly's Eye Dome, Miami Design District
+  A scroll-driven WebGL homepage. Single file, no build step.
+
+  ## SECTION INDEX   (search for the "## NN" marker to jump straight to one)
+
+    ## 01  DOCUMENT HEAD
+    ## 02  STYLES — tokens
+    ## 03  STYLES — scroll overlay
+    ## 04  MARKUP
+    ## 05  IMPORT MAP
+    ## 06  CONFIG — tuning, palette, brand data
+    ## 07  UTILITIES — rng, easing, math
+    ## 08  TEXTURES — procedural canvas makers
+    ## 09  BOOT — renderer, scene, camera
+    ## 10  SKY — gradient, sun, clouds, environment
+    ## 11  LIGHTING
+    ## 12  PLAZA — travertine ground and pool coping
+    ## 13  WATER — reflecting pool
+    ## 14  DOME — the Fly's Eye
+    ## 15  PALMS — trunks, fronds, wind
+    ## 16  LEAVES — falling leaflets
+    ## 17  MOTES — airborne dust in the sun
+    ## 18  JOURNEY — brand monoliths along the promenade
+    ## 19  CAMERA — the scroll path
+    ## 20  POST — bloom
+    ## 21  PICKING — click a brand
+    ## 22  FRAME LOOP
+    ## 23  RESIZE + VISIBILITY
+    ## 24  STARTUP
+  ═══════════════════════════════════════════════════════════════════════════
+-->
+
+<!-- ## 01  DOCUMENT HEAD -->
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Designer District</title>
+<meta name="description" content="Premium streetwear, housed in the Miami Design District." />
+<meta name="theme-color" content="#ffffff" />
+<link rel="icon" href="https://designer-district.vercel.app/favicon.ico" sizes="any" />
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&display=swap" />
+
+<style>
+/* ## 02  STYLES — tokens
+   Lifted verbatim from the storefront's globals.css: same names, same values.
+   `paper` is always the ground, `ink` is always what sits on it. Nothing here
+   is invented, so this page and the store cannot drift apart. */
+:root {
+  --paper: #ffffff;
+  --paper-raised: #f7f6f3;
+  --paper-sunken: #ebe9e4;
+  --ink: #0b0b0b;
+  --ink-dim: #56554f;
+  --ink-faint: #7c7b74;
+  --rule: #e5e3dd;
+  --rule-strong: #c6c3bb;
+
+  --shell: clamp(20px, 5vw, 56px);
+  --bar: 64px;
+
+  /* How many viewport-heights the whole journey runs for. Raise it to slow
+     the camera down. Every waypoint is a fraction of the total, so nothing
+     else has to change. */
+  --pages: 13;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  min-height: calc(var(--pages) * 100svh);
+  overflow-x: hidden;
+}
+
+/* The house voice, exactly as the store defines it. */
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--ink-dim);
+}
+.display {
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+  line-height: 0.9;
+  font-weight: 600;
+}
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+::selection { background: var(--ink); color: var(--paper); }
+
+/* Copy that floats over the scene instead of sitting on paper takes the
+   store's own answer to exactly this problem: white type with a dark halo
+   stacked three deep, so it holds over the bright dome as well as the sky. */
+.on-scene { color: #ffffff; }
+.on-scene .eyebrow { color: rgba(255,255,255,.88); }
+.halo {
+  text-shadow:
+    0 1px 2px rgba(0,0,0,1),
+    0 2px 8px rgba(0,0,0,.95),
+    0 0 30px rgba(0,0,0,.85);
+}
+
+/* ## 03  STYLES — chrome and the scroll overlay */
+
+#stage {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: pan-y;
+}
+
+/* The store's header, unchanged: paper ground, hairline rule, ink wordmark. */
+#bar {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 4;
+  height: var(--bar);
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 0 clamp(16px, 4vw, 32px);
+  background: var(--paper);
+  border-bottom: 1px solid var(--rule);
+}
+/* The wordmark is 15:1, so a fixed height overruns a narrow bar and
+   collides with the link beside it. Scaled to the viewport instead. */
+#bar img { height: clamp(13px, 3.2vw, 20px); width: auto; display: block; }
+#bar .side { display: flex; align-items: center; }
+#bar .side:last-child { justify-content: flex-end; }
+#bar a.ghost {
+  font-size: 0.6875rem; font-weight: 500;
+  letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--ink-dim); text-decoration: none;
+  transition: color .2s ease;
+}
+#bar a.ghost:hover { color: var(--ink); }
+@media (max-width: 460px) { #bar a.ghost { display: none; } }
+
+.layer { position: relative; z-index: 1; pointer-events: none; }
+
+.panel {
+  position: fixed;
+  inset: var(--bar) 0 0 0;
+  display: grid;
+  padding: var(--shell);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .6s ease;
+  will-change: opacity;
+}
+.panel[data-on="1"] { opacity: 1; visibility: visible; }
+.panel a, .panel button { pointer-events: auto; }
+
+/* The store's primary control: an ink pill, wide-tracked, uppercase. */
+.pill {
+  display: inline-flex; align-items: center; gap: .55rem;
+  border-radius: 999px;
+  background: var(--ink); color: var(--paper);
+  padding: .8rem 1.6rem;
+  font-size: .75rem; font-weight: 600;
+  letter-spacing: .2em; text-transform: uppercase;
+  text-decoration: none;
+  transition: opacity .2s ease, transform .2s ease;
+}
+.pill:hover { opacity: .9; transform: translateY(-1px); }
+
+/* Corner brackets, the same four L's the brand tiles wear. */
+.bracket { position: relative; }
+.bracket::before, .bracket::after,
+.bracket > .br::before, .bracket > .br::after {
+  content: ""; position: absolute; width: 14px; height: 14px;
+  border: 0 solid var(--rule-strong); pointer-events: none;
+}
+.bracket::before { left: 10px;  top: 10px;    border-left-width: 1px;  border-top-width: 1px; }
+.bracket::after  { right: 10px; top: 10px;    border-right-width: 1px; border-top-width: 1px; }
+.bracket > .br::before { left: 10px;  bottom: 10px; border-left-width: 1px;  border-bottom-width: 1px; }
+.bracket > .br::after  { right: 10px; bottom: 10px; border-right-width: 1px; border-bottom-width: 1px; }
+
+/* --- hero: the lockup itself, unchanged from the storefront ------------- */
+/* The bottom padding is what keeps the centred lockup and its line clear of
+   the fixed "Scroll" cue, which they were landing on top of. */
+#p-hero { place-items: center; text-align: center; padding-bottom: 4.5rem; }
+/* The artwork ships on a transparent ground and sits on a clear glass halo —
+   a backdrop blur with no tint, masked so it has no edge — exactly as it does
+   on the store. The blur is what keeps white legible over the bright cells of
+   the dome without hiding them. */
+.lockup {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  /* Sized by height as well as width. It used to be width-only, so on a short
+     window the square grew taller than the space it had, pushed the line of
+     copy under it down the page, and landed it on top of the "Scroll" cue. */
+  width: min(21rem, 78vw, 44svh);
+}
+@media (min-width: 640px) { .lockup { width: min(32rem, 62vw, 44svh); } }
+.lockup .glass {
+  position: absolute; inset: 0; border-radius: 999px;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 42%, rgba(0,0,0,.55) 62%, transparent 78%);
+  mask-image: radial-gradient(circle at 50% 50%, #000 42%, rgba(0,0,0,.55) 62%, transparent 78%);
+}
+.lockup img {
+  position: relative;
+  width: 76%;
+  height: auto;
+  filter:
+    drop-shadow(0 0 1px rgba(0,0,0,.95))
+    drop-shadow(0 1px 3px rgba(0,0,0,.95))
+    drop-shadow(0 6px 26px rgba(0,0,0,.8));
+}
+.sub {
+  margin: 1.5rem auto 0;
+  max-width: 34ch;
+  font-size: clamp(.9rem, 2vw, 1.05rem);
+  font-weight: 500;
+  line-height: 1.6;
+}
+
+.hint {
+  position: fixed; left: 50%; bottom: calc(var(--shell) * .8);
+  translate: -50% 0;
+  font-size: .6875rem; font-weight: 500;
+  letter-spacing: .22em; text-transform: uppercase;
+  color: #fff; opacity: .8;
+  transition: opacity .4s ease;
+}
+.hint::after {
+  content: ""; display: block; width: 1px; height: 30px;
+  margin: 10px auto 0; background: linear-gradient(currentColor, transparent);
+  animation: drop 2.1s ease-in-out infinite;
+}
+@keyframes drop { 0%,100% { transform: scaleY(.35); transform-origin: top; opacity: .4 } 50% { transform: scaleY(1); opacity: 1 } }
+
+h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
+
+/* --- the promenade: a card on paper, the store's own surface ------------ */
+#p-brands { align-content: end; }
+.brandcard {
+  pointer-events: auto;
+  width: min(430px, 100%);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  box-shadow: 0 30px 70px -34px rgba(0,0,0,.65);
+  padding: 1.4rem 1.5rem 1.5rem;
+}
+.brandcard .swatch { height: 4px; width: 100%; margin-bottom: 1.1rem; }
+.brandcard h3 { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.4vw, 2.2rem); }
+.brandcard p.note { margin: .6rem 0 0; font-size: .85rem; line-height: 1.6; color: var(--ink-dim); }
+.brandcard .pill { margin-top: 1.2rem; }
+
+/* The running order down the street. */
+.index {
+  position: fixed; right: var(--shell); top: 50%; translate: 0 -50%;
+  display: grid; gap: .38rem; text-align: right;
+  font-size: .6875rem; font-weight: 500;
+  letter-spacing: .22em; text-transform: uppercase;
+  color: #fff;
+  opacity: 0; transition: opacity .5s ease;
+}
+.index[data-on="1"] { opacity: 1; }
+.index b {
+  font-weight: 500; opacity: .5;
+  text-shadow: 0 1px 3px rgba(0,0,0,.95), 0 0 16px rgba(0,0,0,.7);
+  transition: opacity .3s ease;
+}
+.index b[data-live="1"] { opacity: 1; }
+
+/* --- finale --- */
+#p-end { place-items: center; text-align: center; }
+#p-end .card {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  padding: clamp(2rem, 6vw, 3.5rem) clamp(1.6rem, 6vw, 4rem);
+  box-shadow: 0 30px 70px -34px rgba(0,0,0,.65);
+}
+#p-end img { width: min(15rem, 52vw); height: auto; display: block; margin: 0 auto 1.6rem; }
+
+/* --- loader, on the store's paper ground --- */
+#boot {
+  position: fixed; inset: 0; z-index: 9;
+  display: grid; place-items: center;
+  background: var(--paper);
+  transition: opacity .9s ease;
+}
+#boot[data-done="1"] { opacity: 0; pointer-events: none; }
+#boot .bar { width: 160px; height: 1px; background: var(--rule); overflow: hidden; }
+#boot .bar i { display: block; height: 100%; width: 40%; background: var(--ink); animation: sweep 1.15s ease-in-out infinite; }
+@keyframes sweep { 0% { transform: translateX(-110%) } 100% { transform: translateX(340%) } }
+
+#fallback {
+  display: none; position: fixed; inset: 0; z-index: 10;
+  place-items: center; padding: var(--shell); text-align: center;
+  background: var(--paper); color: var(--ink);
+}
+#fallback[data-on="1"] { display: grid; }
+
+@media (max-width: 860px) {
+  .index { display: none; }
+  #p-brands { justify-items: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hint::after { animation: none; }
+  .panel { transition: none; }
+}
+</style>
+</head>
+
+<body>
+<!-- ## 04  MARKUP -->
+<canvas id="stage"></canvas>
+
+<div id="boot"><div class="bar"><i></i></div></div>
+
+<div id="fallback">
+  <div>
+    <p class="eyebrow">Designer District</p>
+    <h2 class="display title">This page needs WebGL.</h2>
+    <p style="margin:1.2rem 0 1.6rem;color:var(--ink-dim)">Your browser could not start a 3D context.</p>
+    <a class="pill" href="https://designer-district.vercel.app">Continue to the store</a>
+  </div>
+</div>
+
+<!-- The store's own header, kept as it is there: paper ground, hairline rule,
+     and the wordmark cut straight from the logo rather than set in a face that
+     approximates it. Swap these absolute URLs for /brand/... if the file is
+     ever served from the same origin as the store. -->
+<header id="bar">
+  <div class="side"></div>
+  <a href="https://designer-district.vercel.app" aria-label="Designer District, home">
+    <img src="https://designer-district.vercel.app/brand/designer-district-wordmark.png"
+         alt="Designer District" width="900" height="61" />
+  </a>
+  <div class="side"><a class="ghost" href="https://designer-district.vercel.app">Shop</a></div>
+</header>
+
+<div class="layer">
+  <section class="panel on-scene" id="p-hero" data-on="1">
+    <div>
+      <div class="lockup">
+        <div class="glass" aria-hidden="true"></div>
+        <img src="https://designer-district.vercel.app/brand/designer-district-on-dark.png"
+             alt="Designer District" width="800" height="618" fetchpriority="high" />
+      </div>
+      <p class="sub halo">At Designer District we carry a wide variety of exclusive brands.</p>
+    </div>
+  </section>
+
+  <section class="panel" id="p-brands">
+    <div class="brandcard bracket" id="card">
+      <span class="br" aria-hidden="true"></span>
+      <div class="swatch" id="card-swatch"></div>
+      <p class="eyebrow" id="card-eyebrow">The Collection</p>
+      <h3 class="display" id="card-name">&mdash;</h3>
+      <p class="note" id="card-note">&mdash;</p>
+      <a class="pill" id="card-link" href="#">Shop the house</a>
+    </div>
+  </section>
+
+  <section class="panel" id="p-end">
+    <div class="card bracket">
+      <span class="br" aria-hidden="true"></span>
+      <img src="https://designer-district.vercel.app/brand/designer-district.png"
+           alt="Designer District" width="800" height="618" loading="lazy" />
+      <p class="eyebrow">All fifteen houses</p>
+      <h2 class="display title">Everything, in one place.</h2>
+      <a class="pill" id="enter" href="#" style="margin-top:1.8rem">Enter the store</a>
+    </div>
+  </section>
+
+  <nav class="index" id="index" aria-label="Brands on this street"></nav>
+  <p class="hint halo" id="hint">Scroll</p>
+</div>
+
+<!-- ## 05  IMPORT MAP -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.171.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.171.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from "three";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+
+// ## 06  CONFIG — tuning, palette, brand data
+// Everything adjustable lives here. The scene below reads it and never
+// hard-codes a number you would plausibly want to change.
+
+const SITE = "https://designer-district.vercel.app";
+
+const QUALITY = (() => {
+  const coarse = matchMedia("(pointer: coarse)").matches;
+  const small  = Math.min(innerWidth, innerHeight) < 700;
+  const still  = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const light  = coarse || small;
+  return {
+    light,
+    still,
+    dpr:       light ? 1.35 : 2,
+    shadowMap: light ? 1024 : 2048,
+    leaves:    light ? 46  : 110,
+    motes:     light ? 180 : 520,
+    // Palms are the most expensive thing in the scene: every frond is
+    // alpha-tested, and every one of them is drawn a second time into the
+    // shadow map. The street is lined with buildings now, so it does not need
+    // a dense grove to feel full.
+    palmsRow:  light ? 4   : 6,
+    palmsRing: light ? 6   : 9,
+    frondsPer: light ? 8   : 10,
+    bloom:     !light,
+    holeSeg:   light ? 16  : 26,   // radial segments on each dome rim
+    texScale:  light ? 0.6 : 1,
+  };
+})();
+
+const C = {
+  sun:       new THREE.Vector3(-0.42, 0.62, 0.66).normalize(),
+  zenith:    new THREE.Color("#0b4fbe"),
+  horizon:   new THREE.Color("#a8d2ee"),
+  underside: new THREE.Color("#9fb9c9"),
+  fog:       new THREE.Color("#b7d6ea"),
+  fogDensity: 0.0052,
+
+  travertine: new THREE.Color("#e6d9bd"),
+  poolDeep:   new THREE.Color("#0b5f80"),
+  poolShallow:new THREE.Color("#35c2c9"),
+
+  domeRadius: 6,
+  domeSquash: 0.82,          // y scale — the real dome is not a true sphere
+  domeCut:    0.70,          // × PI, how far down from the pole the shell runs
+  // Twenty-one openings, not forty-four. The real dome's cells are enormous
+  // relative to the sphere — roughly a third of its diameter each — and at
+  // forty-four the shell read as a golf ball instead.
+  domeHoles:  21,
+  holeAngle:  0.305,     // angular radius of one opening, radians
+  rimTube:    0.235,     // thickness of the lip around it
+  plinthTop:  0.85,
+
+  poolY:      -0.28,
+  plazaY:     0,
+
+  // Where the street runs. Monoliths alternate sides down this line.
+  streetFrom: -34,
+  streetStep: -9.2,
+  // How far out from the centre line the slabs stand. A portrait phone sees a
+  // much narrower horizontal wedge than a laptop does, and at 7.6 the first
+  // house sat outside the frame for its whole approach — named on the card,
+  // never actually on screen. The street closes up when the viewport is tall.
+  streetX: innerWidth / innerHeight < 1 ? 4.9 : 7.6,
+};
+
+// Derived once: the dome's centre height so its cut edge lands on the plinth.
+C.domeCenterY = C.plinthTop + Math.abs(Math.cos(C.domeCut * Math.PI)) * C.domeRadius * C.domeSquash;
+
+// The fifteen houses, in the order they appear on the storefront, with the
+// colourway each one already wears on its tile there.
+const BRANDS = [
+  { slug:"bape",         name:"Bape",          live:7,  bg:["#7a8b5c","#5d6b45"], ink:"#ffffff", note:"Camo, since 1993." },
+  { slug:"chrome-hearts",name:"Chrome Hearts", live:52, bg:["#eceef1","#b4b8c2"], ink:"#0a0a0a", note:"Sterling, leather, gothic type." },
+  { slug:"supreme",      name:"Supreme",       live:19, bg:["#ce1f26","#a3161c"], ink:"#ffffff", note:"The box logo." },
+  { slug:"amiri",        name:"Amiri",         live:16, bg:["#f1ebdf","#d5c9b2"], ink:"#12100c", note:"Los Angeles tailoring." },
+  { slug:"balenciaga",   name:"Balenciaga",    live:10, bg:["#0a0a0a","#1b1b1b"], ink:"#ffffff", note:"Paris, exaggerated." },
+  { slug:"gallery-dept", name:"Gallery Dept.", live:16, bg:["#dedbd4","#c8c4ba"], ink:"#101010", note:"Painted, distressed, one-off." },
+  { slug:"godspeed",     name:"Godspeed",      live:27, bg:["#caa23c","#2a1d08"], ink:"#fbf3de", note:"Gilded graphics." },
+  { slug:"purple-brand", name:"Purple Brand",  live:15, bg:["#4b2a7b","#331d55"], ink:"#ffffff", note:"Denim, loudly." },
+  { slug:"off-white",    name:"Off-White",     live:7,  bg:["#f3f3f1","#dcdcd8"], ink:"#111111", note:"Quotation marks and diagonals." },
+  { slug:"casablanca",   name:"Casablanca",    live:19, bg:["#cfe3d8","#e8c9a0"], ink:"#2b2018", note:"Riviera, on silk." },
+  { slug:"ksubi",        name:"Ksubi",         live:5,  bg:["#cad7e6","#93a8c6"], ink:"#121820", note:"Australian denim." },
+  { slug:"essentials",   name:"Essentials",    live:6,  bg:["#b4a89b","#9c9084"], ink:"#141210", note:"Fear of God, stripped back." },
+  { slug:"rhude",        name:"Rhude",         live:13, bg:["#d8c9ab","#bda98a"], ink:"#2a2119", note:"Motorsport romance." },
+  { slug:"vale",         name:"Vale",          live:12, bg:["#17203a","#0d1426"], ink:"#ffffff", note:"Collegiate navy." },
+  { slug:"hellstar",     name:"Hellstar",      live:12, bg:["#e8552a","#3a0e0e"], ink:"#ffffff", note:"Scorched graphics." },
+];
+
+// Scroll choreography. Each panel owns a slice of the journey.
+const BEATS = {
+  hero:   [0.000, 0.095],
+  // Nothing between the hero and the street on purpose: that stretch is the
+  // camera swinging around the dome, and a caption over it would only be
+  // something to read instead of looking.
+  brands: [0.200, 0.875],
+  end:    [0.910, 1.000],
+};
+
+// ## 07  UTILITIES — rng, easing, math
+
+/** Deterministic PRNG, so the palm grove is the same grove on every load. */
+function rng(seed) {
+  let s = seed >>> 0;
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+const clamp  = (v, a, b) => Math.min(Math.max(v, a), b);
+const lerp   = (a, b, t) => a + (b - a) * t;
+
+// ## 08  TEXTURES — procedural canvas makers
+// Nothing is fetched. Every surface in the scene is drawn here at boot, which
+// keeps the page a single file and means there is no loading order to get
+// wrong.
+
+function canvas(w, h) {
+  const c = document.createElement("canvas");
+  c.width = Math.max(2, Math.round(w * QUALITY.texScale));
+  c.height = Math.max(2, Math.round(h * QUALITY.texScale));
+  return c;
+}
+
+function asTexture(c, { srgb = true, repeat = null, aniso = 8 } = {}) {
+  const t = new THREE.CanvasTexture(c);
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+  if (repeat) {
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(repeat[0], repeat[1]);
+  }
+  t.anisotropy = aniso;
+  return t;
+}
+
+/** Warm, veined travertine with the plaza's tile joints cut into it. */
+function texTravertine() {
+  const c = canvas(1024, 1024), x = c.getContext("2d"), S = c.width;
+  x.fillStyle = "#ddcfb2"; x.fillRect(0, 0, S, S);
+
+  // Mineral cloudiness.
+  for (let i = 0; i < 2600; i++) {
+    const r = 6 + Math.random() * 70;
+    x.globalAlpha = 0.018 + Math.random() * 0.03;
+    x.fillStyle = Math.random() > 0.45 ? "#fffaf0" : "#c8bda4";
+    x.beginPath();
+    x.ellipse(Math.random() * S, Math.random() * S, r, r * (0.4 + Math.random()), Math.random() * Math.PI, 0, 7);
+    x.fill();
+  }
+  // Fine grain.
+  x.globalAlpha = 1;
+  const g = x.getImageData(0, 0, S, S), d = g.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const n = (Math.random() - 0.5) * 16;
+    d[i] += n; d[i + 1] += n; d[i + 2] += n;
+  }
+  x.putImageData(g, 0, 0);
+
+  // Joints: four slabs across the tile, so the repeat reads as stonework.
+  x.strokeStyle = "rgba(150,138,116,.55)";
+  x.lineWidth = Math.max(1, S / 340);
+  for (let i = 0; i <= 4; i++) {
+    const p = (i / 4) * S;
+    x.beginPath(); x.moveTo(p, 0); x.lineTo(p, S); x.stroke();
+    x.beginPath(); x.moveTo(0, p); x.lineTo(S, p); x.stroke();
+  }
+  return c;
+}
+
+/** Palm bark: stacked leaf scars, vertical fibre, sun-bleached. */
+function texBark() {
+  const c = canvas(256, 1024), x = c.getContext("2d"), W = c.width, H = c.height;
+  const base = x.createLinearGradient(0, 0, W, 0);
+  base.addColorStop(0, "#8a7963"); base.addColorStop(0.38, "#c3b294");
+  base.addColorStop(0.66, "#d6c6a6"); base.addColorStop(1, "#8d7c66");
+  x.fillStyle = base; x.fillRect(0, 0, W, H);
+
+  // Ring scars — the diamond pattern a palm leaves as fronds drop.
+  const rings = 22;
+  for (let i = 0; i < rings; i++) {
+    const y = (i / rings) * H + (Math.random() - 0.5) * 3;
+    const h = H / rings;
+    // Scars are staggered and uneven; a clean stripe every N pixels reads as
+    // a stack of coins rather than a tree.
+    x.globalAlpha = 0.20 + Math.random() * 0.22;
+    x.fillStyle = "rgba(96,80,58,1)";
+    x.beginPath();
+    x.moveTo(0, y + (Math.random() - 0.5) * 4);
+    x.lineTo(W, y + (Math.random() - 0.5) * 4);
+    x.lineTo(W, y + h * (0.16 + Math.random() * 0.12));
+    x.lineTo(0, y + h * (0.16 + Math.random() * 0.12));
+    x.closePath(); x.fill();
+    x.globalAlpha = 0.14;
+    x.fillStyle = "rgba(255,246,224,1)";
+    x.fillRect(0, y + h * 0.3, W, h * 0.1);
+  }
+  // Vertical fibre.
+  x.globalAlpha = 0.16;
+  for (let i = 0; i < 220; i++) {
+    x.strokeStyle = Math.random() > 0.5 ? "#4a3d2f" : "#d8c9a8";
+    x.lineWidth = Math.random() * 1.8;
+    const px = Math.random() * W;
+    x.beginPath(); x.moveTo(px, 0); x.lineTo(px + (Math.random() - 0.5) * 10, H); x.stroke();
+  }
+  x.globalAlpha = 1;
+  return c;
+}
+
+/**
+ * One palm frond, drawn flat: a rachis along the middle with leaflets combed
+ * off both edges. The canvas alpha is the leaf's silhouette, which is what
+ * makes the dappled shadow underneath look like a palm rather than a blob.
+ */
+function texFrond() {
+  const c = canvas(1024, 384), x = c.getContext("2d"), W = c.width, H = c.height, mid = H / 2;
+  x.clearRect(0, 0, W, H);
+
+  const leaflets = 74;
+  for (let i = 0; i < leaflets; i++) {
+    const t = i / (leaflets - 1);
+    const px = 18 + t * (W - 40);
+    // Leaflets are short at the base, longest at a third, tapering to the tip.
+    const len = Math.sin(Math.pow(t, 0.55) * Math.PI) * (H * 0.46) * (1 - 0.25 * t) + 6;
+    const sweep = 0.34 + t * 0.5;            // they comb further back along the spine
+    const wob = (Math.random() - 0.5) * 7;
+
+    for (const dir of [-1, 1]) {
+      const tipX = px + len * sweep * 1.25;
+      const tipY = mid + dir * len + wob;
+      const g = x.createLinearGradient(px, mid, tipX, tipY);
+      const shade = 0.82 + 0.18 * Math.random();
+      g.addColorStop(0,   `rgb(${Math.round(84 * shade)},${Math.round(116 * shade)},${Math.round(44 * shade)})`);
+      g.addColorStop(0.55,`rgb(${Math.round(124 * shade)},${Math.round(168 * shade)},${Math.round(58 * shade)})`);
+      g.addColorStop(1,   `rgb(${Math.round(176 * shade)},${Math.round(206 * shade)},${Math.round(96 * shade)})`);
+      x.fillStyle = g;
+      x.beginPath();
+      x.moveTo(px - 4, mid);
+      x.quadraticCurveTo(px + len * 0.25, mid + dir * len * 0.55, tipX, tipY);
+      x.quadraticCurveTo(px + len * 0.30, mid + dir * len * 0.42, px + 5, mid);
+      x.closePath();
+      x.fill();
+    }
+  }
+  // The rachis itself.
+  const r = x.createLinearGradient(0, mid - 5, 0, mid + 5);
+  r.addColorStop(0, "#5c7a2c"); r.addColorStop(0.5, "#9ab84e"); r.addColorStop(1, "#4d6626");
+  x.fillStyle = r;
+  x.beginPath();
+  x.moveTo(8, mid - 5); x.lineTo(W - 12, mid - 1.2);
+  x.lineTo(W - 12, mid + 1.2); x.lineTo(8, mid + 5);
+  x.closePath(); x.fill();
+  return c;
+}
+
+/** A single detached leaflet, for the ones in the air. */
+function texLeaf() {
+  const c = canvas(128, 64), x = c.getContext("2d"), W = c.width, H = c.height;
+  x.clearRect(0, 0, W, H);
+  const g = x.createLinearGradient(0, 0, W, 0);
+  g.addColorStop(0, "#6f9235"); g.addColorStop(0.6, "#a9c95c"); g.addColorStop(1, "#d6e39a");
+  x.fillStyle = g;
+  x.beginPath();
+  x.moveTo(2, H / 2);
+  x.quadraticCurveTo(W * 0.4, 1, W - 3, H / 2);
+  x.quadraticCurveTo(W * 0.4, H - 1, 2, H / 2);
+  x.closePath(); x.fill();
+  x.strokeStyle = "rgba(60,84,24,.5)"; x.lineWidth = 1;
+  x.beginPath(); x.moveTo(3, H / 2); x.lineTo(W - 4, H / 2); x.stroke();
+  return c;
+}
+
+/** Soft round falloff — used for dust motes and the sun's bloom seed. */
+function texGlow() {
+  const c = canvas(128, 128), x = c.getContext("2d"), S = c.width;
+  const g = x.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
+  g.addColorStop(0, "rgba(255,255,255,1)");
+  g.addColorStop(0.35, "rgba(255,252,240,.5)");
+  g.addColorStop(1, "rgba(255,250,235,0)");
+  x.fillStyle = g; x.fillRect(0, 0, S, S);
+  return c;
+}
+
+/**
+ * A storefront's sign band: the house colourway, its name, its count, and the
+ * same corner brackets the tiles on the store wear.
+ */
+function texSign(brand) {
+  const c = canvas(1024, 256), x = c.getContext("2d"), W = c.width, H = c.height;
+  const g = x.createLinearGradient(0, 0, W, H);
+  g.addColorStop(0, brand.bg[0]); g.addColorStop(1, brand.bg[1]);
+  x.fillStyle = g; x.fillRect(0, 0, W, H);
+
+  if (brand.slug === "off-white") {
+    x.save(); x.translate(W / 2, H / 2); x.rotate(-Math.PI / 4); x.translate(-W, -H);
+    x.fillStyle = "#111";
+    for (let i = 0; i < 60; i++) if (i % 2 === 0) x.fillRect(0, i * (H / 10), W * 2, H / 20);
+    x.restore();
+    x.fillStyle = "rgba(243,243,241,.85)";
+    x.fillRect(0, H * 0.24, W, H * 0.52);
+  }
+
+  x.fillStyle = brand.ink;
+  x.textAlign = "center";
+  x.textBaseline = "middle";
+
+  const label = brand.name.toUpperCase();
+  const face = getComputedStyle(document.body).fontFamily;
+  let size = Math.round(H * 0.42);
+  do { x.font = `700 ${size}px ${face}`; size -= 2; }
+  while (x.measureText(label).width > W * 0.7 && size > 16);
+  x.fillText(label, W / 2, H * 0.46);
+
+  x.globalAlpha = 0.66;
+  x.font = `600 ${Math.round(H * 0.1)}px ${face}`;
+  x.fillText(`${brand.live} PIECES`, W / 2, H * 0.76);
+  x.globalAlpha = 1;
+
+  const m = H * 0.12, L = H * 0.16;
+  x.strokeStyle = brand.ink; x.globalAlpha = 0.45; x.lineWidth = Math.max(2, H * 0.016);
+  for (const [cx, cy, dx, dy] of [[m, m, 1, 1], [W - m, m, -1, 1], [m, H - m, 1, -1], [W - m, H - m, -1, -1]]) {
+    x.beginPath();
+    x.moveTo(cx, cy + dy * L); x.lineTo(cx, cy); x.lineTo(cx + dx * L, cy);
+    x.stroke();
+  }
+  return c;
+}
+
+/** Stucco with a little tonal drift, for the building shells. */
+function texStucco() {
+  const c = canvas(512, 512), x = c.getContext("2d"), S = c.width;
+  x.fillStyle = "#efe8da"; x.fillRect(0, 0, S, S);
+  for (let i = 0; i < 1400; i++) {
+    x.globalAlpha = 0.02 + Math.random() * 0.03;
+    x.fillStyle = Math.random() > 0.5 ? "#ffffff" : "#cdc2ad";
+    const r = 10 + Math.random() * 90;
+    x.beginPath(); x.ellipse(Math.random() * S, Math.random() * S, r, r * 0.7, 0, 0, 7); x.fill();
+  }
+  x.globalAlpha = 1;
+  return c;
+}
+
+/**
+ * What you see through a shopfront: a warm lit room, rails and forms reduced
+ * to soft blocks. It is always read behind tinted glass at a glancing angle,
+ * so anything more literal is wasted.
+ */
+function texInterior() {
+  const c = canvas(512, 256), x = c.getContext("2d"), W = c.width, H = c.height;
+  const g = x.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, "#fff6e4"); g.addColorStop(0.55, "#e8dcc6"); g.addColorStop(1, "#b9ac95");
+  x.fillStyle = g; x.fillRect(0, 0, W, H);
+  // Rails and hanging stock.
+  for (let i = 0; i < 26; i++) {
+    const px = Math.random() * W, w = 6 + Math.random() * 16, h = H * (0.2 + Math.random() * 0.4);
+    x.globalAlpha = 0.18 + Math.random() * 0.3;
+    x.fillStyle = ["#6a6257", "#3c3831", "#8d7f6b", "#2b2925"][Math.floor(Math.random() * 4)];
+    x.fillRect(px, H * 0.32, w, h);
+  }
+  // Ceiling spots.
+  x.globalAlpha = 0.5;
+  for (let i = 0; i < 7; i++) {
+    const px = (i + 0.5) * (W / 7);
+    const r = x.createRadialGradient(px, 0, 0, px, 0, H * 0.7);
+    r.addColorStop(0, "rgba(255,246,222,.95)"); r.addColorStop(1, "rgba(255,246,222,0)");
+    x.fillStyle = r; x.fillRect(px - H * 0.7, 0, H * 1.4, H);
+  }
+  x.globalAlpha = 1;
+  return c;
+}
+
+// ## 09  BOOT — renderer, scene, camera
+
+const canvasEl = document.getElementById("stage");
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({
+    canvas: canvasEl,
+    antialias: !QUALITY.light,
+    powerPreference: "high-performance",
+    stencil: false,
+  });
+} catch (err) {
+  document.getElementById("fallback").dataset.on = "1";
+  document.getElementById("boot").dataset.done = "1";
+  throw err;
+}
+
+renderer.setPixelRatio(Math.min(devicePixelRatio, QUALITY.dpr));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.98;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(C.fog.getHex(), C.fogDensity);
+
+const camera = new THREE.PerspectiveCamera(46, innerWidth / innerHeight, 0.25, 900);
+camera.position.set(0, 3.2, 30);
+
+// ## 10  SKY — gradient, sun, clouds, environment
+// A shader on the inside of a very large sphere. The same function that paints
+// it is duplicated in the water shader so the pool reflects a sky that
+// genuinely matches the one overhead.
+
+const SKY_GLSL = /* glsl */`
+  float hash31(vec3 p){ return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453123); }
+  float vnoise(vec3 x){
+    vec3 i = floor(x), f = fract(x);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(
+      mix(mix(hash31(i + vec3(0,0,0)), hash31(i + vec3(1,0,0)), f.x),
+          mix(hash31(i + vec3(0,1,0)), hash31(i + vec3(1,1,0)), f.x), f.y),
+      mix(mix(hash31(i + vec3(0,0,1)), hash31(i + vec3(1,0,1)), f.x),
+          mix(hash31(i + vec3(0,1,1)), hash31(i + vec3(1,1,1)), f.x), f.y), f.z);
+  }
+  float fbm(vec3 p){
+    float a = 0.5, s = 0.0;
+    for (int i = 0; i < 5; i++) { s += a * vnoise(p); p *= 2.03; a *= 0.5; }
+    return s;
+  }
+  vec3 skyColor(vec3 d, vec3 sunDir, vec3 zenith, vec3 horizon, vec3 under, float t){
+    d = normalize(d);
+    float up = clamp(d.y, -1.0, 1.0);
+    vec3 col = mix(horizon, zenith, pow(clamp(up, 0.0, 1.0), 0.34));
+    col = mix(under, col, smoothstep(-0.20, 0.03, up));
+
+    float sd = max(dot(d, sunDir), 0.0);
+    col += vec3(1.0, 0.95, 0.84) * pow(sd, 1400.0) * 6.0;   // disc
+    col += vec3(1.0, 0.88, 0.68) * pow(sd, 22.0) * 0.30;    // aureole
+    col += vec3(1.0, 0.92, 0.80) * pow(sd, 3.0) * 0.06;     // wide haze
+
+    if (up > 0.001) {
+      // Project onto a plane so the clouds take on perspective near the horizon.
+      vec3 cp = d / max(up, 0.075);
+      cp.xz += vec3(t * 0.0045, 0.0, t * 0.0026).xz;
+      float f = fbm(cp * 0.52);
+      float cover = smoothstep(0.46, 0.82, f) * smoothstep(0.0, 0.16, up);
+      // Lit tops, cool bases.
+      vec3 cloud = mix(vec3(0.74, 0.80, 0.89), vec3(1.0, 0.99, 0.97), smoothstep(0.48, 0.95, f));
+      cloud += vec3(1.0, 0.93, 0.8) * pow(max(dot(d, sunDir), 0.0), 8.0) * 0.25;
+      col = mix(col, cloud, cover * 0.92);
+    }
+    return col;
+  }
+`;
+
+const skyUniforms = {
+  uSun:     { value: C.sun.clone() },
+  uZenith:  { value: C.zenith.clone() },
+  uHorizon: { value: C.horizon.clone() },
+  uUnder:   { value: C.underside.clone() },
+  uTime:    { value: 0 },
+};
+
+const sky = new THREE.Mesh(
+  new THREE.SphereGeometry(600, 48, 32),
+  new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    depthWrite: false,
+    fog: false,
+    uniforms: skyUniforms,
+    vertexShader: /* glsl */`
+      varying vec3 vDir;
+      void main(){
+        vDir = position;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }`,
+    fragmentShader: /* glsl */`
+      varying vec3 vDir;
+      uniform vec3 uSun, uZenith, uHorizon, uUnder;
+      uniform float uTime;
+      ${SKY_GLSL}
+      void main(){
+        gl_FragColor = vec4(skyColor(vDir, uSun, uZenith, uHorizon, uUnder, uTime), 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
+  })
+);
+sky.renderOrder = -1;
+scene.add(sky);
+
+// Light the physical materials off that same sky rather than a studio probe.
+{
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const probe = new THREE.Scene();
+  probe.add(sky.clone());
+  scene.environment = pmrem.fromScene(probe).texture;
+  scene.environmentIntensity = 0.85;
+  pmrem.dispose();
+}
+
+// ## 11  LIGHTING
+// One hard sun for the dappled palm shadows, one hemisphere fill so the
+// shadowed faces pick up sky above and warm stone below.
+
+const sun = new THREE.DirectionalLight(0xfff2da, 2.6);
+sun.position.copy(C.sun).multiplyScalar(90);
+sun.castShadow = true;
+sun.shadow.mapSize.set(QUALITY.shadowMap, QUALITY.shadowMap);
+sun.shadow.camera.near = 20;
+sun.shadow.camera.far = 220;
+sun.shadow.bias = -0.0009;
+sun.shadow.normalBias = 0.035;
+// The shadow camera follows the journey in the frame loop; this is its size.
+const SHADOW_HALF = 46;
+Object.assign(sun.shadow.camera, { left: -SHADOW_HALF, right: SHADOW_HALF, top: SHADOW_HALF, bottom: -SHADOW_HALF });
+sun.shadow.camera.updateProjectionMatrix();
+scene.add(sun, sun.target);
+
+scene.add(new THREE.HemisphereLight(0xbdddf5, 0xc6b79a, 0.95));
+
+// A cool bounce from the pool, so the dome's underside is not dead.
+const bounce = new THREE.DirectionalLight(0x8fd8e8, 0.45);
+bounce.position.set(4, -6, 10);
+scene.add(bounce);
+
+// ## 12  PLAZA — travertine ground and pool coping
+
+const travertine = asTexture(texTravertine(), { repeat: [44, 44] });
+
+const POOL = { w: 46, d: 34, lip: 1.5, y: C.poolY };
+
+// The plaza is a slab with the pool cut out of it. It started as a plain
+// plane, which paved straight over the water: the basin is 0.28 below the
+// paving, so a solid plane simply hid it. ShapeGeometry with a hole is the
+// fix, and it hands back UVs in world units, which is why the repeat here is
+// a fraction rather than a count.
+{
+  const half = 260;
+  const shape = new THREE.Shape()
+    .moveTo(-half, -half).lineTo(half, -half).lineTo(half, half).lineTo(-half, half).lineTo(-half, -half);
+  const hole = new THREE.Path()
+    .moveTo(-POOL.w / 2, -POOL.d / 2).lineTo(-POOL.w / 2, POOL.d / 2)
+    .lineTo(POOL.w / 2, POOL.d / 2).lineTo(POOL.w / 2, -POOL.d / 2).lineTo(-POOL.w / 2, -POOL.d / 2);
+  shape.holes.push(hole);
+
+  const paveTex = travertine.clone();
+  paveTex.needsUpdate = true;
+  paveTex.repeat.set(1 / 6, 1 / 6);      // one texture tile every 6 metres
+
+  const plaza = new THREE.Mesh(
+    new THREE.ShapeGeometry(shape),
+    new THREE.MeshStandardMaterial({ map: paveTex, roughness: 0.93, metalness: 0 })
+  );
+  plaza.rotation.x = -Math.PI / 2;
+  plaza.position.y = C.plazaY;
+  plaza.receiveShadow = true;
+  scene.add(plaza);
+}
+
+// The pool's raised stone lip, built from four coping slabs rather than a ring
+// so the corners read square, the way they do on the real plaza.
+{
+  const stone = new THREE.MeshStandardMaterial({ map: travertine.clone(), roughness: 0.85 });
+  stone.map.repeat.set(6, 2);
+  const lipH = Math.abs(C.plazaY - POOL.y) + 0.22;
+  const coping = [];
+  const hw = POOL.w / 2 + POOL.lip / 2, hd = POOL.d / 2 + POOL.lip / 2;
+  for (const [w, d, px, pz] of [
+    [POOL.w + POOL.lip * 2, POOL.lip, 0, -hd],
+    [POOL.w + POOL.lip * 2, POOL.lip, 0,  hd],
+    [POOL.lip, POOL.d + POOL.lip * 2, -hw, 0],
+    [POOL.lip, POOL.d + POOL.lip * 2,  hw, 0],
+  ]) {
+    const g = new THREE.BoxGeometry(w, lipH, d);
+    g.translate(px, C.plazaY - lipH / 2 + 0.16, pz);
+    coping.push(g);
+  }
+  const lip = new THREE.Mesh(mergeGeometries(coping), stone);
+  lip.castShadow = true; lip.receiveShadow = true;
+  scene.add(lip);
+
+  // Basin floor, so the water has something to be deep over.
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(POOL.w, POOL.d),
+    new THREE.MeshStandardMaterial({ color: 0x9fd3d8, roughness: 0.6 })
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = POOL.y - 0.85;
+  floor.receiveShadow = true;
+  scene.add(floor);
+}
+
+// ## 13  WATER — reflecting pool
+// Not a mirror pass: the surface reflects the sky *function*, evaluated on the
+// reflected view vector. That costs one extra sky evaluation per pixel and
+// stays exactly in step with the real sky, including its clouds and its sun.
+
+const waterUniforms = {
+  uTime:     { value: 0 },
+  uSun:      { value: C.sun.clone() },
+  uZenith:   { value: C.zenith.clone() },
+  uHorizon:  { value: C.horizon.clone() },
+  uUnder:    { value: C.underside.clone() },
+  uDeep:     { value: C.poolDeep.clone() },
+  uShallow:  { value: C.poolShallow.clone() },
+  uCam:      { value: new THREE.Vector3() },
+  uFogColor: { value: C.fog.clone() },
+  uFogDensity: { value: C.fogDensity },
+};
+
+const water = new THREE.Mesh(
+  new THREE.PlaneGeometry(POOL.w, POOL.d, 1, 1),
+  new THREE.ShaderMaterial({
+    uniforms: waterUniforms,
+    transparent: false,
+    vertexShader: /* glsl */`
+      varying vec3 vWorld;
+      void main(){
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorld = wp.xyz;
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }`,
+    fragmentShader: /* glsl */`
+      precision highp float;
+      varying vec3 vWorld;
+      uniform float uTime, uFogDensity;
+      uniform vec3 uSun, uZenith, uHorizon, uUnder, uDeep, uShallow, uCam, uFogColor;
+      ${SKY_GLSL}
+
+      // Two crossing wave trains plus a fine chop, sampled as a height field.
+      float waves(vec2 p){
+        float h = 0.0;
+        h += sin(p.x * 0.85 + uTime * 0.85) * 0.055;
+        h += sin(p.y * 0.62 - uTime * 0.67) * 0.045;
+        h += sin((p.x + p.y) * 1.45 + uTime * 1.5) * 0.022;
+        h += fbm(vec3(p * 1.25, uTime * 0.16)) * 0.075;
+        return h;
+      }
+      vec3 waterNormal(vec2 p){
+        float e = 0.16;
+        float h  = waves(p);
+        float hx = waves(p + vec2(e, 0.0));
+        float hz = waves(p + vec2(0.0, e));
+        return normalize(vec3(-(hx - h) / e, 1.0, -(hz - h) / e));
+      }
+
+      void main(){
+        vec3 n = waterNormal(vWorld.xz);
+        vec3 V = normalize(uCam - vWorld);
+
+        float fres = pow(1.0 - clamp(dot(n, V), 0.0, 1.0), 3.4);
+        fres = clamp(fres * 0.92 + 0.06, 0.0, 1.0);
+
+        vec3 R = reflect(-V, n);
+        R.y = abs(R.y);                       // never sample below the horizon
+        vec3 refl = skyColor(R, uSun, uZenith, uHorizon, uUnder, uTime);
+
+        // Body colour deepens away from the lip.
+        float edge = smoothstep(0.0, 9.0, min(
+          min(${(POOL.w / 2).toFixed(2)} - abs(vWorld.x), ${(POOL.d / 2).toFixed(2)} - abs(vWorld.z)), 9.0));
+        vec3 body = mix(uShallow, uDeep, edge);
+
+        vec3 col = mix(body, refl, fres);
+
+        // Sun glitter.
+        vec3 H = normalize(uSun + V);
+        col += vec3(1.0, 0.96, 0.88) * pow(max(dot(n, H), 0.0), 420.0) * 2.6;
+
+        // Caustic shimmer read back off the wave field.
+        float caus = pow(max(waves(vWorld.xz * 1.9) * 6.0 + 0.5, 0.0), 3.0);
+        col += vec3(0.55, 0.92, 0.95) * caus * 0.05;
+
+        // Match the scene's exponential-squared fog by hand.
+        float dist = length(uCam - vWorld);
+        float f = 1.0 - exp(-pow(dist * uFogDensity, 2.0));
+        col = mix(col, uFogColor, clamp(f, 0.0, 1.0));
+
+        gl_FragColor = vec4(col, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
+  })
+);
+water.rotation.x = -Math.PI / 2;
+water.position.y = POOL.y;
+scene.add(water);
+
+// ## 14  DOME — the Fly's Eye
+// A squashed sphere with circular openings punched through it. The holes are
+// distributed by the Fibonacci lattice, which is what gives the real dome its
+// even-but-not-gridded look, and each one is cut out of the shell with an
+// alpha map, ringed with a torus lip and filled with a pane of tinted glass.
+
+const domeGroup = new THREE.Group();
+scene.add(domeGroup);
+
+/** Fibonacci points on the unit sphere, in the same frame SphereGeometry uses. */
+function holeDirections(count, cutTheta) {
+  const golden = Math.PI * (3 - Math.sqrt(5));
+  const out = [];
+  for (let i = 0; i < count * 2; i++) {
+    const y = 1 - (i / (count * 2 - 1)) * 2;
+    const theta = Math.acos(clamp(y, -1, 1));
+    // Keep a whole rim's worth of shell between the last opening and the cut,
+    // or the bottom row breaks open into the plinth.
+    if (theta > cutTheta - HOLE_ANGLE * 1.25) continue;
+    const phi = i * golden;
+    const r = Math.sin(theta);
+    out.push(new THREE.Vector3(-Math.cos(phi) * r, Math.cos(theta), Math.sin(phi) * r));
+  }
+  return out;
+}
+
+const CUT = C.domeCut * Math.PI;
+const HOLE_ANGLE = C.holeAngle;
+const HOLES = holeDirections(C.domeHoles, CUT);
+
+/**
+ * The shell's alpha map, in the equirectangular frame SphereGeometry unwraps
+ * to. Rasterised per hole inside its own bounding box rather than per pixel
+ * against every hole — the whole-image version is 40× the work for the same
+ * picture.
+ */
+function texDomeAlpha() {
+  const W = Math.round(1600 * QUALITY.texScale), H = Math.round(800 * QUALITY.texScale);
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, H);
+  const img = ctx.getImageData(0, 0, W, H), d = img.data;
+
+  const cosHole = Math.cos(HOLE_ANGLE);
+  const cosSoft = Math.cos(HOLE_ANGLE * 1.06);   // one-pixel feather
+
+  for (const dir of HOLES) {
+    const thetaC = Math.acos(clamp(dir.y, -1, 1));
+    // Bounding box in the texture. Azimuth widens as you approach the pole.
+    const dTheta = HOLE_ANGLE * 1.15;
+    const sinT = Math.max(Math.sin(thetaC), 1e-3);
+    const dPhi = Math.min(Math.PI, (HOLE_ANGLE * 1.15) / sinT);
+
+    const y0 = Math.max(0, Math.floor(((thetaC - dTheta) / CUT) * H));
+    const y1 = Math.min(H - 1, Math.ceil(((thetaC + dTheta) / CUT) * H));
+    let phiC = Math.atan2(dir.z, -dir.x);
+    if (phiC < 0) phiC += Math.PI * 2;
+
+    for (let y = y0; y <= y1; y++) {
+      const theta = (y / H) * CUT;
+      const st = Math.sin(theta), ct = Math.cos(theta);
+      const xSpan = Math.ceil((dPhi / (Math.PI * 2)) * W);
+      const xC = Math.round((phiC / (Math.PI * 2)) * W);
+
+      for (let k = -xSpan; k <= xSpan; k++) {
+        const xw = ((xC + k) % W + W) % W;            // wrap in azimuth
+        const phi = (xw / W) * Math.PI * 2;
+        const dot = (-Math.cos(phi) * st) * dir.x + ct * dir.y + (Math.sin(phi) * st) * dir.z;
+        if (dot <= cosSoft) continue;
+        const a = dot >= cosHole ? 0 : 1 - (dot - cosSoft) / (cosHole - cosSoft);
+        const i = (y * W + xw) * 4;
+        const v = Math.round(a * 255);
+        if (v < d[i]) { d[i] = d[i + 1] = d[i + 2] = v; }
+      }
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = THREE.RepeatWrapping;
+  return t;
+}
+
+{
+  const shellGeo = new THREE.SphereGeometry(C.domeRadius, 200, 140, 0, Math.PI * 2, 0, CUT);
+  const shell = new THREE.Mesh(
+    shellGeo,
+    new THREE.MeshPhysicalMaterial({
+      color: 0xf4f7f6,
+      roughness: 0.22,
+      metalness: 0.0,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.12,
+      iridescence: 0.85,
+      iridescenceIOR: 1.32,
+      iridescenceThicknessRange: [120, 760],
+      alphaMap: texDomeAlpha(),
+      transparent: true,
+      alphaTest: 0.45,
+      side: THREE.DoubleSide,
+      envMapIntensity: 1.15,
+    })
+  );
+  shell.castShadow = true;
+  shell.receiveShadow = true;
+  domeGroup.add(shell);
+
+  // Rims and panes, merged into one mesh each.
+  const rimGeos = [], paneGeos = [];
+  const up = new THREE.Vector3(0, 0, 1);
+  const q = new THREE.Quaternion();
+  const m = new THREE.Matrix4();
+
+  for (const dir of HOLES) {
+    const ringR = C.domeRadius * Math.sin(HOLE_ANGLE);
+    const depth = C.domeRadius * Math.cos(HOLE_ANGLE);
+    q.setFromUnitVectors(up, dir);
+
+    const rim = new THREE.TorusGeometry(ringR, C.rimTube, 8, QUALITY.holeSeg);
+    m.compose(dir.clone().multiplyScalar(depth), q, new THREE.Vector3(1, 1, 1));
+    rim.applyMatrix4(m);
+    rimGeos.push(rim);
+
+    const pane = new THREE.CircleGeometry(ringR * 0.985, QUALITY.holeSeg);
+    m.compose(dir.clone().multiplyScalar(depth * 0.995), q, new THREE.Vector3(1, 1, 1));
+    pane.applyMatrix4(m);
+    paneGeos.push(pane);
+  }
+
+  const rims = new THREE.Mesh(
+    mergeGeometries(rimGeos),
+    new THREE.MeshPhysicalMaterial({
+      color: 0xfdfefe, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.1, envMapIntensity: 1.1,
+    })
+  );
+  rims.castShadow = true;
+  domeGroup.add(rims);
+
+  const panes = new THREE.Mesh(
+    mergeGeometries(paneGeos),
+    new THREE.MeshPhysicalMaterial({
+      color: 0xa9dfe6,
+      roughness: 0.04,
+      metalness: 0,
+      transmission: 0.95,
+      thickness: 0.35,
+      ior: 1.42,
+      iridescence: 0.7,
+      iridescenceIOR: 1.25,
+      transparent: true,
+      opacity: 0.6,
+      side: THREE.DoubleSide,
+      envMapIntensity: 1.4,
+    })
+  );
+  domeGroup.add(panes);
+
+  domeGroup.scale.set(1, C.domeSquash, 1);
+  domeGroup.position.y = C.domeCenterY;
+
+  // The plinth it stands on, rising out of the water.
+  const plinth = new THREE.Mesh(
+    new THREE.CylinderGeometry(C.domeRadius * Math.sin(CUT) * 1.06, C.domeRadius * Math.sin(CUT) * 1.14, C.plinthTop - POOL.y + 0.55, 64),
+    new THREE.MeshStandardMaterial({ color: 0xf1ece0, roughness: 0.75 })
+  );
+  plinth.position.y = (C.plinthTop + POOL.y - 0.55) / 2;
+  plinth.castShadow = true; plinth.receiveShadow = true;
+  scene.add(plinth);
+}
+
+// ## 15  PALMS — trunks, fronds, wind
+// Every palm in the scene ends up in exactly two draw calls: one merged trunk
+// mesh and one merged frond mesh, both already in world space. The sway that
+// would normally come from moving objects around is baked into the vertex
+// shader instead, driven by two attributes stamped on at build time —
+// `aSway`, how freely this vertex moves, and `aPhase`, which palm it belongs
+// to, so no two trees breathe together.
+
+const windUniforms = {
+  uTime: { value: 0 },
+  uWind: { value: QUALITY.still ? 0 : 1 },
+};
+
+const WIND_PARS = /* glsl */`
+  uniform float uTime;
+  uniform float uWind;
+  attribute float aSway;
+  attribute float aPhase;
+`;
+
+// Applied to `transformed`, which for these meshes is already world space.
+const WIND_BODY = /* glsl */`
+  float _sw = aSway;
+  float _ph = aPhase;
+  float _g = sin(uTime * 0.85 + _ph) * 0.62
+           + sin(uTime * 1.73 + _ph * 1.7) * 0.26
+           + sin(uTime * 3.10 + _ph * 2.3) * 0.11;
+  float _amp = _sw * _sw * uWind;
+  transformed.x += _g * _amp * 0.95;
+  transformed.z += cos(uTime * 0.74 + _ph * 1.31) * _amp * 0.62;
+  transformed.y -= abs(_g) * _amp * 0.30;
+`;
+
+function applyWind(material) {
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uTime = windUniforms.uTime;
+    shader.uniforms.uWind = windUniforms.uWind;
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", `#include <common>\n${WIND_PARS}`)
+      .replace("#include <begin_vertex>", `#include <begin_vertex>\n${WIND_BODY}`);
+  };
+  material.customProgramCacheKey = () => "wind";
+  return material;
+}
+
+/** A tapered tube swept along a curve — the trunk. */
+function trunkGeometry(curve, segs, radial, r0, r1) {
+  const frames = curve.computeFrenetFrames(segs, false);
+  const pos = [], nor = [], uv = [], idx = [];
+  for (let i = 0; i <= segs; i++) {
+    const t = i / segs;
+    const p = curve.getPointAt(t);
+    const N = frames.normals[i], B = frames.binormals[i];
+    // Palms bulge slightly at the foot and again under the crown.
+    const r = lerp(r0, r1, t) * (1 + 0.20 * Math.exp(-t * 9) + 0.06 * Math.exp(-Math.pow(t - 0.92, 2) * 120));
+    for (let j = 0; j <= radial; j++) {
+      const a = (j / radial) * Math.PI * 2;
+      const nx = Math.cos(a), ny = Math.sin(a);
+      const n = new THREE.Vector3().addScaledVector(N, nx).addScaledVector(B, ny);
+      pos.push(p.x + n.x * r, p.y + n.y * r, p.z + n.z * r);
+      nor.push(n.x, n.y, n.z);
+      uv.push(j / radial, t * 1.35);
+    }
+  }
+  for (let i = 0; i < segs; i++) {
+    for (let j = 0; j < radial; j++) {
+      const a = i * (radial + 1) + j, b = a + radial + 1;
+      idx.push(a, b, a + 1, b, b + 1, a + 1);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  return g;
+}
+
+/**
+ * One frond: a three-column strip following an arc that rises then droops,
+ * folded down the middle like the real thing so it catches light on one half
+ * and shades the other.
+ */
+function frondGeometry(len, halfWidth, segs) {
+  const pos = [], uv = [], idx = [];
+  for (let i = 0; i <= segs; i++) {
+    const t = i / segs;
+    const x = len * t;
+    const y = len * (0.48 * t - 0.92 * t * t);        // up, then over, then down
+    const w = halfWidth * Math.sin(Math.pow(t, 0.6) * Math.PI) * (1 - 0.3 * t) + 0.02;
+    const fold = w * 0.34;                            // the V of the rachis
+    pos.push(x, y - fold, -w); uv.push(t, 0);
+    pos.push(x, y,         0); uv.push(t, 0.5);
+    pos.push(x, y - fold,  w); uv.push(t, 1);
+  }
+  for (let i = 0; i < segs; i++) {
+    for (let c = 0; c < 2; c++) {
+      const a = i * 3 + c, b = a + 3;
+      idx.push(a, b, a + 1, b, b + 1, a + 1);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+
+/** Stamps a constant attribute across a geometry so it survives the merge. */
+function stamp(geo, name, value) {
+  const n = geo.attributes.position.count;
+  const arr = new Float32Array(n);
+  arr.fill(value);
+  geo.setAttribute(name, new THREE.BufferAttribute(arr, 1));
+  return geo;
+}
+/** Per-vertex sway, from a function of the vertex's own height. */
+function stampSway(geo, fn) {
+  const p = geo.attributes.position;
+  const arr = new Float32Array(p.count);
+  for (let i = 0; i < p.count; i++) arr[i] = fn(p.getX(i), p.getY(i), p.getZ(i));
+  geo.setAttribute("aSway", new THREE.BufferAttribute(arr, 1));
+  return geo;
+}
+
+const crowns = [];   // world positions of every crown, for the leaf spawner
+{
+  const rand = rng(20260919);
+  const trunkGeos = [], frondGeos = [];
+
+  function addPalm(x, z, scale, phase) {
+    const h = (7.6 + rand() * 3.4) * scale;
+    const leanX = (rand() - 0.5) * 2.4 * scale;
+    const leanZ = (rand() - 0.5) * 2.4 * scale;
+
+    const curve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(leanX * 0.18, h * 0.3, leanZ * 0.18),
+      new THREE.Vector3(leanX * 0.6, h * 0.65, leanZ * 0.6),
+      new THREE.Vector3(leanX, h, leanZ),
+    ]);
+
+    const tg = trunkGeometry(curve, 26, 9, 0.30 * scale, 0.20 * scale);
+    stampSway(tg, (vx, vy) => Math.pow(clamp(vy / h, 0, 1), 1.7) * 0.42);
+    stamp(tg, "aPhase", phase);
+    tg.translate(x, 0, z);
+    trunkGeos.push(tg);
+
+    const top = curve.getPointAt(1);
+    const crownWorld = new THREE.Vector3(x + top.x, top.y, z + top.z);
+    crowns.push(crownWorld);
+
+    const n = QUALITY.frondsPer + Math.floor(rand() * 3);
+    for (let i = 0; i < n; i++) {
+      const az = (i / n) * Math.PI * 2 + rand() * 0.42;
+      const pitch = -0.30 + rand() * 0.55;                  // some reach up, some hang
+      const len = (5.4 + rand() * 2.4) * scale;
+      const fg = frondGeometry(len, 0.95 * scale, 12);
+
+      // Sway is the trunk's contribution at the top plus the frond's own whip.
+      stampSway(fg, (vx) => 0.42 + Math.pow(clamp(vx / len, 0, 1), 1.7) * 0.95);
+      stamp(fg, "aPhase", phase + i * 0.29);
+
+      const m = new THREE.Matrix4()
+        .makeTranslation(crownWorld.x, crownWorld.y, crownWorld.z)
+        .multiply(new THREE.Matrix4().makeRotationY(az))
+        .multiply(new THREE.Matrix4().makeRotationZ(pitch))
+        .multiply(new THREE.Matrix4().makeRotationX(rand() * 0.5 - 0.25));
+      fg.applyMatrix4(m);
+      frondGeos.push(fg);
+    }
+  }
+
+  // A ring around the plaza, then two files down the promenade.
+  const ring = QUALITY.palmsRing;
+  for (let i = 0; i < ring; i++) {
+    const a = (i / ring) * Math.PI * 2 + 0.3;
+    const r = 27 + rand() * 9;
+    addPalm(Math.cos(a) * r, Math.sin(a) * r * 0.8, 0.9 + rand() * 0.35, rand() * 9);
+  }
+  // Down the alley, just inside the kerb on both sides. They used to stand
+  // at ±15, which is now inside the buildings.
+  const kerbX = (innerWidth / innerHeight < 1 ? 8.4 : 11.0) - 2.1;
+  for (let i = 0; i < QUALITY.palmsRow * 2; i++) {
+    const z = -40 - i * 7.6 - rand() * 2.2;
+    const sideX = (i % 2 === 0 ? -1 : 1) * kerbX;
+    addPalm(sideX, z, 0.82 + rand() * 0.22, rand() * 9);
+  }
+
+  const barkTex = asTexture(texBark(), { repeat: [1, 1] });
+  const trunkMat = applyWind(new THREE.MeshStandardMaterial({
+    map: barkTex, bumpMap: barkTex, bumpScale: 0.08, roughness: 0.94, metalness: 0,
+  }));
+  const trunks = new THREE.Mesh(mergeGeometries(trunkGeos), trunkMat);
+  trunks.castShadow = true; trunks.receiveShadow = true;
+  scene.add(trunks);
+
+  const frondTex = asTexture(texFrond());
+  // No alphaMap. Three reads alphaMap's GREEN channel, not a canvas's alpha
+  // channel, so pairing it with this texture multiplied the cut-out by how
+  // green each pixel happened to be — every leaflet except the brightest
+  // slivers fell under alphaTest and vanished. `map` on an RGBA canvas already
+  // carries the silhouette in its own alpha, which is what alphaTest wants.
+  const frondMat = applyWind(new THREE.MeshStandardMaterial({
+    map: frondTex,
+    alphaTest: 0.35,
+    transparent: false,
+    side: THREE.DoubleSide,
+    roughness: 0.72,
+    metalness: 0,
+    color: 0xffffff,
+  }));
+  const fronds = new THREE.Mesh(mergeGeometries(frondGeos), frondMat);
+  fronds.castShadow = true;
+  fronds.receiveShadow = true;
+  scene.add(fronds);
+
+  // Shadows are rendered with a different material, so the sway has to be
+  // injected there too — otherwise the dappling on the plaza stays perfectly
+  // still while the fronds above it move, which reads as badly as it sounds.
+  const depthMat = new THREE.MeshDepthMaterial({
+    depthPacking: THREE.RGBADepthPacking,
+    map: frondTex,
+    alphaTest: 0.35,
+  });
+  applyWind(depthMat);
+  fronds.customDepthMaterial = depthMat;
+
+  const trunkDepth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+  applyWind(trunkDepth);
+  trunks.customDepthMaterial = trunkDepth;
+}
+
+// ## 16  LEAVES — falling leaflets
+// One InstancedMesh. Each leaflet keeps its own fall speed, drift and tumble,
+// spawns at a crown and is recycled back to one when it lands.
+
+const leaves = (() => {
+  if (QUALITY.still) return null;
+  const N = QUALITY.leaves;
+  const geo = new THREE.PlaneGeometry(0.42, 0.14);
+  const mat = new THREE.MeshStandardMaterial({
+    map: asTexture(texLeaf()),
+    alphaTest: 0.4,
+    side: THREE.DoubleSide,
+    roughness: 0.8,
+    metalness: 0,
+  });
+  const mesh = new THREE.InstancedMesh(geo, mat, N);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  mesh.frustumCulled = false;
+  scene.add(mesh);
+
+  const rand = rng(77123);
+  const state = [];
+  for (let i = 0; i < N; i++) {
+    state.push({
+      p: new THREE.Vector3(),
+      fall: 0.55 + rand() * 0.65,
+      drift: new THREE.Vector2((rand() - 0.5) * 0.9, (rand() - 0.5) * 0.9),
+      swing: 1.1 + rand() * 2.4,
+      phase: rand() * Math.PI * 2,
+      spin: new THREE.Vector3(rand() - 0.5, rand() - 0.5, rand() - 0.5).normalize(),
+      spinRate: (rand() - 0.5) * 2.6,
+      angle: rand() * Math.PI * 2,
+      scale: 0.7 + rand() * 0.8,
+    });
+  }
+
+  function respawn(s, firstRun) {
+    const c = crowns[Math.floor(rand() * crowns.length)] || new THREE.Vector3(0, 12, 0);
+    s.p.set(
+      c.x + (rand() - 0.5) * 6,
+      firstRun ? rand() * c.y : c.y - rand() * 1.4,
+      c.z + (rand() - 0.5) * 6
+    );
+    s.phase = rand() * Math.PI * 2;
+  }
+  state.forEach((s) => respawn(s, true));
+
+  const dummy = new THREE.Object3D();
+  const q = new THREE.Quaternion();
+
+  return {
+    mesh,
+    update(dt, t) {
+      for (let i = 0; i < N; i++) {
+        const s = state[i];
+        s.p.y -= s.fall * dt;
+        s.p.x += (s.drift.x + Math.sin(t * s.swing + s.phase) * 0.55) * dt;
+        s.p.z += (s.drift.y + Math.cos(t * s.swing * 0.8 + s.phase) * 0.45) * dt;
+        s.angle += s.spinRate * dt;
+        if (s.p.y < C.plazaY + 0.05) respawn(s, false);
+
+        dummy.position.copy(s.p);
+        q.setFromAxisAngle(s.spin, s.angle);
+        dummy.quaternion.copy(q);
+        dummy.scale.setScalar(s.scale);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(i, dummy.matrix);
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+    },
+  };
+})();
+
+// ## 17  MOTES — airborne dust in the sun
+// Cheap atmosphere: additive points drifting upward through the shaft of light
+// the sun is coming down. They sell the heat more than anything else here.
+
+const motes = (() => {
+  const N = QUALITY.motes;
+  const pos = new Float32Array(N * 3);
+  const seed = new Float32Array(N);
+  const rand = rng(4242);
+  for (let i = 0; i < N; i++) {
+    pos[i * 3]     = (rand() - 0.5) * 120;
+    pos[i * 3 + 1] = rand() * 26;
+    pos[i * 3 + 2] = (rand() - 0.5) * 230 - 60;
+    seed[i] = rand() * 100;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  g.setAttribute("aSeed", new THREE.BufferAttribute(seed, 1));
+
+  const m = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    uniforms: {
+      uTime: { value: 0 },
+      uMap: { value: asTexture(texGlow(), { srgb: false }) },
+      uSize: { value: QUALITY.light ? 34 : 46 },
+    },
+    vertexShader: /* glsl */`
+      attribute float aSeed;
+      uniform float uTime, uSize;
+      varying float vA;
+      void main(){
+        vec3 p = position;
+        p.y = mod(p.y + uTime * (0.18 + fract(aSeed) * 0.3), 26.0);
+        p.x += sin(uTime * 0.4 + aSeed) * 1.6;
+        p.z += cos(uTime * 0.33 + aSeed * 1.7) * 1.6;
+        vec4 mv = modelViewMatrix * vec4(p, 1.0);
+        gl_Position = projectionMatrix * mv;
+        gl_PointSize = uSize / max(-mv.z, 1.0);
+        // Fade in at the bottom, out at the top, and with distance.
+        vA = smoothstep(0.0, 4.0, p.y) * (1.0 - smoothstep(16.0, 26.0, p.y))
+           * (1.0 - smoothstep(40.0, 150.0, -mv.z));
+      }`,
+    fragmentShader: /* glsl */`
+      uniform sampler2D uMap;
+      varying float vA;
+      void main(){
+        float a = texture2D(uMap, gl_PointCoord).r * vA * 0.5;
+        if (a < 0.005) discard;
+        gl_FragColor = vec4(vec3(1.0, 0.96, 0.86), a);
+      }`,
+  });
+
+  const pts = new THREE.Points(g, m);
+  pts.frustumCulled = false;
+  scene.add(pts);
+  return m;
+})();
+
+// ## 18  JOURNEY — a street of storefronts
+// The houses used to be free-standing slabs on an empty plaza, which read as
+// objects scattered on a plain rather than anywhere you could be. They are
+// buildings now: two facing terraces with a walkable alley between them, each
+// unit a shell with a glazed shopfront, a lit interior behind the glass, a
+// recessed doorway, a canopy in the house's colour and a sign over it.
+//
+// Buildings alternate sides and step down the street at half a unit's width
+// each, so the two terraces interleave and neither side has a gap opposite a
+// gap. Index order therefore runs straight down the street, which is what the
+// card's picker relies on.
+//
+// Draw calls are kept down by merging everything that shares a material:
+// all the shells are one mesh, all the glass another, all the canopies a third
+// carrying their colour as a vertex attribute. Only the signs stay separate,
+// because each one is its own texture.
+
+const STREET = {
+  half:  innerWidth / innerHeight < 1 ? 8.4 : 11.0,   // kerb to centre line
+  from:  -38,
+  // Pitch is set by how far the camera actually travels, not the other way
+  // round: at -8.75 the fifteenth house stood at -160 and the camera's street
+  // run ends near -145, so Hellstar was built, lit and never once named.
+  // A side steps twice this, and the shopfronts have to be narrower than that.
+  step:  -7.6,
+  width: 15.0,
+  depth: 14,
+};
+
+const monoliths = [];   // kept under the old name: sections 19 and 21 read it
+
+{
+  const shells = [], glass = [], canopies = [], interiors = [], kerbs = [];
+
+  /** Tags a geometry with a flat colour so it can be merged and still differ. */
+  function paint(geo, hex) {
+    const c = hex.isColor ? hex : new THREE.Color(hex);
+    const n = geo.attributes.position.count;
+    const arr = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) { arr[i * 3] = c.r; arr[i * 3 + 1] = c.g; arr[i * 3 + 2] = c.b; }
+    geo.setAttribute("color", new THREE.BufferAttribute(arr, 3));
+    return geo;
+  }
+
+  const rand = rng(90210);
+
+  BRANDS.forEach((brand, i) => {
+    const z = STREET.from + i * STREET.step;
+    const side = i % 2 === 0 ? -1 : 1;          // -1 = left terrace
+    const x = side * STREET.half;
+
+    // Local space: +Z faces the street, X runs along it, Y is up.
+    const g = new THREE.Group();
+    g.position.set(x, 0, z);
+    g.rotation.y = side === -1 ? Math.PI / 2 : -Math.PI / 2;
+    g.updateMatrixWorld(true);
+    scene.add(g);
+
+    const H = 8.5 + rand() * 5.0;
+    const W = STREET.width;
+    const D = STREET.depth;
+
+    const toWorld = (geo) => geo.applyMatrix4(g.matrixWorld);
+
+    // Each unit is tinted toward its house. Not the full colourway — a
+    // street of fifteen saturated boxes is a toy — but enough that you read
+    // the building and the sign as one thing. The header band above the
+    // glazing takes a much stronger dose, so the colour reads as a deliberate
+    // band of brand rather than a dirty wall.
+    const CREAM = new THREE.Color(0xf3ece0);
+    const wash  = CREAM.clone().lerp(new THREE.Color(brand.bg[0]), 0.26);
+    const band  = CREAM.clone().lerp(new THREE.Color(brand.bg[0]), 0.72);
+
+    // --- shell, parapet, pilasters ---------------------------------------
+    const body = new THREE.BoxGeometry(W, H, D);
+    body.translate(0, H / 2, -D / 2);
+    shells.push(paint(toWorld(body), wash));
+
+    const cap = new THREE.BoxGeometry(W + 0.5, 0.55, D + 0.5);
+    cap.translate(0, H + 0.2, -D / 2);
+    shells.push(paint(toWorld(cap), band));
+
+    for (const px of [-W / 2 + 0.45, W / 2 - 0.45]) {
+      const pil = new THREE.BoxGeometry(0.9, 6.4, 0.7);
+      pil.translate(px, 3.2, 0.2);
+      shells.push(paint(toWorld(pil), CREAM));
+    }
+
+    // Header above the glazing, which the sign sits on.
+    const header = new THREE.BoxGeometry(W, H - 6.4, 0.6);
+    header.translate(0, 6.4 + (H - 6.4) / 2, 0.15);
+    shells.push(paint(toWorld(header), band));
+
+    // --- the way in: a recess, so the unit reads as enterable ------------
+    const doorW = 3.0;
+    const reveal = new THREE.BoxGeometry(doorW + 0.9, 4.6, 1.7);
+    reveal.translate(0, 2.3, -0.85);
+    shells.push(paint(toWorld(reveal), wash));
+
+    const doorway = new THREE.BoxGeometry(doorW, 4.2, 0.12);
+    doorway.translate(0, 2.1, -1.55);
+    interiors.push(toWorld(doorway));
+
+    // --- shopfront glazing, either side of the door ----------------------
+    const paneW = (W - 1.8 - doorW - 0.9) / 2;
+    for (const dir of [-1, 1]) {
+      const px = dir * (doorW / 2 + 0.45 + paneW / 2);
+
+      const pane = new THREE.PlaneGeometry(paneW, 5.4);
+      pane.translate(px, 3.1, 0.08);
+      glass.push(toWorld(pane));
+
+      const room = new THREE.PlaneGeometry(paneW, 5.4);
+      room.translate(px, 3.1, -1.1);
+      interiors.push(toWorld(room));
+
+      // Mullions.
+      for (const t of [-0.5, 0, 0.5]) {
+        const mull = new THREE.BoxGeometry(0.13, 5.4, 0.22);
+        mull.translate(px + t * paneW, 3.1, 0.12);
+        shells.push(paint(toWorld(mull), CREAM));
+      }
+    }
+
+    // --- canopy in the house's own colour --------------------------------
+    const canopy = new THREE.BoxGeometry(W - 1.2, 0.26, 2.3);
+    canopy.translate(0, 6.05, 1.05);
+    canopies.push(paint(toWorld(canopy), brand.bg[0]));
+
+    const fascia = new THREE.BoxGeometry(W - 1.2, 0.5, 0.18);
+    fascia.translate(0, 5.9, 2.15);
+    canopies.push(paint(toWorld(fascia), brand.bg[1]));
+
+    // --- kerb and a planter, so the alley has a floor plan ---------------
+    const kerb = new THREE.BoxGeometry(W, 0.22, 1.1);
+    kerb.translate(0, 0.11, 1.4);
+    kerbs.push(toWorld(kerb));
+
+    // --- the sign: the clickable target ----------------------------------
+    const sign = new THREE.Mesh(
+      new THREE.PlaneGeometry(W - 3.4, (W - 3.4) / 4),
+      new THREE.MeshStandardMaterial({
+        map: asTexture(texSign(brand)),
+        roughness: 0.5,
+        metalness: 0.04,
+        envMapIntensity: 0.6,
+      })
+    );
+    sign.position.set(0, 7.5, 0.5);
+    sign.castShadow = true;
+    sign.userData.brand = brand;
+    g.add(sign);
+
+    monoliths.push({ brand, group: g, face: sign, z, x });
+  });
+
+  const stucco = asTexture(texStucco(), { repeat: [1, 1] });
+
+  const shellMesh = new THREE.Mesh(
+    mergeGeometries(shells),
+    // The tint rides on vertex colours so all fifteen units stay one draw
+    // call; the stucco map multiplies over the top of it.
+    new THREE.MeshStandardMaterial({ map: stucco, vertexColors: true, roughness: 0.88, metalness: 0 })
+  );
+  shellMesh.castShadow = true; shellMesh.receiveShadow = true;
+  scene.add(shellMesh);
+
+  const interiorMesh = new THREE.Mesh(
+    mergeGeometries(interiors),
+    new THREE.MeshStandardMaterial({
+      map: asTexture(texInterior()),
+      emissiveMap: asTexture(texInterior()),
+      emissive: 0xffe9c4,
+      emissiveIntensity: 0.55,
+      roughness: 0.9,
+      side: THREE.DoubleSide,
+    })
+  );
+  scene.add(interiorMesh);
+
+  const glassMesh = new THREE.Mesh(
+    mergeGeometries(glass),
+    new THREE.MeshPhysicalMaterial({
+      color: 0x22323a,
+      roughness: 0.05,
+      metalness: 0.1,
+      transmission: 0.55,
+      thickness: 0.2,
+      ior: 1.5,
+      transparent: true,
+      opacity: 0.85,
+      envMapIntensity: 1.6,
+      side: THREE.DoubleSide,
+    })
+  );
+  scene.add(glassMesh);
+
+  const canopyMesh = new THREE.Mesh(
+    mergeGeometries(canopies),
+    new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.05 })
+  );
+  canopyMesh.castShadow = true; canopyMesh.receiveShadow = true;
+  scene.add(canopyMesh);
+
+  const kerbMesh = new THREE.Mesh(
+    mergeGeometries(kerbs),
+    new THREE.MeshStandardMaterial({ color: 0xded3bd, roughness: 0.9 })
+  );
+  kerbMesh.receiveShadow = true;
+  scene.add(kerbMesh);
+
+  // --- the far end -------------------------------------------------------
+  // A street has to stop somewhere. Without this the two terraces ran to a
+  // vanishing point on bare horizon, which undid the enclosure the buildings
+  // were there to create in the first place: you could see straight out of
+  // the world at the one spot the eye is drawn to. A block across the end
+  // closes it, and a taller one so the skyline steps up rather than simply
+  // ending.
+  {
+    // Set well back from the last shopfront. At -12 the camera's final rise
+    // ended up inside this block and the last second of the journey was a
+    // clipping plane sawing through a wall.
+    const endZ = STREET.from + BRANDS.length * STREET.step - 26;
+    const caps = [], capGlass = [];
+
+    const block = new THREE.BoxGeometry(56, 17, 16);
+    block.translate(0, 8.5, endZ - 8);
+    caps.push(block);
+
+    const brow = new THREE.BoxGeometry(57, 0.7, 17);
+    brow.translate(0, 17.2, endZ - 8);
+    caps.push(brow);
+
+    // A glazed ground floor, so it belongs to the same street.
+    for (let k = -2; k <= 2; k++) {
+      const pane = new THREE.PlaneGeometry(8.4, 6.2);
+      pane.translate(k * 9.4, 3.4, endZ + 0.05);
+      capGlass.push(pane);
+
+      const mull = new THREE.BoxGeometry(0.16, 6.2, 0.25);
+      mull.translate(k * 9.4 + 4.7, 3.4, endZ + 0.1);
+      caps.push(mull);
+    }
+
+    const endMesh = new THREE.Mesh(
+      mergeGeometries(caps),
+      new THREE.MeshStandardMaterial({ map: stucco, color: 0xeee6d8, roughness: 0.88 })
+    );
+    endMesh.castShadow = true; endMesh.receiveShadow = true;
+    scene.add(endMesh);
+
+    const endGlass = new THREE.Mesh(
+      mergeGeometries(capGlass),
+      new THREE.MeshPhysicalMaterial({
+        color: 0x223038, roughness: 0.06, metalness: 0.1,
+        transmission: 0.5, thickness: 0.2, ior: 1.5,
+        transparent: true, opacity: 0.86, envMapIntensity: 1.6,
+        side: THREE.DoubleSide,
+      })
+    );
+    scene.add(endGlass);
+  }
+
+  // --- street furniture --------------------------------------------------
+  // Planters and benches down the kerb line. Cheap, merged, and the thing
+  // that stops the alley floor reading as an empty corridor: they give the
+  // eye something at knee height between the shopfronts and the palms.
+  {
+    const stone = [], green = [];
+    const r = rng(5150);
+    const kerbX = STREET.half - 2.0;
+
+    // One per unit, alternating kerbs, so they read as part of the street
+    // rather than scattered along it.
+    for (let i = 0; i < BRANDS.length + 2; i++) {
+      const z = STREET.from - 2 - i * 7.6 - r() * 1.6;
+      const sx = (i % 2 === 0 ? -1 : 1) * (kerbX + (r() - 0.5) * 0.6);
+
+      const tub = new THREE.BoxGeometry(1.7, 0.92, 1.7);
+      tub.translate(sx, 0.46, z);
+      stone.push(tub);
+
+      const lip = new THREE.BoxGeometry(1.95, 0.16, 1.95);
+      lip.translate(sx, 0.95, z);
+      stone.push(lip);
+
+      // The shrub: three overlapping spheres, squashed.
+      for (let k = 0; k < 3; k++) {
+        const b = new THREE.SphereGeometry(0.52 + r() * 0.22, 7, 5);
+        b.scale(1, 0.72, 1);
+        b.translate(sx + (r() - 0.5) * 0.8, 1.35 + r() * 0.3, z + (r() - 0.5) * 0.8);
+        green.push(b);
+      }
+
+      // A bench every third planter.
+      if (i % 3 === 1) {
+        const seat = new THREE.BoxGeometry(0.62, 0.16, 3.1);
+        seat.translate(sx - Math.sign(sx) * 1.6, 0.52, z + 3.6);
+        stone.push(seat);
+        for (const t of [-1.2, 1.2]) {
+          const leg = new THREE.BoxGeometry(0.5, 0.44, 0.24);
+          leg.translate(sx - Math.sign(sx) * 1.6, 0.22, z + 3.6 + t);
+          stone.push(leg);
+        }
+      }
+    }
+
+    const stoneMesh = new THREE.Mesh(
+      mergeGeometries(stone),
+      new THREE.MeshStandardMaterial({ color: 0xe4dac4, roughness: 0.88 })
+    );
+    stoneMesh.castShadow = true; stoneMesh.receiveShadow = true;
+    scene.add(stoneMesh);
+
+    const greenMesh = new THREE.Mesh(
+      mergeGeometries(green),
+      new THREE.MeshStandardMaterial({ color: 0x5f9139, roughness: 0.95 })
+    );
+    greenMesh.castShadow = true; greenMesh.receiveShadow = true;
+    scene.add(greenMesh);
+
+    // Bougainvillea. Three or four hot clusters down a bleached street do
+    // more for the colour of the place than raising the saturation on
+    // everything would, and Miami plants the stuff everywhere.
+    const petals = [];
+    for (let i = 0; i < green.length; i += 3) {
+      if (r() > 0.55) continue;
+      const src = green[i].attributes.position;
+      const bx = src.getX(0), by = src.getY(0), bz = src.getZ(0);
+      const hue = [0xd6356f, 0xe8604a, 0xc23a86, 0xef8f3c][Math.floor(r() * 4)];
+      for (let k = 0; k < 5; k++) {
+        const b = new THREE.SphereGeometry(0.17 + r() * 0.1, 6, 4);
+        b.translate(bx + (r() - 0.5) * 1.5, by + (r() - 0.5) * 0.9, bz + (r() - 0.5) * 1.5);
+        const c = new THREE.Color(hue);
+        const n = b.attributes.position.count;
+        const arr = new Float32Array(n * 3);
+        for (let v = 0; v < n; v++) { arr[v * 3] = c.r; arr[v * 3 + 1] = c.g; arr[v * 3 + 2] = c.b; }
+        b.setAttribute("color", new THREE.BufferAttribute(arr, 3));
+        petals.push(b);
+      }
+    }
+    if (petals.length) {
+      const bloomMesh = new THREE.Mesh(
+        mergeGeometries(petals),
+        new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 })
+      );
+      bloomMesh.castShadow = true;
+      scene.add(bloomMesh);
+    }
+  }
+}
+
+// ## 19  CAMERA — the scroll path
+// Two curves: one the camera rides, one it looks at. Keeping them separate is
+// what lets it hold the dome in frame while swinging around it, then turn and
+// walk away down the street without a snap.
+
+const PATH = new THREE.CatmullRomCurve3([
+  new THREE.Vector3(0, 3.0, 34),
+  new THREE.Vector3(0.5, 3.3, 25),
+  new THREE.Vector3(9, 4.4, 16),
+  new THREE.Vector3(13, 5.4, 2),
+  new THREE.Vector3(9.5, 4.2, -12),
+  new THREE.Vector3(2.5, 3.1, -24),
+  new THREE.Vector3(0, 2.9, -42),
+  new THREE.Vector3(0, 2.9, -68),
+  new THREE.Vector3(0, 2.9, -96),
+  new THREE.Vector3(0, 3.1, -124),
+  new THREE.Vector3(0, 4.4, -150),
+  // Stops in the open ground between the last shopfront and the block that
+  // closes the street, rather than travelling on through it.
+  new THREE.Vector3(0, 6.5, -162),
+], false, "catmullrom", 0.4);
+
+const LOOK = new THREE.CatmullRomCurve3([
+  new THREE.Vector3(0, 6.6, 0),
+  new THREE.Vector3(0, 6.4, 0),
+  new THREE.Vector3(0, 5.6, 0),
+  new THREE.Vector3(0, 4.8, 0),
+  new THREE.Vector3(0, 4.0, -8),
+  new THREE.Vector3(0, 3.2, -34),
+  new THREE.Vector3(0, 3.0, -56),
+  new THREE.Vector3(0, 3.0, -84),
+  new THREE.Vector3(0, 3.0, -112),
+  new THREE.Vector3(0, 3.0, -140),
+  new THREE.Vector3(0, 3.4, -172),
+  new THREE.Vector3(0, 3.6, -184),
+], false, "catmullrom", 0.4);
+
+let scrollTarget = 0;    // 0..1, straight off the scrollbar
+let scrollEased = 0;     // what the camera actually follows
+const pointer = { x: 0, y: 0, tx: 0, ty: 0 };
+
+function readScroll() {
+  const max = document.documentElement.scrollHeight - innerHeight;
+  scrollTarget = max > 0 ? clamp(scrollY / max, 0, 1) : 0;
+}
+addEventListener("scroll", readScroll, { passive: true });
+
+addEventListener("pointermove", (e) => {
+  pointer.tx = (e.clientX / innerWidth) * 2 - 1;
+  pointer.ty = (e.clientY / innerHeight) * 2 - 1;
+}, { passive: true });
+
+// ## 20  POST — bloom
+// Only the sun, its glitter on the water and the dome's hot rim should blow
+// out, so the threshold sits high and the strength low.
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+let bloomPass = null;
+if (QUALITY.bloom) {
+  bloomPass = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.42, 0.72, 0.86);
+  composer.addPass(bloomPass);
+}
+composer.addPass(new OutputPass());
+
+// ## 21  PICKING — click a brand
+// The overlay is pointer-transparent, so clicks land here. A tap on a monolith
+// opens that house.
+
+const ray = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+const faces = monoliths.map((m) => m.face);
+
+function pick(e) {
+  ndc.x = (e.clientX / innerWidth) * 2 - 1;
+  ndc.y = -(e.clientY / innerHeight) * 2 + 1;
+  ray.setFromCamera(ndc, camera);
+  const hit = ray.intersectObjects(faces, false)[0];
+  if (hit) location.href = `${SITE}/brands/${hit.object.userData.brand.slug}`;
+}
+canvasEl.addEventListener("click", pick);
+
+canvasEl.addEventListener("pointermove", (e) => {
+  ndc.x = (e.clientX / innerWidth) * 2 - 1;
+  ndc.y = -(e.clientY / innerHeight) * 2 + 1;
+  ray.setFromCamera(ndc, camera);
+  canvasEl.style.cursor = ray.intersectObjects(faces, false).length ? "pointer" : "";
+}, { passive: true });
+
+// ---- overlay wiring -------------------------------------------------------
+
+const panels = {
+  hero:  document.getElementById("p-hero"),
+  brands:document.getElementById("p-brands"),
+  end:   document.getElementById("p-end"),
+};
+const card = {
+  swatch:  document.getElementById("card-swatch"),
+  eyebrow: document.getElementById("card-eyebrow"),
+  name:    document.getElementById("card-name"),
+  note:    document.getElementById("card-note"),
+  link:    document.getElementById("card-link"),
+};
+const indexEl = document.getElementById("index");
+const hintEl = document.getElementById("hint");
+document.getElementById("enter").href = SITE;
+
+BRANDS.forEach((b) => {
+  const el = document.createElement("b");
+  el.textContent = b.name;
+  indexEl.appendChild(el);
+});
+const indexItems = [...indexEl.children];
+
+/**
+ * Which house the card names.
+ *
+ * This projected every plaque into clip space and picked the nearest one
+ * inside the frame. That was the right tool when the houses were free-standing
+ * slabs scattered down an open plaza and most of them were off to the side.
+ * They are a continuous terrace on a regular pitch now, and position along the
+ * street simply *is* what you are looking at, so the answer is arithmetic.
+ *
+ * The projection version also never settled at the far end. Vale and Hellstar
+ * stand on opposite kerbs a few metres apart, and as the camera lifted away at
+ * the end of the street both slid in and out of frame, flipping the card
+ * between them — forwards and backwards. Two goes at tuning the thresholds
+ * moved the flip without removing it; the measure was just too twitchy for the
+ * job. This cannot oscillate, because it is monotonic in camera z by
+ * construction.
+ *
+ * LEAD is what keeps the card naming the shop you are walking toward rather
+ * than the one already level with your shoulder.
+ */
+const LEAD = 6;
+function readableBrand() {
+  const zAhead = camera.position.z - LEAD;               // forward is -z
+  const i = Math.round((zAhead - STREET.from) / STREET.step);
+  return clamp(i, 0, BRANDS.length - 1);
+}
+
+let shownBrand = -1;
+function showBrand(i) {
+  if (i === shownBrand) return;
+  shownBrand = i;
+  const b = BRANDS[i];
+  card.swatch.style.background = `linear-gradient(90deg, ${b.bg[0]}, ${b.bg[1]})`;
+  card.eyebrow.textContent = `House ${String(i + 1).padStart(2, "0")} of ${BRANDS.length}`;
+  card.name.textContent = b.name;
+  card.note.textContent = `${b.note} ${b.live} pieces in stock.`;
+  card.link.href = `${SITE}/brands/${b.slug}`;
+  card.link.textContent = `Shop ${b.name}`;
+  indexItems.forEach((el, k) => { el.dataset.live = k === i ? "1" : "0"; });
+}
+
+// ## 22  FRAME LOOP
+
+const clock = new THREE.Clock();
+let running = true;
+const camPos = new THREE.Vector3();
+const camLook = new THREE.Vector3();
+const shadowFocus = new THREE.Vector3();
+
+/**
+ * One frame's worth of work, for a given elapsed time and scroll position.
+ *
+ * Split out of the rAF loop so it can be driven directly — `DD.step(0.4)`
+ * from the console places the whole scene at 40% of the journey and renders
+ * it. That is the only way to inspect anything when the tab is not painting,
+ * since requestAnimationFrame does not run in a backgrounded tab and the
+ * scene simply freezes wherever it was.
+ */
+function step(dt, t, p) {
+  // --- camera -------------------------------------------------------------
+  PATH.getPointAt(p, camPos);
+  LOOK.getPointAt(p, camLook);
+
+  if (!QUALITY.still) {
+    pointer.x += (pointer.tx - pointer.x) * Math.min(1, dt * 2.2);
+    pointer.y += (pointer.ty - pointer.y) * Math.min(1, dt * 2.2);
+    camPos.x += pointer.x * 1.15;
+    camPos.y += -pointer.y * 0.55 + Math.sin(t * 0.42) * 0.09;   // a slow breath
+  }
+
+  camera.position.copy(camPos);
+  camera.lookAt(camLook);
+
+  // --- shadow frustum follows the camera ---------------------------------
+  shadowFocus.lerpVectors(camPos, camLook, 0.35);
+  sun.position.copy(C.sun).multiplyScalar(90).add(shadowFocus);
+  sun.target.position.copy(shadowFocus);
+  sun.target.updateMatrixWorld();
+
+  // --- animation ----------------------------------------------------------
+  windUniforms.uTime.value = t;
+  skyUniforms.uTime.value = t;
+  waterUniforms.uTime.value = t;
+  waterUniforms.uCam.value.copy(camera.position);
+  motes.uniforms.uTime.value = t;
+  if (leaves) leaves.update(dt, t);
+
+  // --- overlay ------------------------------------------------------------
+  // A plain range test. This was a feathered curve once, and at the very top
+  // of the page it evaluated to exactly 0.5 — so the hero panel failed its own
+  // "> 0.5" check and the first thing a visitor saw was a wordless scene.
+  const within = ([a, b]) => (p >= a && p <= b ? "1" : "0");
+  panels.hero.dataset.on  = within(BEATS.hero);
+  panels.end.dataset.on   = within(BEATS.end);
+
+  const inStreet = p >= BEATS.brands[0] && p <= BEATS.brands[1];
+  panels.brands.dataset.on = inStreet ? "1" : "0";
+  indexEl.dataset.on = inStreet ? "1" : "0";
+  hintEl.style.opacity = p < 0.02 ? "0.75" : "0";
+
+  if (inStreet) showBrand(readableBrand());
+
+  composer.render();
+}
+
+function frame() {
+  if (!running) return;
+  requestAnimationFrame(frame);
+
+  const dt = Math.min(clock.getDelta(), 0.05);
+  // Scroll easing: the camera always trails the scrollbar slightly, which is
+  // what makes it feel like a dolly rather than a scrubbed video.
+  scrollEased += (scrollTarget - scrollEased) * Math.min(1, dt * 3.4);
+  step(dt, clock.elapsedTime, clamp(scrollEased, 0, 1));
+}
+
+// ## 23  RESIZE + VISIBILITY
+
+/**
+ * Vertical FOV is the wrong thing to hold fixed.
+ *
+ * Three derives the horizontal field from the vertical one and the aspect, so
+ * a fixed 46 degrees gives a laptop a wide view and a portrait phone a letter
+ * slot — the dome shrinks and the slabs either side of the street fall out of
+ * frame entirely. This holds the *horizontal* field instead, widening the
+ * vertical one as the viewport narrows, and clamps it well short of the
+ * fisheye the raw maths asks for at phone aspect ratios.
+ */
+const BASE_FOV = 46, BASE_ASPECT = 1.6;
+const H_HALF = Math.atan(Math.tan((BASE_FOV / 2) * Math.PI / 180) * BASE_ASPECT);
+
+function resize() {
+  const w = innerWidth, h = innerHeight;
+  camera.aspect = w / h;
+  camera.fov = clamp(
+    2 * Math.atan(Math.tan(H_HALF) / camera.aspect) * 180 / Math.PI,
+    BASE_FOV, 68
+  );
+  camera.updateProjectionMatrix();
+  renderer.setPixelRatio(Math.min(devicePixelRatio, QUALITY.dpr));
+  renderer.setSize(w, h);
+  composer.setSize(w, h);
+  if (bloomPass) bloomPass.setSize(w, h);
+  readScroll();
+}
+addEventListener("resize", resize);
+addEventListener("orientationchange", () => setTimeout(resize, 250));
+
+// Stop burning a GPU on a tab nobody is looking at.
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    running = false;
+  } else if (!running) {
+    running = true;
+    clock.getDelta();       // drop the gap so nothing jumps
+    frame();
+  }
+});
+
+// ## 24  STARTUP
+
+readScroll();
+scrollEased = scrollTarget;
+resize();
+
+// One warm-up render so the first visible frame is not a stutter while every
+// shader in the scene compiles at once.
+renderer.compile(scene, camera);
+composer.render();
+
+requestAnimationFrame(() => {
+  document.getElementById("boot").dataset.done = "1";
+  frame();
+});
+
+// A handle for tuning from the console: DD.C holds every constant the scene
+// was built from, DD.scene the graph itself.
+window.DD = { THREE, scene, camera, renderer, composer, C, BRANDS, PATH, LOOK,
+              wind: windUniforms, sky: skyUniforms, water: waterUniforms,
+              goTo: (v) => scrollTo(0, v * (document.documentElement.scrollHeight - innerHeight)),
+              // Place and render the scene at a scroll position without the
+              // rAF loop; works in a backgrounded tab, where goTo does not.
+              step: (v) => { scrollEased = v; step(0.016, clock.elapsedTime, v); } };
+
+// Surface a dead scene rather than a black rectangle.
+canvasEl.addEventListener("webglcontextlost", (e) => {
+  e.preventDefault();
+  running = false;
+  document.getElementById("fallback").dataset.on = "1";
+});
+</script>
+</body>
+</html>
