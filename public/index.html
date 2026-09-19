@@ -3,7 +3,7 @@
 <head>
 <!--
   ═══════════════════════════════════════════════════════════════════════════
-  DESIGNER DISTRICT — Fly's Eye Dome, Miami Design District
+  DESIGNER DISTRICT — the dome, the pool and the street around them
   A scroll-driven WebGL homepage. Single file, no build step.
 
   ## SECTION INDEX   (search for the "## NN" marker to jump straight to one)
@@ -39,7 +39,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Designer District</title>
-<meta name="description" content="Premium streetwear, housed in the Miami Design District." />
+<meta name="description" content="Premium streetwear, fifteen houses, one street." />
 <meta name="theme-color" content="#ffffff" />
 <link rel="icon" href="https://designer-district.vercel.app/favicon.ico" sizes="any" />
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
@@ -262,6 +262,24 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
   padding: 1.4rem 1.5rem 1.5rem;
 }
 .brandcard .swatch { height: 4px; width: 100%; margin-bottom: 1.1rem; }
+
+/* The mark, on the house's ground — the tag that tells you whose shop this
+   is before you have read a word of it. */
+.maker {
+  display: grid;
+  place-items: center;
+  height: 84px;
+  margin-bottom: 1.1rem;
+  padding: 0 1.2rem;
+  border: 1px solid var(--rule);
+  overflow: hidden;
+}
+.maker img { max-height: 54px; max-width: 100%; width: auto; height: auto; display: block; }
+.maker span {
+  font-size: 1.15rem; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase;
+  text-align: center; line-height: 1.1;
+}
 .brandcard h3 { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.4vw, 2.2rem); }
 .brandcard p.note { margin: .6rem 0 0; font-size: .85rem; line-height: 1.6; color: var(--ink-dim); }
 .brandcard .pill { margin-top: 1.2rem; }
@@ -368,6 +386,10 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
     <div class="brandcard bracket" id="card">
       <span class="br" aria-hidden="true"></span>
       <div class="swatch" id="card-swatch"></div>
+      <!-- The house's own artwork, on its own colourway. Brands with no logo
+           file fall back to their name set in the display face, which is what
+           the storefront tiles do for the same seven houses. -->
+      <div class="maker" id="card-maker"><span id="card-maker-text">&mdash;</span></div>
       <p class="eyebrow" id="card-eyebrow">The Collection</p>
       <h3 class="display" id="card-name">&mdash;</h3>
       <p class="note" id="card-note">&mdash;</p>
@@ -480,6 +502,22 @@ C.domeCenterY = C.plinthTop + Math.abs(Math.cos(C.domeCut * Math.PI)) * C.domeRa
 
 // The fifteen houses, in the order they appear on the storefront, with the
 // colourway each one already wears on its tile there.
+// Where each house's artwork lives. Seven of the fifteen have no logo file —
+// on the store they are set as wordmarks — and those simply keep their name in
+// type, here as there. Brands whose ink is white take the cut drawn for dark
+// grounds, the same rule the storefront tiles use.
+const LOGO = {
+  "bape":          "/brands/bape-on-dark.png",
+  "chrome-hearts": "/brands/chrome-hearts.svg",
+  "gallery-dept":  "/brands/gallery-dept.png",
+  "ksubi":         "/brands/ksubi.png",
+  "essentials":    "/brands/essentials.png",
+  "rhude":         "/brands/rhude.png",
+  "vale":          "/brands/vale-on-dark.png",
+  "hellstar":      "/brands/hellstar-on-dark.png",
+};
+const logoFor = (slug) => (LOGO[slug] ? SITE + LOGO[slug] : null);
+
 const BRANDS = [
   { slug:"bape",         name:"Bape",          live:7,  bg:["#7a8b5c","#5d6b45"], ink:"#ffffff", note:"Camo, since 1993." },
   { slug:"chrome-hearts",name:"Chrome Hearts", live:52, bg:["#eceef1","#b4b8c2"], ink:"#0a0a0a", note:"Sterling, leather, gothic type." },
@@ -714,8 +752,12 @@ function texSign(brand) {
   x.textAlign = "center";
   x.textBaseline = "middle";
 
-  const label = brand.name.toUpperCase();
   const face = getComputedStyle(document.body).fontFamily;
+  const label = brand.name.toUpperCase();
+
+  // Name in type first, so the sign is legible from the moment it is built.
+  // A house with real artwork paints over this once the file arrives; doing it
+  // the other way round would leave blank boards for a second on a slow line.
   let size = Math.round(H * 0.42);
   do { x.font = `700 ${size}px ${face}`; size -= 2; }
   while (x.measureText(label).width > W * 0.7 && size > 16);
@@ -733,6 +775,88 @@ function texSign(brand) {
     x.moveTo(cx, cy + dy * L); x.lineTo(cx, cy); x.lineTo(cx + dx * L, cy);
     x.stroke();
   }
+  return c;
+}
+
+/**
+ * Swaps a sign's typed name for the house's own artwork once it loads.
+ *
+ * Kept asynchronous and optional on purpose: the scene is built and running
+ * before any of these arrive, and a house with no file, or a file that fails,
+ * simply keeps the name it already has. The texture is only marked dirty on
+ * success, so a broken load costs nothing but the request.
+ */
+function dressSign(canvasEl, texture, brand) {
+  const src = logoFor(brand.slug);
+  if (!src) return;
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  img.onload = () => {
+    const x = canvasEl.getContext("2d"), W = canvasEl.width, H = canvasEl.height;
+    // Repaint the ground, then the artwork over it.
+    const g = x.createLinearGradient(0, 0, W, H);
+    g.addColorStop(0, brand.bg[0]); g.addColorStop(1, brand.bg[1]);
+    x.fillStyle = g; x.fillRect(0, 0, W, H);
+
+    const maxW = W * 0.62, maxH = H * 0.54;
+    const k = Math.min(maxW / img.width, maxH / img.height);
+    const w = img.width * k, h = img.height * k;
+    x.drawImage(img, (W - w) / 2, H * 0.44 - h / 2, w, h);
+
+    x.fillStyle = brand.ink;
+    x.textAlign = "center"; x.textBaseline = "middle";
+    x.globalAlpha = 0.62;
+    x.font = `600 ${Math.round(H * 0.1)}px ${getComputedStyle(document.body).fontFamily}`;
+    x.fillText(`${brand.live} PIECES`, W / 2, H * 0.82);
+    x.globalAlpha = 1;
+
+    const m = H * 0.12, L = H * 0.16;
+    x.strokeStyle = brand.ink; x.globalAlpha = 0.45; x.lineWidth = Math.max(2, H * 0.016);
+    for (const [cx, cy, dx, dy] of [[m, m, 1, 1], [W - m, m, -1, 1], [m, H - m, 1, -1], [W - m, H - m, -1, -1]]) {
+      x.beginPath();
+      x.moveTo(cx, cy + dy * L); x.lineTo(cx, cy); x.lineTo(cx + dx * L, cy);
+      x.stroke();
+    }
+    texture.needsUpdate = true;
+  };
+  img.src = src;
+}
+
+/**
+ * A perforated screen: the punched and woven metal that hangs in front of so
+ * many facades in a district like this one. Two patterns, because one repeated
+ * fifteen times is wallpaper.
+ */
+function texScreen(kind) {
+  const c = canvas(512, 512), x = c.getContext("2d"), S = c.width;
+  x.clearRect(0, 0, S, S);
+  x.fillStyle = "#ffffff";
+  x.fillRect(0, 0, S, S);
+  x.globalCompositeOperation = "destination-out";
+
+  if (kind === "dots") {
+    const n = 11, step = S / n;
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) {
+        const off = (j % 2) * step * 0.5;
+        x.beginPath();
+        x.arc(i * step + step / 2 + off, j * step + step / 2, step * 0.34, 0, 7);
+        x.fill();
+      }
+    }
+  } else if (kind === "weave") {
+    x.lineWidth = S * 0.055;
+    x.lineCap = "butt";
+    for (let i = -S; i < S * 2; i += S / 7) {
+      x.beginPath(); x.moveTo(i, 0); x.lineTo(i + S, S); x.stroke();
+      x.beginPath(); x.moveTo(i + S, 0); x.lineTo(i, S); x.stroke();
+    }
+  } else {   // fins: tall slots
+    const n = 9, step = S / n;
+    for (let i = 0; i < n; i++) x.fillRect(i * step + step * 0.28, 0, step * 0.44, S);
+  }
+
+  x.globalCompositeOperation = "source-over";
   return c;
 }
 
@@ -1765,10 +1889,13 @@ const monoliths = [];   // kept under the old name: sections 19 and 21 read it
     kerbs.push(toWorld(kerb));
 
     // --- the sign: the clickable target ----------------------------------
+    const signCanvas = texSign(brand);
+    const signTex = asTexture(signCanvas);
+    dressSign(signCanvas, signTex, brand);
     const sign = new THREE.Mesh(
       new THREE.PlaneGeometry(W - 3.4, (W - 3.4) / 4),
       new THREE.MeshStandardMaterial({
-        map: asTexture(texSign(brand)),
+        map: signTex,
         roughness: 0.5,
         metalness: 0.04,
         envMapIntensity: 0.6,
@@ -1781,6 +1908,47 @@ const monoliths = [];   // kept under the old name: sections 19 and 21 read it
 
     monoliths.push({ brand, group: g, face: sign, z, x });
   });
+
+  // Perforated screens hung over the header band on most units. This is the
+  // single biggest thing separating a district like the one this borrows from
+  // a row of plain boxes: almost nothing is left as bare wall above the
+  // glazing. Three patterns, dealt out so no two neighbours match.
+  {
+    const kinds = ["dots", "weave", "fins"];
+    const screenTex = kinds.map((k) => asTexture(texScreen(k)));
+    const rs = rng(31337);
+    const perKind = [[], [], []];
+
+    monoliths.forEach((m, i) => {
+      if (rs() < 0.18) return;                       // a few left plain
+      const k = (i + Math.floor(rs() * 2)) % 3;
+      const g = m.group;
+      g.updateMatrixWorld(true);
+      const w = STREET.width - 1.0;
+      const panel = new THREE.PlaneGeometry(w, 2.6);
+      panel.translate(0, 8.0, 0.55);
+      panel.applyMatrix4(g.matrixWorld);
+      perKind[k].push(panel);
+    });
+
+    perKind.forEach((geos, k) => {
+      if (!geos.length) return;
+      const mesh = new THREE.Mesh(
+        mergeGeometries(geos),
+        new THREE.MeshStandardMaterial({
+          map: screenTex[k],
+          alphaTest: 0.5,
+          side: THREE.DoubleSide,
+          color: 0xfdfaf3,
+          roughness: 0.55,
+          metalness: 0.15,
+          envMapIntensity: 0.9,
+        })
+      );
+      mesh.castShadow = true;
+      scene.add(mesh);
+    });
+  }
 
   const stucco = asTexture(texStucco(), { repeat: [1, 1] });
 
@@ -1849,7 +2017,7 @@ const monoliths = [];   // kept under the old name: sections 19 and 21 read it
     // ended up inside this block and the last second of the journey was a
     // clipping plane sawing through a wall.
     const endZ = STREET.from + BRANDS.length * STREET.step - 26;
-    const caps = [], capGlass = [];
+    const caps = [], capGlass = [], bayDots = [], bayWeave = [];
 
     const block = new THREE.BoxGeometry(56, 17, 16);
     block.translate(0, 8.5, endZ - 8);
@@ -1858,6 +2026,79 @@ const monoliths = [];   // kept under the old name: sections 19 and 21 read it
     const brow = new THREE.BoxGeometry(57, 0.7, 17);
     brow.translate(0, 17.2, endZ - 8);
     caps.push(brow);
+
+    // --- five bays, five different hands ---------------------------------
+    // The block you look at down the whole length of the street was a blank
+    // wall. It is now the one deliberate landmark: five bays that plainly did
+    // not agree with each other, which is exactly how the car park this
+    // borrows from was commissioned — five architects, none shown the others'
+    // work. Punched screen, a jam of metal, a woven lattice, coloured fins,
+    // and a stack of offset slabs.
+    const jam = [], finGeo = [], slabGeo = [];
+    const rb = rng(8081);
+    const bayW = 56 / 5;
+
+    for (let b = 0; b < 5; b++) {
+      const bx = -28 + bayW * (b + 0.5);
+
+      if (b === 0 || b === 2) {
+        const panel = new THREE.PlaneGeometry(bayW - 0.5, 15.4);
+        panel.translate(bx, 8.6, endZ + 0.45);
+        (b === 0 ? bayDots : bayWeave).push(panel);
+
+      } else if (b === 1) {
+        // The jam: bodies caught mid-air, gold and silver.
+        for (let k = 0; k < 11; k++) {
+          const box = new THREE.BoxGeometry(3.4, 1.15, 1.5);
+          box.rotateZ((rb() - 0.5) * 1.5);
+          box.rotateY((rb() - 0.5) * 0.8);
+          box.translate(bx + (rb() - 0.5) * (bayW - 4), 2.2 + k * 1.32, endZ + 0.9 + rb() * 0.8);
+          const c = new THREE.Color(rb() > 0.5 ? 0xd8b25e : 0xc9ccd2);
+          const n = box.attributes.position.count;
+          const arr = new Float32Array(n * 3);
+          for (let v = 0; v < n; v++) { arr[v*3]=c.r; arr[v*3+1]=c.g; arr[v*3+2]=c.b; }
+          box.setAttribute("color", new THREE.BufferAttribute(arr, 3));
+          jam.push(box);
+        }
+
+      } else if (b === 3) {
+        // Coloured fins, picked off the houses on this street.
+        for (let k = 0; k < 9; k++) {
+          const fin = new THREE.BoxGeometry(0.34, 15.2, 1.25);
+          fin.translate(bx - bayW / 2 + 0.8 + k * ((bayW - 1.6) / 8), 8.6, endZ + 0.85);
+          const c = new THREE.Color(BRANDS[(k * 3 + 2) % BRANDS.length].bg[0]);
+          const n = fin.attributes.position.count;
+          const arr = new Float32Array(n * 3);
+          for (let v = 0; v < n; v++) { arr[v*3]=c.r; arr[v*3+1]=c.g; arr[v*3+2]=c.b; }
+          fin.setAttribute("color", new THREE.BufferAttribute(arr, 3));
+          finGeo.push(fin);
+        }
+
+      } else {
+        // Barricades: heavy slabs, each shoved a little off the last.
+        for (let k = 0; k < 7; k++) {
+          const sl = new THREE.BoxGeometry(bayW - 1.2, 1.5, 1.1);
+          sl.translate(bx + (rb() - 0.5) * 2.2, 2.0 + k * 2.15, endZ + 0.7);
+          slabGeo.push(sl);
+        }
+      }
+    }
+
+    if (jam.length) {
+      const m = new THREE.Mesh(mergeGeometries(jam),
+        new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.28, metalness: 0.85, envMapIntensity: 1.3 }));
+      m.castShadow = true; scene.add(m);
+    }
+    if (finGeo.length) {
+      const m = new THREE.Mesh(mergeGeometries(finGeo),
+        new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5 }));
+      m.castShadow = true; scene.add(m);
+    }
+    if (slabGeo.length) {
+      const m = new THREE.Mesh(mergeGeometries(slabGeo),
+        new THREE.MeshStandardMaterial({ color: 0xe6ddc9, roughness: 0.9 }));
+      m.castShadow = true; m.receiveShadow = true; scene.add(m);
+    }
 
     // A glazed ground floor, so it belongs to the same street.
     for (let k = -2; k <= 2; k++) {
@@ -1877,6 +2118,20 @@ const monoliths = [];   // kept under the old name: sections 19 and 21 read it
     endMesh.castShadow = true; endMesh.receiveShadow = true;
     scene.add(endMesh);
 
+    for (const [geos, kind] of [[bayDots, "dots"], [bayWeave, "weave"]]) {
+      if (!geos.length) continue;
+      const m = new THREE.Mesh(
+        mergeGeometries(geos),
+        new THREE.MeshStandardMaterial({
+          map: asTexture(texScreen(kind)),
+          alphaTest: 0.5, side: THREE.DoubleSide,
+          color: 0xfffdf6, roughness: 0.5, metalness: 0.2, envMapIntensity: 1.0,
+        })
+      );
+      m.castShadow = true;
+      scene.add(m);
+    }
+
     const endGlass = new THREE.Mesh(
       mergeGeometries(capGlass),
       new THREE.MeshPhysicalMaterial({
@@ -1887,6 +2142,102 @@ const monoliths = [];   // kept under the old name: sections 19 and 21 read it
       })
     );
     scene.add(endGlass);
+  }
+
+  // --- a bridge over the street -----------------------------------------
+  // Upper-level links between blocks are everywhere in a district like this,
+  // and one crossing overhead does more for the sense of being *inside*
+  // somewhere than another twenty metres of shopfront would.
+  {
+    const bz = STREET.from + 6.5 * STREET.step;
+    const deck = [], rails = [];
+
+    const slab = new THREE.BoxGeometry(STREET.half * 2 + 2, 0.55, 4.2);
+    slab.translate(0, 9.2, bz);
+    deck.push(slab);
+
+    const soffit = new THREE.BoxGeometry(STREET.half * 2 + 2, 0.3, 3.0);
+    soffit.translate(0, 8.9, bz);
+    deck.push(soffit);
+
+    for (const dz of [-2.1, 2.1]) {
+      const g = new THREE.PlaneGeometry(STREET.half * 2 + 2, 1.9);
+      g.rotateY(dz > 0 ? 0 : Math.PI);
+      g.translate(0, 10.45, bz + dz);
+      rails.push(g);
+    }
+
+    const deckMesh = new THREE.Mesh(
+      mergeGeometries(deck),
+      new THREE.MeshStandardMaterial({ color: 0xf1e9d9, roughness: 0.85 })
+    );
+    deckMesh.castShadow = true; deckMesh.receiveShadow = true;
+    scene.add(deckMesh);
+
+    const railMesh = new THREE.Mesh(
+      mergeGeometries(rails),
+      new THREE.MeshPhysicalMaterial({
+        color: 0x2a3a42, roughness: 0.05, metalness: 0.1,
+        transmission: 0.6, thickness: 0.15, ior: 1.5,
+        transparent: true, opacity: 0.8, side: THREE.DoubleSide, envMapIntensity: 1.5,
+      })
+    );
+    scene.add(railMesh);
+  }
+
+  // --- somewhere to sit outside ------------------------------------------
+  // Parasols and cafe tables spilling onto the paving. Colour at head height,
+  // and the clearest signal that the street is used rather than modelled.
+  {
+    const posts = [], tops = [], tables = [];
+    const ru = rng(60607);
+    for (let i = 0; i < 6; i++) {
+      const z = STREET.from - 10 - i * 19 - ru() * 6;
+      const sx = (i % 2 === 0 ? -1 : 1) * (STREET.half - 3.4);
+
+      const pole = new THREE.CylinderGeometry(0.07, 0.07, 2.7, 6);
+      pole.translate(sx, 1.35, z);
+      posts.push(pole);
+
+      const shade = new THREE.ConeGeometry(2.25, 0.85, 8, 1, true);
+      shade.translate(sx, 3.0, z);
+      const c = new THREE.Color(BRANDS[(i * 4 + 1) % BRANDS.length].bg[0]);
+      const n = shade.attributes.position.count;
+      const arr = new Float32Array(n * 3);
+      for (let v = 0; v < n; v++) { arr[v*3]=c.r; arr[v*3+1]=c.g; arr[v*3+2]=c.b; }
+      shade.setAttribute("color", new THREE.BufferAttribute(arr, 3));
+      tops.push(shade);
+
+      const top = new THREE.CylinderGeometry(0.62, 0.62, 0.08, 12);
+      top.translate(sx, 0.74, z);
+      tables.push(top);
+      const stem = new THREE.CylinderGeometry(0.06, 0.09, 0.74, 6);
+      stem.translate(sx, 0.37, z);
+      tables.push(stem);
+
+      for (const a of [0.7, 2.6, 4.2]) {
+        const seat = new THREE.CylinderGeometry(0.28, 0.28, 0.07, 8);
+        seat.translate(sx + Math.cos(a) * 1.15, 0.46, z + Math.sin(a) * 1.15);
+        tables.push(seat);
+        const leg = new THREE.CylinderGeometry(0.05, 0.05, 0.46, 5);
+        leg.translate(sx + Math.cos(a) * 1.15, 0.23, z + Math.sin(a) * 1.15);
+        tables.push(leg);
+      }
+    }
+
+    const shadeMesh = new THREE.Mesh(
+      mergeGeometries(tops),
+      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75, side: THREE.DoubleSide })
+    );
+    shadeMesh.castShadow = true;
+    scene.add(shadeMesh);
+
+    const metalMesh = new THREE.Mesh(
+      mergeGeometries(posts.concat(tables)),
+      new THREE.MeshStandardMaterial({ color: 0x3c3f42, roughness: 0.42, metalness: 0.5 })
+    );
+    metalMesh.castShadow = true;
+    scene.add(metalMesh);
   }
 
   // --- street furniture --------------------------------------------------
@@ -1949,7 +2300,7 @@ const monoliths = [];   // kept under the old name: sections 19 and 21 read it
 
     // Bougainvillea. Three or four hot clusters down a bleached street do
     // more for the colour of the place than raising the saturation on
-    // everything would, and Miami plants the stuff everywhere.
+    // everything would, and the tropics plant the stuff everywhere.
     const petals = [];
     for (let i = 0; i < green.length; i += 3) {
       if (r() > 0.55) continue;
@@ -2076,6 +2427,7 @@ const panels = {
 };
 const card = {
   swatch:  document.getElementById("card-swatch"),
+  maker:   document.getElementById("card-maker"),
   eyebrow: document.getElementById("card-eyebrow"),
   name:    document.getElementById("card-name"),
   note:    document.getElementById("card-note"),
@@ -2125,6 +2477,14 @@ function showBrand(i) {
   shownBrand = i;
   const b = BRANDS[i];
   card.swatch.style.background = `linear-gradient(90deg, ${b.bg[0]}, ${b.bg[1]})`;
+
+  // The tag: artwork where we have it, the name in type where we do not.
+  card.maker.style.background = `linear-gradient(135deg, ${b.bg[0]}, ${b.bg[1]})`;
+  card.maker.style.color = b.ink;
+  const art = logoFor(b.slug);
+  card.maker.innerHTML = art
+    ? `<img src="${art}" alt="${b.name}" />`
+    : `<span>${b.name}</span>`;
   card.eyebrow.textContent = `House ${String(i + 1).padStart(2, "0")} of ${BRANDS.length}`;
   card.name.textContent = b.name;
   card.note.textContent = `${b.note} ${b.live} pieces in stock.`;
