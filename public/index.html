@@ -32,6 +32,7 @@
     ## 22  FRAME LOOP
     ## 23  RESIZE + VISIBILITY
     ## 24  STARTUP
+    ## 25  SOUND — ambience, and a beat coming from somewhere
   ═══════════════════════════════════════════════════════════════════════════
 -->
 
@@ -348,6 +349,32 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
 }
 .index b[data-live="1"] { opacity: 1; }
 
+/* ---- sound toggle ------------------------------------------------------ */
+.sound {
+  position: fixed;
+  left: var(--shell);
+  bottom: calc(var(--shell) * 0.8);
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  width: 42px; height: 42px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255,255,255,.9);
+  color: var(--ink);
+  box-shadow: 0 4px 16px rgba(0,0,0,.35);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: transform .2s ease, background .2s ease;
+}
+.sound:hover { transform: translateY(-2px); }
+.sound .wave { opacity: 0; transition: opacity .25s ease; }
+.sound .cross { opacity: 1; transition: opacity .25s ease; }
+.sound[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.sound[aria-pressed="true"] .wave { opacity: 1; }
+.sound[aria-pressed="true"] .cross { opacity: 0; }
+
 /* --- finale --- */
 /* The finale used to be a white card pasted over the view. It is projected
    onto the building that closes the street now: no ground of its own, white
@@ -473,6 +500,19 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
 
   <nav class="index" id="index" aria-label="Districts on this street"></nav>
   <p class="hint halo" id="hint">Scroll</p>
+
+  <!-- Nothing plays until this is pressed. Browsers will not start audio
+       without a gesture, and a page that makes noise at you uninvited
+       deserves to be closed. -->
+  <button class="sound" id="sound" type="button" aria-pressed="false" aria-label="Turn sound on">
+    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
+         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M11 5 6 9H3v6h3l5 4z" />
+      <path class="wave" d="M15.5 8.5a5 5 0 0 1 0 7" />
+      <path class="wave" d="M18.5 5.5a9 9 0 0 1 0 13" />
+      <path class="cross" d="M17 9.5l5 5M22 9.5l-5 5" />
+    </svg>
+  </button>
 </div>
 
 <!-- ## 05  IMPORT MAP -->
@@ -3305,6 +3345,7 @@ function step(dt, t, p) {
 
   if (inStreet) showBrand(readableBrand());
   placePins(shownBrand, inStreet);
+  sound.update(camera);
 
   composer.render();
 }
@@ -3356,7 +3397,9 @@ addEventListener("orientationchange", () => setTimeout(resize, 250));
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) {
     running = false;
+    sound.suspend();
   } else if (!running) {
+    sound.resume();
     running = true;
     clock.getDelta();       // drop the gap so nothing jumps
     frame();
@@ -3379,10 +3422,354 @@ requestAnimationFrame(() => {
   frame();
 });
 
+// ## 25  SOUND — ambience, and a beat coming from somewhere
+//
+// Every sound on this page is synthesised here. Nothing is fetched, which
+// keeps the file self-contained and sidesteps the question of whose record
+// is playing: the loop below is a few oscillators and a noise buffer.
+//
+// Two layers, and the difference between them is the whole point.
+//
+// The ambience — palms, water, a city somewhere behind the buildings, the
+// occasional bird — is fixed to the listener. It is the sound of being
+// outdoors and it does not come from anywhere in particular.
+//
+// The beat is a *source in the world*. It sits at one spot down the street,
+// on a panner, and it is heavily low-passed at a distance. You hear it as a
+// muffled thud from the plaza, it opens up and moves across the stereo field
+// as you walk past it, and it closes again behind you. That is the trick
+// games use for a court speaker, and it is entirely a matter of filtering by
+// distance rather than only attenuating by it: loudness alone reads as a
+// quiet song, not a distant one.
+
+const sound = (() => {
+  const SPEAKER = new THREE.Vector3(STREET.half - 2.5, 3.4, STREET.from + 8 * STREET.step);
+  let ctx = null, master = null, panner = null, muffle = null, ready = false, on = false;
+
+  const midi = (m) => 440 * Math.pow(2, (m - 69) / 12);
+
+  /** One bar of noise, reused by every percussive voice. */
+  function noiseBuffer(ac, seconds = 1) {
+    const b = ac.createBuffer(1, Math.ceil(ac.sampleRate * seconds), ac.sampleRate);
+    const d = b.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    return b;
+  }
+
+  /**
+   * Renders the loop offline, once, into a buffer.
+   *
+   * Offline because a loop assembled live can never be seamless — the
+   * scheduler has to decide where "the end" is while the clock is running.
+   * Rendered as a fixed number of bars it simply repeats, and it costs one
+   * burst of work at start-up instead of a permanent scheduling overhead.
+   */
+  async function renderBeat(sampleRate) {
+    const BPM = 88, BARS = 4;
+    const beat = 60 / BPM, dur = BARS * 4 * beat;
+    const oc = new OfflineAudioContext(2, Math.ceil((dur + 0.5) * sampleRate), sampleRate);
+
+    const bus = oc.createGain();
+    bus.gain.value = 0.85;
+    // Rolls the top off before it ever reaches the panner: this is a beat
+    // heard through a doorway, not a mastered track.
+    const warm = oc.createBiquadFilter();
+    warm.type = "lowpass"; warm.frequency.value = 5200;
+    bus.connect(warm); warm.connect(oc.destination);
+
+    const nb = noiseBuffer(oc, 2);
+
+    const burst = (t, len, type, freq, q, gain) => {
+      const src = oc.createBufferSource(); src.buffer = nb; src.loop = true;
+      const f = oc.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+      const g = oc.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(gain, t + 0.004);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+      src.connect(f); f.connect(g); g.connect(bus);
+      src.start(t); src.stop(t + len + 0.05);
+    };
+
+    const kick = (t, gain = 0.95) => {
+      const o = oc.createOscillator(); o.type = "sine";
+      o.frequency.setValueAtTime(135, t);
+      o.frequency.exponentialRampToValueAtTime(43, t + 0.10);
+      const g = oc.createGain();
+      g.gain.setValueAtTime(gain, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.36);
+      o.connect(g); g.connect(bus);
+      o.start(t); o.stop(t + 0.38);
+    };
+
+    const snare = (t) => {
+      burst(t, 0.17, "highpass", 1500, 0.7, 0.34);
+      const o = oc.createOscillator(); o.type = "triangle";
+      o.frequency.setValueAtTime(190, t);
+      const g = oc.createGain();
+      g.gain.setValueAtTime(0.28, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.13);
+      o.connect(g); g.connect(bus);
+      o.start(t); o.stop(t + 0.14);
+    };
+
+    const voice = (t, note, len, gain, type = "triangle", detune = 0) => {
+      const o = oc.createOscillator();
+      o.type = type; o.frequency.value = midi(note); o.detune.value = detune;
+      const g = oc.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(gain, t + 0.04);
+      g.gain.setValueAtTime(gain, t + len * 0.6);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+      o.connect(g); g.connect(bus);
+      o.start(t); o.stop(t + len + 0.02);
+    };
+
+    // Four bars, minor and unhurried. Roots F, Db, Ab, Eb.
+    const CHORDS = [
+      { root: 29, notes: [53, 56, 60, 63, 67] },   // Fm9
+      { root: 25, notes: [49, 53, 56, 60] },       // Dbmaj7
+      { root: 32, notes: [56, 60, 63, 67] },       // Abmaj7
+      { root: 27, notes: [51, 55, 58, 62] },       // Ebsus
+    ];
+
+    for (let bar = 0; bar < BARS; bar++) {
+      const t0 = bar * 4 * beat;
+      const ch = CHORDS[bar % CHORDS.length];
+
+      // Drums. Kick on 1, the and-of-2 and the and-of-3; snare on 2 and 4.
+      kick(t0);
+      kick(t0 + beat * 1.5, 0.75);
+      kick(t0 + beat * 2.75, 0.62);
+      snare(t0 + beat);
+      snare(t0 + beat * 3);
+
+      // Hats on eighths, swung, and never twice at the same weight.
+      for (let e = 0; e < 8; e++) {
+        const swing = e % 2 ? 0.055 * beat : 0;
+        burst(t0 + e * beat * 0.5 + swing, 0.045, "highpass", 8200, 0.9,
+              e % 2 ? 0.055 : 0.1);
+      }
+
+      // Bass: root, then a push before the bar turns over.
+      voice(t0, ch.root, beat * 1.4, 0.4, "sine");
+      voice(t0 + beat * 2.5, ch.root + 12, beat * 0.45, 0.22, "sine");
+      voice(t0 + beat * 3.5, ch.root, beat * 0.45, 0.3, "sine");
+
+      // Keys, slightly detuned against themselves so they are not glassy.
+      ch.notes.forEach((n, i) => {
+        voice(t0 + 0.02 * i, n, beat * 3.6, 0.085, "triangle", -6);
+        voice(t0 + 0.02 * i, n, beat * 3.6, 0.065, "triangle", 7);
+      });
+    }
+
+    // Vinyl: the dust that makes the rest of it sit back.
+    for (let i = 0; i < 130; i++) {
+      burst(Math.random() * dur, 0.006, "bandpass", 1800 + Math.random() * 4000, 1.4, 0.03);
+    }
+
+    const rendered = await oc.startRendering();
+    return rendered;
+  }
+
+  /** Wind, water, city, birds — the layer that is simply everywhere. */
+  function buildAmbience() {
+    const amb = ctx.createGain();
+    amb.gain.value = 0.0;
+    amb.connect(master);
+
+    const nb = noiseBuffer(ctx, 4);
+    const loop = () => {
+      const s = ctx.createBufferSource();
+      s.buffer = nb; s.loop = true; s.start();
+      return s;
+    };
+
+    // Palms: a band of noise, breathing.
+    const leaves = ctx.createBiquadFilter();
+    leaves.type = "bandpass"; leaves.frequency.value = 2400; leaves.Q.value = 0.6;
+    // Well under the rest of the bed. Palms are a texture you notice when you
+    // stop and listen for them, not a weather event.
+    const leavesGain = ctx.createGain(); leavesGain.gain.value = 0.018;
+    loop().connect(leaves); leaves.connect(leavesGain); leavesGain.connect(amb);
+
+    const gust = ctx.createOscillator(); gust.frequency.value = 0.09;
+    const gustAmt = ctx.createGain(); gustAmt.gain.value = 0.011;
+    gust.connect(gustAmt); gustAmt.connect(leavesGain.gain); gust.start();
+
+    const sweep = ctx.createOscillator(); sweep.frequency.value = 0.13;
+    const sweepAmt = ctx.createGain(); sweepAmt.gain.value = 450;
+    sweep.connect(sweepAmt); sweepAmt.connect(leaves.frequency); sweep.start();
+
+    // Water against the coping.
+    const water = ctx.createBiquadFilter();
+    water.type = "lowpass"; water.frequency.value = 620; water.Q.value = 0.4;
+    const waterGain = ctx.createGain(); waterGain.gain.value = 0.035;
+    loop().connect(water); water.connect(waterGain); waterGain.connect(amb);
+    const lap = ctx.createOscillator(); lap.frequency.value = 0.21;
+    const lapAmt = ctx.createGain(); lapAmt.gain.value = 0.022;
+    lap.connect(lapAmt); lapAmt.connect(waterGain.gain); lap.start();
+
+    // A city, several blocks away.
+    const city = ctx.createBiquadFilter();
+    city.type = "lowpass"; city.frequency.value = 150;
+    const cityGain = ctx.createGain(); cityGain.gain.value = 0.10;
+    loop().connect(city); city.connect(cityGain); cityGain.connect(amb);
+
+    // Birds, occasionally, from somewhere off to one side.
+    function bird() {
+      if (!on || !ctx || ctx.state !== "running") { schedule(); return; }
+      const t = ctx.currentTime + 0.05;
+      const pan = ctx.createStereoPanner();
+      pan.pan.value = Math.random() * 1.6 - 0.8;
+      pan.connect(amb);
+      const notes = 2 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < notes; i++) {
+        const at = t + i * (0.09 + Math.random() * 0.07);
+        const o = ctx.createOscillator(); o.type = "sine";
+        const f0 = 2300 + Math.random() * 1700;
+        o.frequency.setValueAtTime(f0, at);
+        o.frequency.exponentialRampToValueAtTime(f0 * (1.25 + Math.random() * 0.5), at + 0.05);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, at);
+        g.gain.exponentialRampToValueAtTime(0.05, at + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.0001, at + 0.09);
+        o.connect(g); g.connect(pan);
+        o.start(at); o.stop(at + 0.1);
+      }
+      schedule();
+    }
+    function schedule() { setTimeout(bird, 5000 + Math.random() * 14000); }
+    schedule();
+
+    return amb;
+  }
+
+  let ambGain = null, musicGain = null;
+  const stats = { beatSeconds: 0, beatRMS: 0, beatPeak: 0 };
+
+  async function start() {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return false;
+    ctx = new AC();
+    master = ctx.createGain();
+    master.gain.value = 0;
+    master.connect(ctx.destination);
+
+    ambGain = buildAmbience();
+
+    // The beat, out in the world.
+    panner = ctx.createPanner();
+    panner.panningModel = "HRTF";
+    panner.distanceModel = "inverse";
+    panner.refDistance = 12;
+    panner.rolloffFactor = 0.9;
+    panner.maxDistance = 220;
+    panner.positionX ? (panner.positionX.value = SPEAKER.x,
+                        panner.positionY.value = SPEAKER.y,
+                        panner.positionZ.value = SPEAKER.z)
+                     : panner.setPosition(SPEAKER.x, SPEAKER.y, SPEAKER.z);
+
+    muffle = ctx.createBiquadFilter();
+    muffle.type = "lowpass";
+    muffle.frequency.value = 420;
+    muffle.Q.value = 0.3;
+
+    musicGain = ctx.createGain();
+    musicGain.gain.value = 0.9;
+
+    const buf = await renderBeat(ctx.sampleRate);
+    // Keep a measure of the render, so "is it on?" and "is it silent?" are
+    // separable questions later.
+    {
+      const d = buf.getChannelData(0);
+      let sum = 0, peak = 0;
+      for (let i = 0; i < d.length; i += 17) { sum += d[i] * d[i]; peak = Math.max(peak, Math.abs(d[i])); }
+      stats.beatSeconds = +buf.duration.toFixed(2);
+      stats.beatRMS = +Math.sqrt(sum / (d.length / 17)).toFixed(4);
+      stats.beatPeak = +peak.toFixed(3);
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buf; src.loop = true;
+    src.loopEnd = buf.duration - 0.5;      // trim the tail the last hits ring into
+    src.connect(musicGain);
+    musicGain.connect(muffle);
+    muffle.connect(panner);
+    panner.connect(master);
+    src.start();
+
+    ready = true;
+    return true;
+  }
+
+  const vTmp = new THREE.Vector3();
+
+  return {
+    get on() { return on; },
+
+    async toggle() {
+      if (!ctx) {
+        const ok = await start();
+        if (!ok) return false;
+      }
+      if (ctx.state === "suspended") await ctx.resume();
+      on = !on;
+      const t = ctx.currentTime;
+      master.gain.cancelScheduledValues(t);
+      master.gain.setTargetAtTime(on ? 1 : 0, t, 0.4);
+      if (ambGain) ambGain.gain.setTargetAtTime(on ? 1 : 0, t, 0.6);
+      return on;
+    },
+
+    /** Moves the listener, and opens the beat up as you get close to it. */
+    update(camera) {
+      if (!ready || !on) return;
+      const L = ctx.listener;
+      const p = camera.position;
+      camera.getWorldDirection(vTmp);
+      if (L.positionX) {
+        L.positionX.value = p.x; L.positionY.value = p.y; L.positionZ.value = p.z;
+        L.forwardX.value = vTmp.x; L.forwardY.value = vTmp.y; L.forwardZ.value = vTmp.z;
+        L.upX.value = 0; L.upY.value = 1; L.upZ.value = 0;
+      } else {
+        L.setPosition(p.x, p.y, p.z);
+        L.setOrientation(vTmp.x, vTmp.y, vTmp.z, 0, 1, 0);
+      }
+      // Distance does not only make a sound quieter, it makes it duller —
+      // and the dullness is what the ear reads as distance. Without this the
+      // beat from across the plaza just sounds like a quiet beat.
+      const d = p.distanceTo(SPEAKER);
+      const near = clamp(1 - d / 85, 0, 1);
+      const hz = 380 + 5200 * Math.pow(near, 1.7);
+      muffle.frequency.setTargetAtTime(hz, ctx.currentTime, 0.25);
+      stats.distance = Math.round(d);
+      stats.muffleHz = Math.round(hz);
+    },
+
+    /** For the console: is it running, is it audible, is it silent? */
+    get debug() {
+      return { state: ctx ? ctx.state : "not started", on,
+               masterGain: master ? +master.gain.value.toFixed(3) : 0,
+               distance: stats.distance, muffleHz: stats.muffleHz, ...stats };
+    },
+
+    suspend() { if (ctx && ctx.state === "running") ctx.suspend(); },
+    resume() { if (ctx && on && ctx.state === "suspended") ctx.resume(); },
+  };
+})();
+
+{
+  const btn = document.getElementById("sound");
+  btn.addEventListener("click", async () => {
+    const isOn = await sound.toggle();
+    btn.setAttribute("aria-pressed", isOn ? "true" : "false");
+    btn.setAttribute("aria-label", isOn ? "Turn sound off" : "Turn sound on");
+  });
+}
+
 // A handle for tuning from the console: DD.C holds every constant the scene
 // was built from, DD.scene the graph itself.
 window.DD = { THREE, scene, camera, renderer, composer, C, BRANDS, PATH, LOOK,
-              wind: windUniforms, sky: skyUniforms, water: waterUniforms,
+              wind: windUniforms, sky: skyUniforms, water: waterUniforms, sound,
               goTo: (v) => scrollTo(0, v * (document.documentElement.scrollHeight - innerHeight)),
               // Place and render the scene at a scroll position without the
               // rAF loop; works in a backgrounded tab, where goTo does not.
