@@ -1931,7 +1931,10 @@ const STREET = {
   // run ends near -145, so Hellstar was built, lit and never once named.
   // A side steps twice this, and the shopfronts have to be narrower than that.
   step:  -7.6,
-  width: 15.0,
+  // Wider than the 15.2 per-side pitch on purpose, so neighbours overlap by
+  // 40cm instead of leaving a hairline crack between every pair. At 15.0 the
+  // terrace had a 20cm slot at each seam and daylight came through it.
+  width: 15.6,
   depth: 14,
 };
 
@@ -2013,6 +2016,24 @@ const monoliths = [];   // kept under the old name: sections 19 and 21 read it
       const plinth = new THREE.BoxGeometry(W, 0.34, D);
       plinth.translate(0, 0.17, -D / 2);
       con(plinth);
+
+      // The ground floor had no wall at all — two floating panes of glass, a
+      // door, and open air everywhere else. From the street you looked
+      // straight between them and out of the world, which is what made the
+      // upper storeys read as slabs hovering over nothing. It gets a real
+      // shell: piers at each end, a sill course under the glazing, and a back
+      // wall so there is a shop behind the window rather than a hole.
+      for (const dir of [-1, 1]) {
+        const pier = new THREE.BoxGeometry(1.1, 6.4, 1.4);
+        pier.translate(dir * (W / 2 - 0.55), 3.2, -0.2);
+        con(pier);
+      }
+      const sill = new THREE.BoxGeometry(W, 0.5, 1.4);
+      sill.translate(0, 0.25, -0.2);
+      con(sill);
+      const rear = new THREE.BoxGeometry(W, 6.4, 0.6);
+      rear.translate(0, 3.2, -2.3);
+      con(rear);
 
       const doorW = 3.0;
       const reveal = new THREE.BoxGeometry(doorW + 1.0, 4.8, 1.8);
@@ -2123,7 +2144,10 @@ const monoliths = [];   // kept under the old name: sections 19 and 21 read it
       const tiers = 3, th = uh / tiers;
       for (let k = 0; k < tiers; k++) {
         const w = W - k * 1.4;
-        const out = 0.2 + k * 0.9;               // each one steps further out
+        // Each tier steps further out, but never past the sign board at the
+        // front of the canopy. At 0.2 + k * 0.9 the top tier reached z 3.1
+        // and simply buried the name of the shop underneath it.
+        const out = 0.1 + k * 0.35;
         const box = new THREE.BoxGeometry(w, th - 0.18, 2.2 + out);
         box.translate((k % 2 ? 1 : -1) * 0.5, SHOP + th * (k + 0.5), out / 2);
         con(box);
@@ -2273,19 +2297,35 @@ const monoliths = [];   // kept under the old name: sections 19 and 21 read it
     }
 
     // ── canopy and sign, common again ────────────────────────────────────
-    const canopy = new THREE.BoxGeometry(W - 1.2, 0.26, 2.3);
-    canopy.translate(0, 6.05, 1.05);
+    //
+    // The sign used to sit at z 0.55, flat on the facade at first-floor
+    // height — which put it *behind* whatever the house's architecture did
+    // above the shopfront. Anything that projected covered it, and the
+    // stacked tiers covered it completely: Bape's name was built, textured
+    // and permanently hidden behind its own building.
+    //
+    // It is a fascia sign now, on the front edge of the canopy, ahead of
+    // every style's reach. That is also simply where shop signs go.
+    const canopy = new THREE.BoxGeometry(W - 1.2, 0.28, 2.4);
+    canopy.translate(0, 5.25, 1.1);
     acc(canopy, tone);
 
-    const fascia = new THREE.BoxGeometry(W - 1.2, 0.5, 0.18);
-    fascia.translate(0, 5.9, 2.15);
-    acc(fascia, tone2);
+    const board = new THREE.BoxGeometry(W - 1.2, 2.3, 0.26);
+    board.translate(0, 6.4, 2.22);
+    acc(board, tone2);
+
+    for (const dir of [-1, 1]) {                 // brackets back to the wall
+      const stay = new THREE.BoxGeometry(0.16, 0.16, 2.3);
+      stay.translate(dir * (W / 2 - 1.4), 6.9, 1.1);
+      met(stay, 0x55585b);
+    }
 
     const signCanvas = texSign(brand);
     const signTex = asTexture(signCanvas);
     dressSign(signCanvas, signTex, brand);
     const sign = new THREE.Mesh(
-      new THREE.PlaneGeometry(W - 3.4, (W - 3.4) / 4),
+      // 4:1, to match the sign texture exactly.
+      new THREE.PlaneGeometry(8.0, 2.0),
       new THREE.MeshStandardMaterial({
         map: signTex,
         roughness: 0.5,
@@ -2293,13 +2333,99 @@ const monoliths = [];   // kept under the old name: sections 19 and 21 read it
         envMapIntensity: 0.6,
       })
     );
-    sign.position.set(0, 7.5, 0.55);
+    sign.position.set(0, 6.4, 2.37);
     sign.castShadow = true;
     sign.userData.brand = brand;
     g.add(sign);
 
     monoliths.push({ brand, group: g, face: sign, z, x, height: H });
   });
+
+  // ── filler blocks, so the street has two solid walls ──────────────────
+  //
+  // The terraces interleave, which means each one starts and stops half a
+  // unit's pitch away from the other. On the ground that showed as a hole:
+  // walking in from the plaza, the left side had Bape and the right side had
+  // nothing at all for seven metres — you could see straight out of the
+  // street at the very moment you entered it. The far end had the same
+  // problem in reverse, plus a long run of open ground before the terminus.
+  //
+  // These are anonymous: concrete, glazed, no canopy, no sign, and
+  // deliberately not added to `monoliths`, so they are neither waypoints nor
+  // anything the card can land on.
+  {
+    const rf = rng(19770);
+    const FILL = [
+      [-30.4,  1],    // head of the right terrace, the hole you walk into
+      [-26.0, -1],    // and the left mouth, which the terrace starts 6m short of
+      [-152.0, 1],    // and its tail
+      [-167.2, 1],
+      [-159.6, -1],   // tail of the left terrace
+      [-174.8, -1],   // and on to the terminus, which it laps into harmlessly
+    ];
+
+    for (const [fz, fside] of FILL) {
+      const fg = new THREE.Group();
+      fg.position.set(fside * STREET.half, 0, fz);
+      fg.rotation.y = fside === -1 ? Math.PI / 2 : -Math.PI / 2;
+      fg.updateMatrixWorld(true);
+      scene.add(fg);
+
+      const W = STREET.width, D = STREET.depth;
+      const H = 9.0 + rf() * 3.4;
+      const grey = BASE_GREY.clone().offsetHSL(0, 0, (rf() - 0.5) * 0.05);
+
+      const toF = (geo) => {
+        geo.applyMatrix4(fg.matrixWorld);
+        if (!geo.index) {
+          const n = geo.attributes.position.count;
+          const arr = n > 65535 ? new Uint32Array(n) : new Uint16Array(n);
+          for (let k = 0; k < n; k++) arr[k] = k;
+          geo.setIndex(new THREE.BufferAttribute(arr, 1));
+        }
+        return geo;
+      };
+      const cf = (geo, c) => concrete.push(paint(toF(geo), c || grey));
+
+      const body = new THREE.BoxGeometry(W, H, D);
+      body.translate(0, H / 2, -D / 2);
+      cf(body);
+
+      const cap = new THREE.BoxGeometry(W + 0.5, 0.5, D + 0.4);
+      cap.translate(0, H + 0.2, -D / 2);
+      cf(cap);
+
+      // A plain run of glazing, so it is a building rather than a wall.
+      const bays = 4, bw = (W - 1.6) / bays;
+      for (let k = 0; k < bays; k++) {
+        const px = -W / 2 + 0.8 + bw * (k + 0.5);
+        const pane = new THREE.PlaneGeometry(bw - 0.35, 4.6);
+        pane.translate(px, 2.9, 0.1);
+        glass.push(toF(pane));
+        const lit = new THREE.PlaneGeometry(bw - 0.35, 4.6);
+        lit.translate(px, 2.9, -1.0);
+        interiors.push(toF(lit));
+        const mull = new THREE.BoxGeometry(0.12, 4.6, 0.24);
+        mull.translate(px + bw / 2, 2.9, 0.15);
+        metal.push(paint(toF(mull), 0x4a4d50));
+      }
+
+      // Upper floors get punched windows, on a plain grid.
+      const rows = Math.max(1, Math.floor((H - 7.0) / 2.6));
+      for (let r0 = 0; r0 < rows; r0++) {
+        for (let k = 0; k < 4; k++) {
+          const px = -W / 2 + 1.9 + k * ((W - 3.8) / 3);
+          const win = new THREE.PlaneGeometry(1.9, 1.5);
+          win.translate(px, 7.4 + r0 * 2.6, 0.08);
+          glass.push(toF(win));
+        }
+      }
+
+      const kerb = new THREE.BoxGeometry(W, 0.22, 1.1);
+      kerb.translate(0, 0.11, 1.4);
+      kerbs.push(toF(kerb));
+    }
+  }
 
   const concreteTex = asTexture(texConcrete(), { repeat: [1, 1] });
 
@@ -2938,7 +3064,7 @@ function placePins(active, visible) {
     if (!visible) { if (pins[i].shown) { el.style.display = "none"; pins[i].shown = false; } continue; }
 
     m.face.getWorldPosition(pinPos);
-    pinPos.y += 2.6;                              // float above the sign
+    pinPos.y += 3.4;                              // float above the sign
     const dist = pinPos.distanceTo(camera.position);
     pinPos.project(camera);
 
