@@ -588,6 +588,50 @@ const BRANDS = [
   { slug:"hellstar",     name:"Hellstar",      live:12, bg:["#e8552a","#3a0e0e"], ink:"#ffffff", note:"Scorched graphics." },
 ];
 
+/**
+ * A building type per house.
+ *
+ * Fifteen identical boxes in fifteen tints is a colour-swatch, not a street.
+ * Each house now gets a genuinely different piece of architecture, and the
+ * order is arranged so no two neighbours share a type — and, because the
+ * terraces interleave, so that no two units on the *same* side share one
+ * either. Every type is distinct at index i, i+1 and i+2.
+ *
+ *   fluted    close-spaced vertical fins over a recessed wall
+ *   monolith  solid mass with one deep punched opening
+ *   stacked   three volumes, each stepping out over the last
+ *   screen    a perforated sheet hung clear of the facade
+ *   folded    a pleated wall of angled panels
+ *   curtain   full glazing with horizontal spandrel bands
+ *   louvre    deep horizontal sun blades
+ *   arcade    a run of tall arched openings
+ *   portal    a heavy frame around a recessed glass box
+ *   baguette  a comb of slender vertical rods
+ */
+const STYLE = {
+  "bape":          "stacked",
+  "chrome-hearts": "arcade",
+  "supreme":       "portal",
+  "amiri":         "fluted",
+  "balenciaga":    "monolith",
+  "gallery-dept":  "folded",
+  "godspeed":      "baguette",
+  "purple-brand":  "louvre",
+  "off-white":     "screen",
+  "casablanca":    "curtain",
+  "ksubi":         "fluted",
+  "essentials":    "monolith",
+  "rhude":         "louvre",
+  "vale":          "portal",
+  "hellstar":      "folded",
+};
+
+/** How tall each type wants to be, before its own random variation. */
+const STYLE_H = {
+  fluted: 11.0, monolith: 12.6, stacked: 12.2, screen: 10.4, folded: 11.4,
+  curtain: 11.8, louvre: 10.2, arcade: 10.8, portal: 12.0, baguette: 11.2,
+};
+
 // Scroll choreography. Each panel owns a slice of the journey.
 const BEATS = {
   hero:   [0.000, 0.095],
@@ -915,17 +959,70 @@ function texScreen(kind) {
   return c;
 }
 
-/** Stucco with a little tonal drift, for the building shells. */
-function texStucco() {
-  const c = canvas(512, 512), x = c.getContext("2d"), S = c.width;
-  x.fillStyle = "#efe8da"; x.fillRect(0, 0, S, S);
-  for (let i = 0; i < 1400; i++) {
-    x.globalAlpha = 0.02 + Math.random() * 0.03;
-    x.fillStyle = Math.random() > 0.5 ? "#ffffff" : "#cdc2ad";
-    const r = 10 + Math.random() * 90;
-    x.beginPath(); x.ellipse(Math.random() * S, Math.random() * S, r, r * 0.7, 0, 0, 7); x.fill();
+/**
+ * Architectural concrete, not stucco.
+ *
+ * The buildings were a warm cream washed toward each house's colour, which
+ * read as painted render — closer to a seaside parade than to the poured
+ * in-situ work the street is meant to be made of. Real fair-faced concrete is
+ * a cool grey that drifts blue in shade and yellow in sun, and what sells it
+ * is the evidence of how it was made: the horizontal seams where one lift of
+ * formwork met the next, the grid of tie holes, fine aggregate speckle and
+ * the streaks weather leaves down a facade.
+ */
+function texConcrete() {
+  const c = canvas(768, 768), x = c.getContext("2d"), S = c.width;
+  x.fillStyle = "#b9b7b0"; x.fillRect(0, 0, S, S);
+
+  // Broad tonal drift, pour to pour.
+  for (let i = 0; i < 700; i++) {
+    x.globalAlpha = 0.018 + Math.random() * 0.03;
+    x.fillStyle = Math.random() > 0.5 ? "#d5d3cc" : "#98968f";
+    const r = 30 + Math.random() * 190;
+    x.beginPath(); x.ellipse(Math.random() * S, Math.random() * S, r, r * 0.55, Math.random() * 3, 0, 7); x.fill();
   }
+
+  // Board marks: the lift lines, every course.
+  const lifts = 6;
+  for (let i = 1; i < lifts; i++) {
+    const y = (i / lifts) * S;
+    x.globalAlpha = 0.3;
+    x.fillStyle = "#8d8b84"; x.fillRect(0, y, S, 1.6);
+    x.globalAlpha = 0.22;
+    x.fillStyle = "#dedbd3"; x.fillRect(0, y + 1.6, S, 1.2);
+
+    // Tie holes, plugged, two per lift.
+    for (let k = 0; k < 6; k++) {
+      const hx = (k + 0.5) * (S / 6) + (Math.random() - 0.5) * 12;
+      const hy = y + S / lifts * 0.5;
+      x.globalAlpha = 0.5;
+      x.fillStyle = "#8a8880";
+      x.beginPath(); x.arc(hx, hy, S * 0.006, 0, 7); x.fill();
+      x.globalAlpha = 0.22;
+      x.fillStyle = "#cfccc4";
+      x.beginPath(); x.arc(hx - S * 0.002, hy - S * 0.002, S * 0.004, 0, 7); x.fill();
+    }
+  }
+
+  // Weather streaks, top down.
   x.globalAlpha = 1;
+  for (let i = 0; i < 90; i++) {
+    const px = Math.random() * S;
+    const g = x.createLinearGradient(0, 0, 0, S);
+    g.addColorStop(0, "rgba(120,118,111,0.16)");
+    g.addColorStop(0.5, "rgba(120,118,111,0.05)");
+    g.addColorStop(1, "rgba(120,118,111,0)");
+    x.fillStyle = g;
+    x.fillRect(px, 0, 2 + Math.random() * 9, S);
+  }
+
+  // Aggregate.
+  const img = x.getImageData(0, 0, S, S), d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const n = (Math.random() - 0.5) * 22;
+    d[i] += n; d[i + 1] += n; d[i + 2] += n;
+  }
+  x.putImageData(img, 0, 0);
   return c;
 }
 
@@ -1817,10 +1914,14 @@ const motes = (() => {
 // gap. Index order therefore runs straight down the street, which is what the
 // card's picker relies on.
 //
-// Draw calls are kept down by merging everything that shares a material:
-// all the shells are one mesh, all the glass another, all the canopies a third
-// carrying their colour as a vertex attribute. Only the signs stay separate,
-// because each one is its own texture.
+// Every house is a different piece of architecture — see STYLE up in the
+// config for which, and why the order is arranged the way it is.
+//
+// Draw calls are kept down by merging on material rather than on building:
+// every concrete wall on the street is one mesh, every brand-coloured
+// element another, then glass, metalwork, lit interiors and each perforated
+// screen pattern. Only the signs stay separate, because each is its own
+// texture.
 
 const STREET = {
   half:  innerWidth / innerHeight < 1 ? 8.4 : 11.0,   // kerb to centre line
@@ -1837,7 +1938,8 @@ const STREET = {
 const monoliths = [];   // kept under the old name: sections 19 and 21 read it
 
 {
-  const shells = [], glass = [], canopies = [], interiors = [], kerbs = [];
+  const concrete = [], accent = [], glass = [], metal = [], interiors = [], kerbs = [];
+  const screenBins = { dots: [], weave: [], fins: [] };
 
   /** Tags a geometry with a flat colour so it can be merged and still differ. */
   function paint(geo, hex) {
@@ -1849,6 +1951,7 @@ const monoliths = [];   // kept under the old name: sections 19 and 21 read it
     return geo;
   }
 
+  const BASE_GREY = new THREE.Color(0xbdbbb4);
   const rand = rng(90210);
 
   BRANDS.forEach((brand, i) => {
@@ -1863,87 +1966,321 @@ const monoliths = [];   // kept under the old name: sections 19 and 21 read it
     g.updateMatrixWorld(true);
     scene.add(g);
 
-    const H = 8.5 + rand() * 5.0;
+    const style = STYLE[brand.slug] || "fluted";
+    const H = STYLE_H[style] + rand() * 1.8;
     const W = STREET.width;
     const D = STREET.depth;
+    const SHOP = 6.4;                            // top of the ground floor
 
-    const toWorld = (geo) => geo.applyMatrix4(g.matrixWorld);
+    // Concrete drifts pour to pour, and picks up the faintest cast of the
+    // house — a few per cent, no more. The brand belongs on the metalwork and
+    // the glass, not soaked through the structure.
+    const grey = BASE_GREY.clone()
+      .lerp(new THREE.Color(brand.bg[0]), 0.09)
+      .offsetHSL(0, 0, (rand() - 0.5) * 0.045);
+    const tone = brand.bg[0];
+    const tone2 = brand.bg[1];
 
-    // Each unit is tinted toward its house. Not the full colourway — a
-    // street of fifteen saturated boxes is a toy — but enough that you read
-    // the building and the sign as one thing. The header band above the
-    // glazing takes a much stronger dose, so the colour reads as a deliberate
-    // band of brand rather than a dirty wall.
-    const CREAM = new THREE.Color(0xf3ece0);
-    const wash  = CREAM.clone().lerp(new THREE.Color(brand.bg[0]), 0.26);
-    const band  = CREAM.clone().lerp(new THREE.Color(brand.bg[0]), 0.72);
-
-    // --- shell, parapet, pilasters ---------------------------------------
-    const body = new THREE.BoxGeometry(W, H, D);
-    body.translate(0, H / 2, -D / 2);
-    shells.push(paint(toWorld(body), wash));
-
-    const cap = new THREE.BoxGeometry(W + 0.5, 0.55, D + 0.5);
-    cap.translate(0, H + 0.2, -D / 2);
-    shells.push(paint(toWorld(cap), band));
-
-    for (const px of [-W / 2 + 0.45, W / 2 - 0.45]) {
-      const pil = new THREE.BoxGeometry(0.9, 6.4, 0.7);
-      pil.translate(px, 3.2, 0.2);
-      shells.push(paint(toWorld(pil), CREAM));
-    }
-
-    // Header above the glazing, which the sign sits on.
-    const header = new THREE.BoxGeometry(W, H - 6.4, 0.6);
-    header.translate(0, 6.4 + (H - 6.4) / 2, 0.15);
-    shells.push(paint(toWorld(header), band));
-
-    // --- the way in: a recess, so the unit reads as enterable ------------
-    const doorW = 3.0;
-    const reveal = new THREE.BoxGeometry(doorW + 0.9, 4.6, 1.7);
-    reveal.translate(0, 2.3, -0.85);
-    shells.push(paint(toWorld(reveal), wash));
-
-    const doorway = new THREE.BoxGeometry(doorW, 4.2, 0.12);
-    doorway.translate(0, 2.1, -1.55);
-    interiors.push(toWorld(doorway));
-
-    // --- shopfront glazing, either side of the door ----------------------
-    const paneW = (W - 1.8 - doorW - 0.9) / 2;
-    for (const dir of [-1, 1]) {
-      const px = dir * (doorW / 2 + 0.45 + paneW / 2);
-
-      const pane = new THREE.PlaneGeometry(paneW, 5.4);
-      pane.translate(px, 3.1, 0.08);
-      glass.push(toWorld(pane));
-
-      const room = new THREE.PlaneGeometry(paneW, 5.4);
-      room.translate(px, 3.1, -1.1);
-      interiors.push(toWorld(room));
-
-      // Mullions.
-      for (const t of [-0.5, 0, 0.5]) {
-        const mull = new THREE.BoxGeometry(0.13, 5.4, 0.22);
-        mull.translate(px + t * paneW, 3.1, 0.12);
-        shells.push(paint(toWorld(mull), CREAM));
+    /**
+     * Into world space, and indexed on the way.
+     *
+     * mergeGeometries refuses a batch where some geometries carry an index
+     * and others do not, and ExtrudeGeometry — which is how the arcade's
+     * arched openings are cut — is the one primitive here that comes back
+     * non-indexed. One arcade was enough to fail the merge for every
+     * concrete wall on the street and take the whole scene down with it.
+     * A trivial 0..n-1 index costs nothing and makes it mergeable.
+     */
+    const toW = (geo) => {
+      geo.applyMatrix4(g.matrixWorld);
+      if (!geo.index) {
+        const n = geo.attributes.position.count;
+        const arr = n > 65535 ? new Uint32Array(n) : new Uint16Array(n);
+        for (let k = 0; k < n; k++) arr[k] = k;
+        geo.setIndex(new THREE.BufferAttribute(arr, 1));
       }
+      return geo;
+    };
+    const con = (geo, c) => concrete.push(paint(toW(geo), c || grey));
+    const acc = (geo, c) => accent.push(paint(toW(geo), c || tone));
+    const gls = (geo) => glass.push(toW(geo));
+    const met = (geo, c) => metal.push(paint(toW(geo), c || 0x4a4d50));
+    const room = (geo) => interiors.push(toW(geo));
+    const scr = (geo, kind) => screenBins[kind].push(toW(geo));
+
+    // ── ground floor, common to every house ──────────────────────────────
+    {
+      const plinth = new THREE.BoxGeometry(W, 0.34, D);
+      plinth.translate(0, 0.17, -D / 2);
+      con(plinth);
+
+      const doorW = 3.0;
+      const reveal = new THREE.BoxGeometry(doorW + 1.0, 4.8, 1.8);
+      reveal.translate(0, 2.4, -0.9);
+      con(reveal);
+
+      const doorway = new THREE.BoxGeometry(doorW, 4.3, 0.12);
+      doorway.translate(0, 2.15, -1.6);
+      room(doorway);
+
+      const paneW = (W - 2.0 - doorW - 1.0) / 2;
+      for (const dir of [-1, 1]) {
+        const px = dir * (doorW / 2 + 0.5 + paneW / 2);
+
+        const pane = new THREE.PlaneGeometry(paneW, 5.3);
+        pane.translate(px, 3.05, 0.1);
+        gls(pane);
+
+        const inner = new THREE.PlaneGeometry(paneW, 5.3);
+        inner.translate(px, 3.05, -1.2);
+        room(inner);
+
+        for (const t of [-0.5, 0, 0.5]) {
+          const mull = new THREE.BoxGeometry(0.11, 5.3, 0.26);
+          mull.translate(px + t * paneW, 3.05, 0.14);
+          met(mull);
+        }
+      }
+
+      // Head beam over the shopfront.
+      const head = new THREE.BoxGeometry(W, 0.9, 0.8);
+      head.translate(0, 5.95, 0.2);
+      con(head);
+
+      const kerb = new THREE.BoxGeometry(W, 0.22, 1.1);
+      kerb.translate(0, 0.11, 1.4);
+      kerbs.push(toW(kerb));
     }
 
-    // --- canopy in the house's own colour --------------------------------
+    // ── the upper mass: one of ten ───────────────────────────────────────
+    const uh = H - SHOP;                         // height available above
+    const uy = SHOP + uh / 2;                    // its centre
+
+    const back = (depth = 0.2, inset = 0) => {
+      const w = new THREE.BoxGeometry(W - inset * 2, uh, depth);
+      w.translate(0, uy, -depth / 2);
+      return w;
+    };
+    const flanks = () => {                       // side walls, always present
+      for (const px of [-W / 2 + 0.3, W / 2 - 0.3]) {
+        const f = new THREE.BoxGeometry(0.6, uh, D);
+        f.translate(px, uy, -D / 2);
+        con(f);
+      }
+      const rear = new THREE.BoxGeometry(W, uh, 0.6);
+      rear.translate(0, uy, -D + 0.3);
+      con(rear);
+      const roof = new THREE.BoxGeometry(W, 0.45, D);
+      roof.translate(0, H - 0.22, -D / 2);
+      con(roof);
+    };
+    const parapet = (c) => {
+      const cap = new THREE.BoxGeometry(W + 0.5, 0.5, D + 0.4);
+      cap.translate(0, H + 0.2, -D / 2);
+      con(cap, c);
+    };
+
+    flanks();
+
+    if (style === "fluted") {
+      con(back(0.5));
+      const n = 17, pitch = (W - 1.2) / (n - 1);
+      for (let k = 0; k < n; k++) {
+        const fin = new THREE.BoxGeometry(0.26, uh - 0.3, 0.62);
+        fin.translate(-W / 2 + 0.6 + k * pitch, uy, 0.28);
+        con(fin, grey.clone().offsetHSL(0, 0, 0.05));
+      }
+      const reveal = new THREE.BoxGeometry(W - 1.0, 0.3, 0.7);
+      reveal.translate(0, SHOP + 0.2, 0.3);
+      acc(reveal);
+      parapet();
+
+    } else if (style === "monolith") {
+      // A frame of four slabs, so the opening is a real hole in the mass.
+      const ow = W * 0.46, oh = uh * 0.46;
+      const sidew = (W - ow) / 2;
+      for (const dir of [-1, 1]) {
+        const bl = new THREE.BoxGeometry(sidew, uh, 1.3);
+        bl.translate(dir * (ow + sidew) / 2, uy, -0.65);
+        con(bl);
+      }
+      const above = new THREE.BoxGeometry(ow, (uh - oh) / 2, 1.3);
+      above.translate(0, uy + oh / 2 + (uh - oh) / 4, -0.65);
+      con(above);
+      const below = new THREE.BoxGeometry(ow, (uh - oh) / 2, 1.3);
+      below.translate(0, uy - oh / 2 - (uh - oh) / 4, -0.65);
+      con(below);
+
+      const deep = new THREE.PlaneGeometry(ow, oh);
+      deep.translate(0, uy, -1.25);
+      gls(deep);
+      const lit = new THREE.PlaneGeometry(ow, oh);
+      lit.translate(0, uy, -1.45);
+      room(lit);
+      parapet();
+
+    } else if (style === "stacked") {
+      const tiers = 3, th = uh / tiers;
+      for (let k = 0; k < tiers; k++) {
+        const w = W - k * 1.4;
+        const out = 0.2 + k * 0.9;               // each one steps further out
+        const box = new THREE.BoxGeometry(w, th - 0.18, 2.2 + out);
+        box.translate((k % 2 ? 1 : -1) * 0.5, SHOP + th * (k + 0.5), out / 2);
+        con(box);
+        const lip = new THREE.BoxGeometry(w + 0.3, 0.22, 2.4 + out);
+        lip.translate((k % 2 ? 1 : -1) * 0.5, SHOP + th * (k + 1) - 0.1, out / 2);
+        acc(lip, k % 2 ? tone2 : tone);
+        const strip = new THREE.PlaneGeometry(w - 1.6, th * 0.44);
+        strip.translate((k % 2 ? 1 : -1) * 0.5, SHOP + th * (k + 0.45), out + 1.11);
+        gls(strip);
+      }
+
+    } else if (style === "screen") {
+      con(back(0.4));
+      const wall = new THREE.PlaneGeometry(W - 1.4, uh - 0.6);
+      wall.translate(0, uy, 0.02);
+      acc(wall);
+      const panel = new THREE.PlaneGeometry(W - 0.6, uh - 0.2);
+      panel.translate(0, uy, 0.75);
+      scr(panel, "weave");
+      for (const px of [-W / 2 + 0.45, W / 2 - 0.45]) {   // the hangers
+        const rail = new THREE.BoxGeometry(0.2, uh, 1.0);
+        rail.translate(px, uy, 0.4);
+        met(rail, 0x6d7073);
+      }
+      parapet();
+
+    } else if (style === "folded") {
+      const n = 10, pitch = W / n;
+      for (let k = 0; k < n; k++) {
+        const pl = new THREE.BoxGeometry(pitch * 1.12, uh, 0.34);
+        pl.rotateY((k % 2 ? 1 : -1) * 0.38);
+        pl.translate(-W / 2 + pitch * (k + 0.5), uy, 0.35);
+        con(pl, grey.clone().offsetHSL(0, 0, k % 2 ? 0.055 : -0.035));
+      }
+      const sill = new THREE.BoxGeometry(W, 0.34, 0.9);
+      sill.translate(0, SHOP + 0.17, 0.4);
+      acc(sill);
+      parapet();
+
+    } else if (style === "curtain") {
+      const bays = 3, bw = (W - 1.2) / bays;
+      for (let k = 0; k < bays; k++) {
+        const px = -W / 2 + 0.6 + bw * (k + 0.5);
+        const pane = new THREE.PlaneGeometry(bw - 0.12, uh - 1.0);
+        pane.translate(px, uy, 0.16);
+        gls(pane);
+        const lit = new THREE.PlaneGeometry(bw - 0.12, uh - 1.0);
+        lit.translate(px, uy, -0.5);
+        room(lit);
+        const mull = new THREE.BoxGeometry(0.14, uh, 0.3);
+        mull.translate(px + bw / 2, uy, 0.2);
+        met(mull, 0x585b5e);
+      }
+      const floors = Math.max(2, Math.round(uh / 3.2));
+      for (let k = 1; k < floors; k++) {
+        const spandrel = new THREE.BoxGeometry(W - 1.0, 0.55, 0.42);
+        spandrel.translate(0, SHOP + (uh / floors) * k, 0.24);
+        acc(spandrel, k % 2 ? tone : tone2);
+      }
+      parapet();
+
+    } else if (style === "louvre") {
+      con(back(0.5));
+      const blades = Math.max(4, Math.round(uh / 1.15));
+      for (let k = 0; k < blades; k++) {
+        const bl = new THREE.BoxGeometry(W - 0.8, 0.17, 1.25);
+        bl.rotateX(-0.22);
+        bl.translate(0, SHOP + 0.7 + k * ((uh - 1.0) / (blades - 1)), 0.62);
+        con(bl, grey.clone().offsetHSL(0, 0, 0.06));
+      }
+      for (const px of [-W / 2 + 0.5, W / 2 - 0.5]) {
+        const post = new THREE.BoxGeometry(0.3, uh, 1.5);
+        post.translate(px, uy, 0.6);
+        acc(post);
+      }
+      parapet();
+
+    } else if (style === "arcade") {
+      // A real wall with arched holes cut out of it, extruded.
+      const sh = new THREE.Shape();
+      sh.moveTo(-W / 2, 0); sh.lineTo(W / 2, 0);
+      sh.lineTo(W / 2, uh); sh.lineTo(-W / 2, uh); sh.closePath();
+
+      const n = 4, pitch = W / n, r = pitch * 0.33, springs = uh * 0.46;
+      for (let k = 0; k < n; k++) {
+        const cx = -W / 2 + pitch * (k + 0.5);
+        const hole = new THREE.Path();
+        hole.moveTo(cx - r, uh * 0.14);
+        hole.lineTo(cx - r, springs);
+        hole.absarc(cx, springs, r, Math.PI, 0, true);
+        hole.lineTo(cx + r, uh * 0.14);
+        hole.closePath();
+        sh.holes.push(hole);
+
+        // Glazed right up into the head of the arch, not just to the
+        // springline.
+        const top = springs + r, bot = uh * 0.14;
+        const pane = new THREE.PlaneGeometry(r * 2, top - bot);
+        pane.translate(cx, SHOP + (bot + top) / 2, -0.35);
+        gls(pane);
+      }
+      const wall = new THREE.ExtrudeGeometry(sh, { depth: 0.8, bevelEnabled: false });
+      wall.translate(0, SHOP, -0.4);
+      con(wall);
+
+      const band = new THREE.BoxGeometry(W, 0.4, 1.0);
+      band.translate(0, SHOP + uh - 0.2, 0.2);
+      acc(band);
+      parapet();
+
+    } else if (style === "portal") {
+      const t = 1.15;                            // how heavy the frame is
+      for (const dir of [-1, 1]) {
+        const leg = new THREE.BoxGeometry(t, uh, 1.6);
+        leg.translate(dir * (W / 2 - t / 2), uy, 0.3);
+        acc(leg);
+      }
+      const lintel = new THREE.BoxGeometry(W, t, 1.6);
+      lintel.translate(0, SHOP + uh - t / 2, 0.3);
+      acc(lintel);
+      const sill = new THREE.BoxGeometry(W, t * 0.7, 1.6);
+      sill.translate(0, SHOP + t * 0.35, 0.3);
+      acc(sill);
+
+      const inner = new THREE.PlaneGeometry(W - t * 2.4, uh - t * 2.1);
+      inner.translate(0, uy, -0.55);
+      gls(inner);
+      const lit = new THREE.PlaneGeometry(W - t * 2.4, uh - t * 2.1);
+      lit.translate(0, uy, -0.95);
+      room(lit);
+
+    } else {   // baguette
+      con(back(0.6));
+      const dark = new THREE.PlaneGeometry(W - 1.2, uh - 0.4);
+      dark.translate(0, uy, 0.02);
+      room(dark);
+      const n = 26, pitch = (W - 1.0) / (n - 1);
+      for (let k = 0; k < n; k++) {
+        const rod = new THREE.CylinderGeometry(0.11, 0.11, uh - 0.4, 6);
+        rod.translate(-W / 2 + 0.5 + k * pitch, uy, 0.5);
+        acc(rod, k % 3 === 0 ? tone2 : tone);
+      }
+      const rail = new THREE.BoxGeometry(W, 0.24, 0.9);
+      rail.translate(0, SHOP + 0.2, 0.45);
+      met(rail, 0x55585b);
+      parapet();
+    }
+
+    // ── canopy and sign, common again ────────────────────────────────────
     const canopy = new THREE.BoxGeometry(W - 1.2, 0.26, 2.3);
     canopy.translate(0, 6.05, 1.05);
-    canopies.push(paint(toWorld(canopy), brand.bg[0]));
+    acc(canopy, tone);
 
     const fascia = new THREE.BoxGeometry(W - 1.2, 0.5, 0.18);
     fascia.translate(0, 5.9, 2.15);
-    canopies.push(paint(toWorld(fascia), brand.bg[1]));
+    acc(fascia, tone2);
 
-    // --- kerb and a planter, so the alley has a floor plan ---------------
-    const kerb = new THREE.BoxGeometry(W, 0.22, 1.1);
-    kerb.translate(0, 0.11, 1.4);
-    kerbs.push(toWorld(kerb));
-
-    // --- the sign: the clickable target ----------------------------------
     const signCanvas = texSign(brand);
     const signTex = asTexture(signCanvas);
     dressSign(signCanvas, signTex, brand);
@@ -1964,64 +2301,47 @@ const monoliths = [];   // kept under the old name: sections 19 and 21 read it
     monoliths.push({ brand, group: g, face: sign, z, x, height: H });
   });
 
-  // Perforated screens hung over the header band on most units. This is the
-  // single biggest thing separating a district like the one this borrows from
-  // a row of plain boxes: almost nothing is left as bare wall above the
-  // glazing. Three patterns, dealt out so no two neighbours match.
-  {
-    const kinds = ["dots", "weave", "fins"];
-    const screenTex = kinds.map((k) => asTexture(texScreen(k)));
-    const rs = rng(31337);
-    const perKind = [[], [], []];
-
-    // Strictly above the sign. The first version put the panel at y 8.0 and
-    // 0.05 proud of the facade, which is straight through the sign band at
-    // 6.05-8.95 — every screened shop had the top two thirds of its name
-    // hidden behind perforated metal. A screen only goes on a unit tall
-    // enough to have wall left over once the sign has had its share.
-    const SIGN_TOP = 9.15;
-    monoliths.forEach((m, i) => {
-      const room = m.height - 0.7 - SIGN_TOP;
-      if (room < 1.2) return;                        // short units stay plain
-      if (rs() < 0.14) return;                       // and a few tall ones too
-      const k = (i + Math.floor(rs() * 2)) % 3;
-      const g = m.group;
-      g.updateMatrixWorld(true);
-      const panel = new THREE.PlaneGeometry(STREET.width - 1.0, room);
-      panel.translate(0, SIGN_TOP + room / 2, 0.55);
-      panel.applyMatrix4(g.matrixWorld);
-      perKind[k].push(panel);
-    });
-
-    perKind.forEach((geos, k) => {
-      if (!geos.length) return;
-      const mesh = new THREE.Mesh(
-        mergeGeometries(geos),
-        new THREE.MeshStandardMaterial({
-          map: screenTex[k],
-          alphaTest: 0.5,
-          side: THREE.DoubleSide,
-          color: 0xfdfaf3,
-          roughness: 0.55,
-          metalness: 0.15,
-          envMapIntensity: 0.9,
-        })
-      );
-      mesh.castShadow = true;
-      scene.add(mesh);
-    });
-  }
-
-  const stucco = asTexture(texStucco(), { repeat: [1, 1] });
+  const concreteTex = asTexture(texConcrete(), { repeat: [1, 1] });
 
   const shellMesh = new THREE.Mesh(
-    mergeGeometries(shells),
-    // The tint rides on vertex colours so all fifteen units stay one draw
-    // call; the stucco map multiplies over the top of it.
-    new THREE.MeshStandardMaterial({ map: stucco, vertexColors: true, roughness: 0.88, metalness: 0 })
+    mergeGeometries(concrete),
+    // One draw call for every wall on the street. The map carries the board
+    // marks and aggregate; the vertex colour carries each pour's own tone.
+    new THREE.MeshStandardMaterial({
+      map: concreteTex, vertexColors: true, roughness: 0.94, metalness: 0,
+      envMapIntensity: 0.7,
+    })
   );
   shellMesh.castShadow = true; shellMesh.receiveShadow = true;
   scene.add(shellMesh);
+
+  const accentMesh = new THREE.Mesh(
+    mergeGeometries(accent),
+    new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.48, metalness: 0.12 })
+  );
+  accentMesh.castShadow = true; accentMesh.receiveShadow = true;
+  scene.add(accentMesh);
+
+  const metalMesh2 = new THREE.Mesh(
+    mergeGeometries(metal),
+    new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.34, metalness: 0.75 })
+  );
+  metalMesh2.castShadow = true;
+  scene.add(metalMesh2);
+
+  for (const kind of Object.keys(screenBins)) {
+    const geos = screenBins[kind];
+    if (!geos.length) continue;
+    const m = new THREE.Mesh(
+      mergeGeometries(geos),
+      new THREE.MeshStandardMaterial({
+        map: asTexture(texScreen(kind)), alphaTest: 0.5, side: THREE.DoubleSide,
+        color: 0xd8d5cd, roughness: 0.5, metalness: 0.25, envMapIntensity: 0.9,
+      })
+    );
+    m.castShadow = true;
+    scene.add(m);
+  }
 
   const interiorMesh = new THREE.Mesh(
     mergeGeometries(interiors),
@@ -2052,13 +2372,6 @@ const monoliths = [];   // kept under the old name: sections 19 and 21 read it
     })
   );
   scene.add(glassMesh);
-
-  const canopyMesh = new THREE.Mesh(
-    mergeGeometries(canopies),
-    new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.05 })
-  );
-  canopyMesh.castShadow = true; canopyMesh.receiveShadow = true;
-  scene.add(canopyMesh);
 
   const kerbMesh = new THREE.Mesh(
     mergeGeometries(kerbs),
@@ -2175,7 +2488,7 @@ const monoliths = [];   // kept under the old name: sections 19 and 21 read it
 
     const endMesh = new THREE.Mesh(
       mergeGeometries(caps),
-      new THREE.MeshStandardMaterial({ map: stucco, color: 0xeee6d8, roughness: 0.88 })
+      new THREE.MeshStandardMaterial({ map: concreteTex, color: 0xdedbd3, roughness: 0.9 })
     );
     endMesh.castShadow = true; endMesh.receiveShadow = true;
     scene.add(endMesh);
