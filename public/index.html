@@ -3144,8 +3144,9 @@ const pins = monoliths.map((m, i) => {
   const art = logoFor(b.slug);
   el.innerHTML = art ? `<img src="${art}" alt="" />` : `<b>${b.name.slice(0, 2).toUpperCase()}</b>`;
   el.addEventListener("click", () => {
+    sound.click();
     // Stop in front of the shop, not level with it: LEAD is the same offset
-    // the card uses to decide which house you are looking at.
+    // the card uses to decide which district you are looking at.
     travelTo(TRAVEL(m.z + LEAD));
   });
   pinsEl.appendChild(el);
@@ -3675,8 +3676,51 @@ const sound = (() => {
     return amb;
   }
 
-  let ambGain = null, musicGain = null;
+  let ambGain = null, musicGain = null, uiGain = null;
   const stats = { beatSeconds: 0, beatRMS: 0, beatPeak: 0 };
+
+  /**
+   * The sound a waypoint makes.
+   *
+   * Straight to the master, never through the panner: interface noises come
+   * from the interface, not from somewhere in the plaza, and a click that
+   * got quieter when you walked away from a speaker would be a bug. Two
+   * notes rather than one, the second higher and softer, because a single
+   * blip reads as an error and a rising pair reads as a confirmation.
+   */
+  function uiClick() {
+    if (!ctx || !uiGain || ctx.state !== "running" || !on) return;
+    const t0 = ctx.currentTime + 0.001;
+
+    // The transient: a scrap of filtered noise, gone in 20ms.
+    const src = ctx.createBufferSource();
+    src.buffer = clickNoise;
+    const bp = ctx.createBiquadFilter();
+    bp.type = "bandpass"; bp.frequency.value = 2600; bp.Q.value = 1.1;
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.0001, t0);
+    ng.gain.exponentialRampToValueAtTime(0.16, t0 + 0.002);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.022);
+    src.connect(bp); bp.connect(ng); ng.connect(uiGain);
+    src.start(t0); src.stop(t0 + 0.05);
+
+    // Two pitched notes, a fifth apart.
+    [[880, 0, 0.13], [1320, 0.055, 0.075]].forEach(([hz, delay, gain]) => {
+      const t = t0 + delay;
+      const o = ctx.createOscillator();
+      o.type = "triangle";
+      o.frequency.setValueAtTime(hz, t);
+      o.frequency.exponentialRampToValueAtTime(hz * 0.72, t + 0.07);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(gain, t + 0.006);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.085);
+      o.connect(g); g.connect(uiGain);
+      o.start(t); o.stop(t + 0.1);
+    });
+  }
+
+  let clickNoise = null;
 
   async function start() {
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -3687,6 +3731,11 @@ const sound = (() => {
     master.connect(ctx.destination);
 
     ambGain = buildAmbience();
+
+    uiGain = ctx.createGain();
+    uiGain.gain.value = 0.9;
+    uiGain.connect(master);
+    clickNoise = noiseBuffer(ctx, 0.06);
 
     // The beat, out in the world.
     panner = ctx.createPanner();
@@ -3734,21 +3783,57 @@ const sound = (() => {
 
   const vTmp = new THREE.Vector3();
 
+  function ramp() {
+    const t = ctx.currentTime;
+    master.gain.cancelScheduledValues(t);
+    master.gain.setTargetAtTime(on ? 1 : 0, t, 0.4);
+    if (ambGain) ambGain.gain.setTargetAtTime(on ? 1 : 0, t, 0.6);
+  }
+
   return {
     get on() { return on; },
+    get blocked() { return !!ctx && ctx.state === "suspended"; },
+    click: uiClick,
+
+    /**
+     * Builds the whole graph and tries to play straight away.
+     *
+     * Creating the context and rendering the loop needs no permission —
+     * only *running* does — so all the expensive work happens at load and a
+     * later gesture is instant rather than waiting on a render.
+     *
+     * Whether it actually sounds is not ours to decide. Chrome weighs how
+     * often this origin has been visited, Safari wants a gesture almost
+     * always, and a first-time visitor will usually get silence until they
+     * touch something. That is the platform, not a bug, and the honest
+     * response is to ask nicely and arrange the fallback.
+     */
+    async boot() {
+      if (!ctx && !(await start())) return false;
+      on = true;
+      try { await ctx.resume(); } catch { /* refused; the gesture will do it */ }
+      ramp();
+      return ctx.state === "running";
+    },
 
     async toggle() {
       if (!ctx) {
         const ok = await start();
         if (!ok) return false;
       }
-      if (ctx.state === "suspended") await ctx.resume();
+      if (ctx.state === "suspended") { try { await ctx.resume(); } catch {} }
       on = !on;
-      const t = ctx.currentTime;
-      master.gain.cancelScheduledValues(t);
-      master.gain.setTargetAtTime(on ? 1 : 0, t, 0.4);
-      if (ambGain) ambGain.gain.setTargetAtTime(on ? 1 : 0, t, 0.6);
+      ramp();
       return on;
+    },
+
+    /** Turns it on without flipping, for whatever gesture arrives first. */
+    async enable() {
+      if (!ctx && !(await start())) return false;
+      if (ctx.state === "suspended") { try { await ctx.resume(); } catch {} }
+      on = true;
+      ramp();
+      return ctx.state === "running";
     },
 
     /** Moves the listener, and opens the beat up as you get close to it. */
@@ -3789,29 +3874,36 @@ const sound = (() => {
 })();
 
 /**
- * Sound starts on the first thing the visitor does, and there is no control
- * for it on screen.
+ * Sound comes up with the page, and if the browser refuses, with the first
+ * thing the visitor does instead.
  *
- * A browser will not open an AudioContext without a user gesture, and
- * scrolling is not one — the spec only counts pointer, touch and key events —
- * so this listens for all three and starts on whichever lands first.
- *
- * With the button gone the only way to silence it is the tab's own mute, or
- * the M key below, which is deliberately quiet about itself.
+ * Autoplay is not something a page gets to decide. Chrome allows it once an
+ * origin has earned enough engagement, Safari almost never does, and a
+ * first-time visitor will usually get silence until they touch something.
+ * So: ask on load, and if the context comes back suspended, arm the same
+ * gesture listeners as before. Either way the graph is already built and
+ * the loop already rendered, so whenever permission arrives it is instant.
  */
 {
-  let armed = true;
+  let armed = false;
+
   const begin = async () => {
     if (!armed) return;
     armed = false;
     for (const ev of ["pointerdown", "touchstart", "keydown"]) {
       window.removeEventListener(ev, begin);
     }
-    await sound.toggle();
+    await sound.enable();
   };
-  for (const ev of ["pointerdown", "touchstart", "keydown"]) {
-    window.addEventListener(ev, begin, { passive: true });
-  }
+
+  const arm = () => {
+    armed = true;
+    for (const ev of ["pointerdown", "touchstart", "keydown"]) {
+      window.addEventListener(ev, begin, { passive: true });
+    }
+  };
+
+  sound.boot().then((playing) => { if (!playing) arm(); });
 
   addEventListener("keydown", (e) => {
     if (e.key === "m" || e.key === "M") sound.toggle();
