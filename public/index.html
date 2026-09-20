@@ -3233,17 +3233,35 @@ const streetLamps = [];
         pier.translate(dir * (W / 2 - 0.55), 3.2, -0.2);
         con(pier);
       }
-      const sill = new THREE.BoxGeometry(W, 0.5, 1.4);
-      sill.translate(0, 0.25, -0.2);
-      con(sill);
+      // Two runs, not one: the sill used to cross the doorway as well, and
+      // a half-metre kerb through the middle of a door is a thing a door
+      // cannot swing over.
+      const sillW = (W - 4.0) / 2;
+      for (const dir of [-1, 1]) {
+        const sill = new THREE.BoxGeometry(sillW, 0.5, 1.4);
+        sill.translate(dir * (2.0 + sillW / 2), 0.25, -0.2);
+        con(sill);
+      }
       const rear = new THREE.BoxGeometry(W, 6.4, 0.6);
       rear.translate(0, 3.2, -2.3);
       con(rear);
 
-      const doorW = 3.0;
-      const reveal = new THREE.BoxGeometry(doorW + 1.0, 4.8, 1.8);
-      reveal.translate(0, 2.4, -0.9);
-      con(reveal);
+      // The reveal was a solid block of concrete 4m wide and 1.8m deep,
+      // sitting exactly where the door goes — so every house had a grey
+      // panel between its windows and no way in at all. Nobody noticed
+      // while there was nothing to walk through. It is a frame now: two
+      // jambs and a lintel around a real 3.0 × 4.3 hole, with the shop
+      // showing at the back of it and, in section 18B, a pair of leaves.
+      const doorW = 3.0, revW = doorW + 1.0, revH = 4.8, revD = 1.8;
+      const jambW = (revW - doorW) / 2;
+      for (const dir of [-1, 1]) {
+        const jamb = new THREE.BoxGeometry(jambW, revH, revD);
+        jamb.translate(dir * (doorW / 2 + jambW / 2), revH / 2, -revD / 2);
+        con(jamb);
+      }
+      const lintel = new THREE.BoxGeometry(revW, revH - 4.3, revD);
+      lintel.translate(0, (revH + 4.3) / 2, -revD / 2);
+      con(lintel);
 
       const doorway = new THREE.BoxGeometry(doorW, 4.3, 0.12);
       doorway.translate(0, 2.15, -1.6);
@@ -4184,6 +4202,82 @@ const streetLamps = [];
   }
 }
 
+// ## 18B  DOORS — one pair on every shopfront
+//
+// Thirty leaves in a single draw call.
+//
+// They cannot be merged into the street the way everything else here is,
+// because each one needs a transform that changes; and thirty separate
+// meshes would be thirty extra draw calls for something that is shut and
+// motionless almost all of the time. An InstancedMesh is both: one
+// geometry, one material, one call, and a matrix per leaf to write when a
+// door has to move.
+//
+// The geometry's origin is its hinge rather than its centre, so opening a
+// leaf is a rotation and nothing else. Both swing inward, which is what a
+// shop door does and which keeps them clear of the planters outside.
+
+const doors = (() => {
+  const DOOR_W = 3.0, DOOR_H = 4.3, LEAF = DOOR_W / 2;
+  const geo = new THREE.BoxGeometry(LEAF, DOOR_H, 0.085);
+  geo.translate(LEAF / 2, 0, 0);
+
+  const mesh = new THREE.InstancedMesh(
+    geo,
+    new THREE.MeshPhysicalMaterial({
+      color: 0x14181d, roughness: 0.13, metalness: 0.34,
+      transparent: true, opacity: 0.78, side: THREE.DoubleSide,
+      envMapIntensity: 1.35,
+    }),
+    monoliths.length * 2
+  );
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  mesh.frustumCulled = false;
+  mesh.castShadow = true;
+  scene.add(mesh);
+
+  const dummy = new THREE.Object3D();
+  const open = new Float32Array(monoliths.length);
+
+  function write(i) {
+    const m = monoliths[i];
+    m.group.updateMatrixWorld(true);
+    // Eighty-two degrees, not ninety: a leaf held square to the wall is
+    // edge-on to anyone walking at it and disappears at the moment it is
+    // supposed to be the whole point. Eight degrees short and it still
+    // catches the sky.
+    const a = open[i] * Math.PI * 0.455;
+    for (let k = 0; k < 2; k++) {
+      // Left leaf hinges on the left, right leaf is its mirror — a half
+      // turn on the base and the opposite sign on the swing. Both open
+      // toward the street: inward would put the tips through the shop's
+      // back wall, and out is how a door is held for someone anyway.
+      const side = k === 0 ? 1 : -1;
+      dummy.position.set(-side * (DOOR_W / 2), 2.15, -0.62);
+      dummy.rotation.set(0, (k === 0 ? 0 : Math.PI) - side * a, 0);
+      dummy.scale.set(1, 1, 1);
+      dummy.updateMatrix();
+      dummy.matrix.premultiply(m.group.matrixWorld);
+      mesh.setMatrixAt(i * 2 + k, dummy.matrix);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+  }
+
+  for (let i = 0; i < monoliths.length; i++) write(i);
+
+  return {
+    mesh,
+    /** 0 shut, 1 flat against the inside wall. */
+    set(i, v) {
+      const n = clamp(v, 0, 1);
+      if (Math.abs(n - open[i]) < 0.002) return;
+      open[i] = n;
+      write(i);
+    },
+    get(i) { return open[i]; },
+  };
+})();
+
 // ## 19  CAMERA — the scroll path
 // Two curves: one the camera rides, one it looks at. Keeping them separate is
 // what lets it hold the dome in frame on the approach, then walk in under it
@@ -4715,7 +4809,7 @@ const shadowFocus = new THREE.Vector3();
  */
 function step(dt, t, p) {
   // --- camera -------------------------------------------------------------
-  const inside = !!(storeMode && storeMode.active);
+  const inside = !!(storeMode && storeMode.controlling);
 
   if (inside) {
     storeMode.aim(dt, camPos, camLook);
@@ -4730,7 +4824,10 @@ function step(dt, t, p) {
     // Indoors the room is four metres away, not forty, so the same parallax
     // would swing the walls about. A quarter of it reads as standing still
     // and shifting your weight, which is what it is for.
-    const sway = inside ? 0.3 : 1;
+    // Almost none of it during the walk in: that is a move on rails and a
+    // pointer nudging it about reads as a wobble rather than as weight.
+    const sway = storeMode && storeMode.active ? 0.3
+      : (inside ? 0.12 : 1);
     camPos.x += pointer.x * 1.15 * sway;
     camPos.y += (-pointer.y * 0.55 + Math.sin(t * 0.42) * 0.09) * sway;
   }
@@ -5768,6 +5865,74 @@ const sound = (() => {
    * notes rather than one, the second higher and softer, because a single
    * blip reads as an error and a rising pair reads as a confirmation.
    */
+  /**
+   * A door opening.
+   *
+   * Three things happen and all of them are short: the latch lets go, the
+   * hinge complains, and air moves round the edge of the leaf. Only the
+   * complaint is the part anyone would name, but on its own it is a note
+   * with a wobble on it — the latch is what places it at a door, and the
+   * air is what gives the leaf a size.
+   */
+  function doorOpen() {
+    if (!ctx || !uiGain || ctx.state !== "running" || !on) return;
+    const t0 = ctx.currentTime + 0.01;
+
+    const lat = ctx.createBufferSource();
+    lat.buffer = clickNoise;
+    const lb = ctx.createBiquadFilter();
+    lb.type = "bandpass"; lb.frequency.value = 3100; lb.Q.value = 1.7;
+    const lg = ctx.createGain();
+    lg.gain.setValueAtTime(0.0001, t0);
+    lg.gain.exponentialRampToValueAtTime(0.085, t0 + 0.003);
+    lg.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.03);
+    lat.connect(lb); lb.connect(lg); lg.connect(uiGain);
+    lat.start(t0); lat.stop(t0 + 0.06);
+
+    // The hinge. The pitch climbing as the leaf goes back is what makes it
+    // a door swinging rather than a door being struck, and the fast wobble
+    // on top of the climb is the whole character of a creak.
+    const c0 = t0 + 0.04, len = 0.62;
+    for (const [mult, amp] of [[1, 0.05], [2.7, 0.017]]) {
+      const o = ctx.createOscillator();
+      o.type = "sawtooth";
+      o.frequency.setValueAtTime(250 * mult, c0);
+      o.frequency.exponentialRampToValueAtTime(430 * mult, c0 + len);
+
+      const wob = ctx.createOscillator();
+      wob.type = "sine"; wob.frequency.value = 17 + mult * 7;
+      const wobAmt = ctx.createGain(); wobAmt.gain.value = 250 * mult * 0.055;
+      wob.connect(wobAmt); wobAmt.connect(o.frequency);
+      wob.start(c0); wob.stop(c0 + len + 0.05);
+
+      // A sawtooth straight out is a buzzer; through a narrow band it is
+      // wood under load, which is all a creak ever is.
+      const bp = ctx.createBiquadFilter();
+      bp.type = "bandpass"; bp.frequency.value = 640; bp.Q.value = 2.4;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, c0);
+      g.gain.exponentialRampToValueAtTime(amp, c0 + 0.14);
+      g.gain.exponentialRampToValueAtTime(amp * 0.45, c0 + len * 0.72);
+      g.gain.exponentialRampToValueAtTime(0.0001, c0 + len);
+      o.connect(bp); bp.connect(g); g.connect(uiGain);
+      o.start(c0); o.stop(c0 + len + 0.02);
+    }
+
+    if (!doorNoise) doorNoise = noiseBuffer(ctx, 1.0);
+    const air = ctx.createBufferSource();
+    air.buffer = doorNoise;
+    const lp = ctx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.setValueAtTime(380, c0);
+    lp.frequency.linearRampToValueAtTime(1500, c0 + len);
+    const ag = ctx.createGain();
+    ag.gain.setValueAtTime(0.0001, c0);
+    ag.gain.exponentialRampToValueAtTime(0.03, c0 + 0.22);
+    ag.gain.exponentialRampToValueAtTime(0.0001, c0 + len + 0.1);
+    air.connect(lp); lp.connect(ag); ag.connect(uiGain);
+    air.start(c0); air.stop(c0 + len + 0.15);
+  }
+
   function uiClick() {
     if (!ctx || !uiGain || ctx.state !== "running" || !on) return;
     const t0 = ctx.currentTime + 0.001;
@@ -5876,6 +6041,7 @@ const sound = (() => {
   function dropSession() { if (keeper) { try { keeper.pause(); } catch {} } }
 
   let clickNoise = null;
+  let doorNoise = null;
   async function start() {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return false;
@@ -6073,6 +6239,7 @@ const sound = (() => {
     get blocked() { return !!ctx && ctx.state !== "running"; },
     get apple() { return APPLE; },
     click: uiClick,
+    door: doorOpen,
 
     /**
      * Builds the whole graph and tries to play straight away.
@@ -6458,6 +6625,7 @@ window.DD = { THREE, scene, camera, renderer, composer, C, BRANDS, PATH, LOOK,
               // Place and render the scene at a scroll position without the
               // rAF loop; works in a backgrounded tab, where goTo does not.
               step: (v) => { scrollEased = v; step(0.016, clock.elapsedTime, v); },
+              doors,
               get store() { return storeMode; } };
 
 
@@ -7193,6 +7361,99 @@ storeMode = (() => {
   // ── camera ────────────────────────────────────────────────────────────
   const WHITE = new THREE.Color(0xffffff);
   const curPos = new THREE.Vector3(), curLook = new THREE.Vector3();
+
+  /**
+   * The walk in.
+   *
+   * Cutting straight to the inside of a shop skips the one moment that
+   * makes the street a place you are standing in rather than a picture of
+   * one. So the camera squares up on the shopfront, the doors swing back,
+   * and it walks through them — and only at the threshold, where a real
+   * doorway takes the light away anyway, does the wipe cover the last
+   * fraction of a second and the room appear behind it.
+   *
+   * Seconds from the click. The phases overlap on purpose: the doors start
+   * moving before the camera has finished turning, and the camera starts
+   * walking before they have finished opening, because a scene where each
+   * thing waits its turn reads as a cutscene.
+   */
+  const SEQ = {
+    turn: [0.00, 0.80],     // swing round and square up on the door
+    doors: [0.55, 1.40],    // the leaves go back
+    walk: [1.05, 2.00],     // and through
+    wipe: 1.58,             // brand colour starts coming up under the arch
+    end: 2.00,
+  };
+  let seq = null;
+
+  /** Starts the walk-in for house `i`. Resolves at the threshold. */
+  function walkIn(i, onWipe) {
+    const m = monoliths[i];
+    m.group.updateMatrixWorld(true);
+    const at = (x, y, z) => new THREE.Vector3(x, y, z).applyMatrix4(m.group.matrixWorld);
+    return new Promise((resolve) => {
+      seq = {
+        house: i, t: 0, resolve, onWipe, creaked: false, wiped: false, landed: false,
+        // Wherever the camera actually is, including this frame's parallax,
+        // so the move starts from the picture rather than near it.
+        from: camera.position.clone(),
+        fromLook: camLook.clone(),
+        // Far enough out to hold the whole shopfront, then the threshold,
+        // which is the façade plane — a pace short of the open leaves.
+        stand: at(0, 1.95, 8.4),
+        // Into the reveal, between the open leaves, close enough to the
+        // shop at the back of it that the wipe has nothing left to hide.
+        thresh: at(0, 1.85, -0.45),
+        door: at(0, 2.05, -1.2),
+      };
+    });
+  }
+
+  /** One frame of it. True while the walk still owns the camera. */
+  function stepSeq(dt, outPos, outLook) {
+    if (!seq) return false;
+    seq.t += dt;
+    const T = seq.t;
+    const ramp = (a, b) => {
+      const x = clamp((T - a) / (b - a), 0, 1);
+      return x * x * (3 - 2 * x);
+    };
+
+    if (T < SEQ.walk[0]) outPos.lerpVectors(seq.from, seq.stand, ramp(SEQ.turn[0], SEQ.turn[1]));
+    else outPos.lerpVectors(seq.stand, seq.thresh, ramp(SEQ.walk[0], SEQ.walk[1]));
+    // The turn finishes a beat after the move does, so the camera settles
+    // onto the door rather than arriving already pointed at it.
+    outLook.lerpVectors(seq.fromLook, seq.door, ramp(SEQ.turn[0], SEQ.turn[1] + 0.12));
+
+    doors.set(seq.house, ramp(SEQ.doors[0], SEQ.doors[1]));
+    if (!seq.creaked && T >= SEQ.doors[0]) {
+      seq.creaked = true;
+      sound.door();
+    }
+
+    // The colour comes up while the camera is still moving, not after it
+    // has stopped. The last half-second of the push is nothing but the flat
+    // panel at the back of the doorway filling the frame — a stretched
+    // texture two metres from the lens, which reads as a mistake rather
+    // than as an interior. Starting the fade under the arch means the last
+    // thing anyone sees of the street is the doorway with its frame still
+    // around it, and the brand's colour arriving over the top of it.
+    if (!seq.wiped && T >= SEQ.wipe) {
+      seq.wiped = true;
+      if (seq.onWipe) seq.onWipe();
+    }
+
+    // And then it holds. `seq` is not cleared here but at the moment the
+    // room takes over, because the two are a handover and anything in
+    // between — even one frame — is the scroll path snapping the camera
+    // back into the middle of the street behind a wipe that has not
+    // finished fading up yet.
+    if (T >= SEQ.end && !seq.landed) {
+      seq.landed = true;
+      seq.resolve();
+    }
+    return true;
+  }
   const tgtPos = new THREE.Vector3(), tgtLook = new THREE.Vector3();
   const v3 = new THREE.Vector3(), q4 = new THREE.Quaternion();
 
@@ -7537,11 +7798,18 @@ storeMode = (() => {
     const b = m.brand;
 
     sound.click();
-    await loadCatalogue();
+    // Fetched during the walk rather than before it, so the two seconds
+    // buy the request time instead of being spent after it.
+    const catalogueReady = loadCatalogue();
 
-    wipeEl.style.background = b.bg[0];
-    wipeEl.dataset.on = "1";
-    await wait(330);
+    savedScroll = window.scrollY;
+    lockScroll(true);
+    await walkIn(i, () => {
+      wipeEl.style.background = b.bg[0];
+      wipeEl.dataset.on = "1";
+    });
+    await catalogueReady;
+    await wait(90);
 
     house = i;
     const conf = storeRoom.dress(m);
@@ -7575,12 +7843,11 @@ storeMode = (() => {
     curPos.copy(tgtPos);
     curLook.copy(tgtLook);
 
-    savedScroll = window.scrollY;
-    lockScroll(true);
     picked = -1;
+    active = true;
+    seq = null;
     shopEl.dataset.on = "1";
     shopEl.setAttribute("aria-hidden", "false");
-    active = true;
 
     // Hold the wipe until the first wall of stock has actually decoded.
     // Lifting on a timer meant every shop opened on twelve grey rectangles
@@ -7603,6 +7870,8 @@ storeMode = (() => {
     await wait(330);
 
     active = false;
+    seq = null;
+    if (house >= 0) doors.set(house, 0);
     shopEl.dataset.on = "0";
     shopEl.setAttribute("aria-hidden", "true");
     storeRoom.group.visible = false;
@@ -7628,6 +7897,8 @@ storeMode = (() => {
   return {
     get active() { return active; },
     get busy() { return busy; },
+    /** True whenever the camera belongs to this — the walk in included. */
+    get controlling() { return active || seq !== null; },
     enter,
     leave,
     enterBySlug(slug) {
@@ -7643,6 +7914,7 @@ storeMode = (() => {
     /** Writes this frame's camera. Also holds the borrowed lamps in place,
      *  because the clock reassigns every street lamp every few minutes. */
     aim(dt, outPos, outLook) {
+      if (stepSeq(dt, outPos, outLook)) return;
       const k = Math.min(1, dt * 3.6);
       curPos.lerp(tgtPos, k);
       curLook.lerp(tgtLook, k);
