@@ -322,7 +322,8 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
      smudge. A wide rounded tag gives the artwork its own aspect and roughly
      three times the area, and it is a better tap target with it. */
   width: 104px; height: 66px;
-  margin: 0; padding: 9px 12px;
+  --pad-x: 12px; --pad-y: 9px;
+  margin: 0; padding: var(--pad-y) var(--pad-x);
   border: 0;
   border-radius: 18px;
   background: var(--pin-bg, #fff);
@@ -343,13 +344,39 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
   background: inherit;
   box-shadow: 2px 2px 0 rgba(255,255,255,.85);
 }
-.pin img { max-width: 100%; max-height: 100%; width: auto; height: auto; display: block; }
+/* Absolutely placed, and `contain` rather than two max-percentages.
+   `max-height: 100%` on a grid item never resolved — the row's height is
+   indefinite while the grid is being sized, so the browser dropped it and
+   applied the width constraint alone. Anything taller than it is wide then
+   overflowed its own tag: Hellstar's mark is square and rendered 76 tall in
+   a 61 tall marker, hanging out of the top and bottom of it. Pinning all
+   four edges makes the box definite and `contain` does the fitting. */
+.pin img {
+  position: absolute;
+  top: var(--pad-y); left: var(--pad-x);
+  /* Sized, not inset. `width: auto` on an absolutely positioned *replaced*
+     element means its intrinsic width — the offsets are simply ignored — so
+     pinning all four edges rendered Hellstar's mark at its native 773px.
+     A calc against the containing block is definite, and `contain` fits the
+     bitmap inside whatever shape that box turns out to be. */
+  width: calc(100% - var(--pad-x) * 2);
+  height: calc(100% - var(--pad-y) * 2);
+  object-fit: contain;
+  object-position: center;
+  display: block;
+}
+/* The houses with no artwork file wear their name in full, set to fit,
+   rather than the first two letters of it. "SU" told you nothing. */
 .pin b {
-  font-size: 19px; font-weight: 800; letter-spacing: .03em; line-height: 1;
+  font-weight: 800; letter-spacing: .03em; line-height: 1.05;
+  text-align: center; text-transform: uppercase;
+  white-space: pre-line;
+  /* The fitting above is arithmetic on a canvas; this is the guard that
+     makes a miss invisible rather than ragged. */
+  max-width: 100%; max-height: 100%; overflow: hidden;
 }
 @media (max-width: 720px) {
-  .pin { width: 92px; height: 58px; padding: 8px 10px; border-radius: 16px; }
-  .pin b { font-size: 17px; }
+  .pin { width: 92px; height: 58px; --pad-x: 10px; --pad-y: 8px; border-radius: 16px; }
 }
 .pin:hover, .pin:focus-visible {
   box-shadow: 0 8px 26px rgba(0,0,0,.5), 0 0 0 3px #fff;
@@ -4365,6 +4392,52 @@ const TRAVEL = (() => {
 // is the part of a phone a thumb cannot reach; the leader line is what
 // keeps them attached to the shopfront, so they can sit much closer to it
 // and still read as belonging to it.
+/**
+ * Sets a house's name to fit inside a marker.
+ *
+ * Seven of the fifteen have no artwork file, and they were showing the
+ * first two letters — "SU", "BA", "OF" — which is a puzzle, not a sign.
+ * They carry the whole name now, and it has to fit a box 80 by 48 without
+ * ever being measured in the document, because the markers are hidden
+ * until they are on screen and a hidden element measures zero.
+ *
+ * So it is measured on a canvas instead, in the page's own face: try it on
+ * one line, shrinking; failing that, break at the space and size to the
+ * longer half. The same trick the shopfront signs use.
+ */
+function fitWordmark(name) {
+  const c = document.createElement("canvas").getContext("2d");
+  const face = getComputedStyle(document.body).fontFamily;
+  const txt = name.toUpperCase();
+  // The tag's own content box at this breakpoint, less a hair. Measuring
+  // against the desktop figures on a phone is how SUPREME, BALENCIAGA,
+  // GODSPEED and CASABLANCA came out four pixels wide of their tags.
+  const narrow = innerWidth <= 720;
+  const maxW = (narrow ? 92 - 20 : 104 - 24) - 4;
+  const maxH = (narrow ? 58 - 16 : 66 - 18) - 4;
+
+  // Letter-spacing is not in measureText, so it is added by hand: .03em a gap.
+  const width = (str, size) => {
+    c.font = `800 ${size}px ${face}`;
+    return c.measureText(str).width + str.length * size * 0.03;
+  };
+
+  for (let size = 15; size >= 9.5; size -= 0.5) {
+    if (width(txt, size) <= maxW) return { size, text: txt };
+  }
+
+  const sp = txt.lastIndexOf(" ");
+  if (sp > 0) {
+    const a = txt.slice(0, sp), b = txt.slice(sp + 1);
+    for (let size = 14; size >= 8.5; size -= 0.5) {
+      if (Math.max(width(a, size), width(b, size)) <= maxW && size * 2.1 <= maxH) {
+        return { size, text: `${a}\n${b}` };
+      }
+    }
+  }
+  return { size: 9, text: txt };
+}
+
 const PIN_LIFT = 1.7;
 
 // Matches the width in the stylesheet at each breakpoint. Read from a
@@ -4382,7 +4455,18 @@ const pins = monoliths.map((m, i) => {
   el.style.setProperty("--pin-ink", b.ink);
   el.setAttribute("aria-label", `Go to ${b.name}`);
   const art = logoFor(b.slug);
-  el.innerHTML = art ? `<img src="${art}" alt="" />` : `<b>${b.name.slice(0, 2).toUpperCase()}</b>`;
+  if (art) {
+    const im = document.createElement("img");
+    im.src = art;
+    im.alt = "";
+    el.appendChild(im);
+  } else {
+    const tag = document.createElement("b");
+    const fit = fitWordmark(b.name);
+    tag.style.fontSize = `${fit.size}px`;
+    tag.textContent = fit.text;
+    el.appendChild(tag);
+  }
   el.addEventListener("click", () => {
     sound.click();
     // Stop in front of the shop, not level with it: LEAD is the same offset
