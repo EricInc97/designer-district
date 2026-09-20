@@ -4990,6 +4990,28 @@ const sound = (() => {
     { n: "Vitrine",      bpm: 122, root: 27, feel: "club",  sc: MINOR,    prog: [0, 3, 0, 5], hats: 0.68, swing: 0 },
     { n: "Pool Deck",    bpm: 130, root: 34, feel: "club",  sc: DORIAN,   prog: [0, 5, 4, 3], hats: 0.78, swing: 0 },
     { n: "Night Garage", bpm: 126, root: 23, feel: "club",  sc: PHRYGIAN, prog: [0, 2, 5, 0], hats: 0.72, swing: 0 },
+
+    // Jersey club. The genre sits at 130 to 140 and the whole of it is the
+    // kick: two quarters, two dotted eighths, an eighth.
+    { n: "Brick City",   bpm: 136, root: 29, feel: "jersey", sc: MINOR,    prog: [0, 0, 5, 4], hats: 0.7, swing: 0 },
+    { n: "Ironbound",    bpm: 140, root: 26, feel: "jersey", sc: PHRYGIAN, prog: [0, 5, 3, 0], hats: 0.75, swing: 0 },
+    { n: "Halsey",       bpm: 132, root: 31, feel: "jersey", sc: MINOR,    prog: [0, 3, 4, 2], hats: 0.68, swing: 0 },
+    { n: "Turnpike",     bpm: 138, root: 24, feel: "jersey", sc: DORIAN,   prog: [0, 4, 5, 3], hats: 0.72, swing: 0 },
+
+    // Detroit. Written at 175 to 205 and almost always felt at half of it;
+    // these sit in between, fast enough to bounce without turning frantic
+    // two hundred metres down a street.
+    { n: "Seven Mile",   bpm: 164, root: 25, feel: "detroit", sc: PHRYGIAN, prog: [0, 0, 4, 5], hats: 0.9, swing: 0 },
+    { n: "Gratiot",      bpm: 158, root: 28, feel: "detroit", sc: MINOR,    prog: [0, 5, 3, 4], hats: 0.88, swing: 0 },
+    { n: "Eastside",     bpm: 170, root: 23, feel: "detroit", sc: PHRYGIAN, prog: [0, 3, 0, 5], hats: 0.94, swing: 0 },
+    { n: "Woodward",     bpm: 162, root: 30, feel: "detroit", sc: MINOR,    prog: [0, 4, 2, 5], hats: 0.9, swing: 0 },
+
+    // Florida jook. Tampa Bay by way of Miami bass: the 808 low end of one
+    // and the stuttered kicks of Jersey and Baltimore club, 130 to 150.
+    { n: "Duval",        bpm: 146, root: 27, feel: "jook", sc: MINOR,    prog: [0, 0, 5, 3], hats: 0.8, swing: 0 },
+    { n: "Ybor",         bpm: 142, root: 31, feel: "jook", sc: DORIAN,   prog: [0, 4, 0, 5], hats: 0.78, swing: 0 },
+    { n: "Overtown",     bpm: 150, root: 24, feel: "jook", sc: MINOR,    prog: [0, 5, 4, 2], hats: 0.84, swing: 0 },
+    { n: "Ocean Drive",  bpm: 138, root: 33, feel: "jook", sc: PHRYGIAN, prog: [0, 2, 5, 0], hats: 0.76, swing: 0 },
   ];
 
   /**
@@ -5016,6 +5038,7 @@ const sound = (() => {
     const THUMP = fb("lowpass", 90, 0.7);
     const SNR = fb("highpass", 1500, 0.7);
     const DUST = fb("bandpass", 2600, 1.4);
+    const SQK = fb("bandpass", 950, 6);
 
     const sat = ctx.createWaveShaper();
     sat.curve = satCurve(2.2); sat.oversample = "2x";
@@ -5041,10 +5064,15 @@ const sound = (() => {
         hit(AIR, t, 0.16, 0.16 * gain);
       },
 
-      snare: (t, gain = 1) => {
+      /**
+       * `tone` is here for Detroit, which tunes its snare up rather than
+       * using the one everybody else has — a bright crack sitting above
+       * the sample loop instead of inside it.
+       */
+      snare: (t, gain = 1, tone = 190) => {
         hit(SNR, t, 0.17, 0.34 * gain);
         const o = ctx.createOscillator(); o.type = "triangle";
-        o.frequency.setValueAtTime(190, t);
+        o.frequency.setValueAtTime(tone, t);
         const g = ctx.createGain();
         g.gain.setValueAtTime(0.28 * gain, t);
         g.gain.exponentialRampToValueAtTime(0.0001, t + 0.13);
@@ -5064,6 +5092,27 @@ const sound = (() => {
       },
 
       thump: (t) => hit(THUMP, t, 0.012, 0.5),
+
+      /**
+       * The bed squeak.
+       *
+       * Jersey club's other signature after the kick pattern, and it is a
+       * real object: a squeaking studio chair caught on the intro of a 2004
+       * Trillville record, lifted ever since as a percussion one-shot. A
+       * sawtooth falling an octave and a half through a narrow bandpass is
+       * close enough to read as one, and costs two nodes.
+       */
+      squeak: (t, gain = 1) => {
+        const o = ctx.createOscillator(); o.type = "sawtooth";
+        o.frequency.setValueAtTime(1250, t);
+        o.frequency.exponentialRampToValueAtTime(430, t + 0.09);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.11 * gain, t + 0.007);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.105);
+        o.connect(g); g.connect(SQK);
+        o.start(t); o.stop(t + 0.12);
+      },
 
       /** The 808: glides in from the note before, rings, and bites. */
       sub: (t, note, len, from) => {
@@ -5187,6 +5236,97 @@ const sound = (() => {
       }
       if (fill) for (let k = 0; k < 6; k++) V.snare(t + beat * 3 + k * (beat / 6), 0.25 + k * 0.1);
 
+    } else if (feel === "jersey") {
+      /**
+       * The five-kick pattern, which is the genre.
+       *
+       * Two quarter notes, two dotted eighths, an eighth — sixteenths 0, 4,
+       * 8, 11 and 14, adding to the bar exactly. Everything else hangs off
+       * it: the squeaks answer the syncopated half, the chopped vocal
+       * stutters land on the kicks, and the claps stay on two and four so
+       * there is something square to hear it against.
+       */
+      const K = [0, 4, 8, 11, 14];
+      for (const e of K) V.kick(t + e * s16, e === 0 ? 1 : 0.85);
+      V.sub(t, note - 12, beat * 1.6);
+      V.sub(t + 8 * s16, note - 12, beat * 0.9);
+
+      for (const e of [8, 11, 14]) V.squeak(t + e * s16, e === 8 ? 1 : 0.8);
+      if (fill) V.squeak(t + 15 * s16, 0.6);
+
+      V.clap(t + beat); V.clap(t + beat * 3);
+      // The open hat on the downbeat is the "Ha" crash the genre is built on.
+      V.hat(t, 0.1, true);
+
+      for (let e = 0; e < 16; e++) {
+        if (e % 2) V.hat(t + e * s16, 0.05);
+        else if (mrand() < hats) V.hat(t + e * s16, 0.075);
+      }
+
+      // Chopped vocal: one short stab repeated in time with the kicks, the
+      // pitch stepping up the scale the way a sliced-up sample does.
+      if (!half) K.forEach((e, i) => {
+        V.lead(t + e * s16, root + 24 + sc[(deg + i) % sc.length], s16 * 1.4, 0.07);
+      });
+
+    } else if (feel === "detroit") {
+      /**
+       * Sliding 808s and a snare tuned up over the top.
+       *
+       * The 808 carries the melody here rather than the keys do, so `sub`
+       * is given somewhere to glide from on most of its hits — that pitch
+       * slide is the sound. Hats run in bursts rather than straight, which
+       * is what makes a beat this fast bounce instead of gallop.
+       */
+      V.thump(t);
+      V.sub(t, note - 12, beat * 1.5);
+      V.sub(t + beat * 1.75, note - 12, beat * 0.8, prev - 12);
+      if (mrand() > 0.35) V.sub(t + beat * 3.25, note - 5, beat * 0.6, note - 12);
+
+      V.snare(t + beat, 0.9, 260);
+      V.snare(t + beat * 3, 0.9, 260);
+      if (fill) for (let k = 0; k < 5; k++) V.snare(t + beat * 3.5 + k * (s16 / 2), 0.3 + k * 0.12, 260);
+
+      let e = 0;
+      while (e < 16) {
+        const at = t + e * s16, r = mrand();
+        if (r > 0.86) { for (let k = 0; k < 4; k++) V.hat(at + k * (s16 / 4), 0.045 + k * 0.01); e += 1; continue; }
+        if (r > 1 - hats * 0.3) { for (let k = 0; k < 3; k++) V.hat(at + k * (s16 / 3), 0.05); e += 1; continue; }
+        V.hat(at, e % 4 === 0 ? 0.095 : 0.05);
+        e += 1;
+      }
+
+      // The dark piano, low and close, two notes rather than a chord.
+      V.keys(t, root + 12 + sc[deg % sc.length], beat * 1.8, 0.055, -5);
+      V.keys(t + beat * 2, root + 12 + sc[(deg + 2) % sc.length], beat * 1.6, 0.05, 5);
+
+    } else if (feel === "jook") {
+      /**
+       * Miami bass underneath, club stutter on top.
+       *
+       * The long 808 is the Florida half — a sustained low note doing the
+       * work a kick drum does elsewhere — and the clipped triplet kicks
+       * over it are what the style took from Jersey and Baltimore.
+       */
+      V.sub(t, note - 12, beat * 2.1);
+      V.sub(t + beat * 2, note - 12, beat * 1.4, mrand() > 0.5 ? prev - 12 : null);
+
+      V.kick(t, 1);
+      for (const e of [6, 7, 10]) V.kick(t + e * s16, 0.8);
+      if (!half) for (const e of [13, 14]) V.kick(t + e * s16, 0.75);
+
+      V.clap(t + beat); V.clap(t + beat * 3);
+      if (fill) for (let k = 0; k < 4; k++) V.clap(t + beat * 3.5 + k * (s16 / 2), 0.35 + k * 0.15);
+
+      for (let e = 0; e < 16; e++) {
+        V.hat(t + e * s16, e % 4 === 0 ? 0.09 : 0.048, e === 14 && mrand() < hats);
+      }
+
+      // Clipped commands, short and high and always on the offbeat.
+      if (!half) for (const e of [3, 11]) {
+        V.lead(t + e * s16, root + 24 + sc[(deg + 4) % sc.length], s16 * 1.2, 0.08);
+      }
+
     } else {   // lofi
       V.kick(t);
       V.kick(t + beat * 1.5, 0.7);
@@ -5203,14 +5343,17 @@ const sound = (() => {
       for (let k = 0; k < 4; k++) V.dust(t + mrand() * bar);
     }
 
-    // Chords, for everything that is not the trap feel's hook.
-    if (feel !== "trap") {
+    // Chords, for the two feels that want a bed under them. Trap has its
+    // hook, Detroit has its piano, and the two club styles are carried by
+    // the kick — a sustained pad across any of them is mud.
+    if (feel === "lofi" || feel === "club") {
       const chord = [0, 2, 4, 6].map((step) => root + 12 + sc[(deg + step) % sc.length] + (deg + step >= sc.length ? 12 : 0));
       chord.forEach((n, i) => {
         V.keys(t + 0.02 * i, n, bar * 0.9, 0.075, i % 2 ? 6 : -6);
       });
     }
 
+    stats.bar = barNo;
     barNo++;
     if (--barsLeft <= 0) pickSong();
     return bar;
@@ -5616,6 +5759,56 @@ const sound = (() => {
                keeper: keeper ? (keeper.paused ? "paused" : "playing") : "none",
                masterGain: master ? +master.gain.value.toFixed(3) : 0,
                distance: stats.distance, muffleHz: stats.muffleHz, ...stats };
+    },
+
+    /**
+     * Peak and RMS off the music bus, over a window.
+     *
+     * Six styles now generate their drums from different code, and "it did
+     * not throw" is not the same as "it makes a sound" — a pattern can be
+     * scheduled perfectly into a voice that never fires. This taps the bus
+     * the beat goes through and reports what is actually on it.
+     */
+    async meter(ms = 2500) {
+      if (!ctx || !musicGain) return null;
+      const an = ctx.createAnalyser();
+      an.fftSize = 2048;
+      musicGain.connect(an);
+      const buf = new Float32Array(an.fftSize);
+      let peak = 0, sum = 0, n = 0;
+      const until = performance.now() + ms;
+      while (performance.now() < until) {
+        an.getFloatTimeDomainData(buf);
+        for (let i = 0; i < buf.length; i++) {
+          const v = Math.abs(buf[i]);
+          if (v > peak) peak = v;
+          sum += v * v; n++;
+        }
+        await new Promise((r) => setTimeout(r, 25));
+      }
+      musicGain.disconnect(an);
+      return { peak: +peak.toFixed(4), rms: +Math.sqrt(sum / Math.max(n, 1)).toFixed(4) };
+    },
+
+    /**
+     * Cues a specific record, by name or by index. For the console: there
+     * are thirty of these now across six styles, and waiting for the
+     * shuffle to reach the one you are working on is not a workflow.
+     */
+    play(which) {
+      const i = typeof which === "number"
+        ? which
+        : SONGS.findIndex((x) => x.n.toLowerCase() === String(which).toLowerCase());
+      if (i < 0 || i >= SONGS.length) return SONGS.map((x) => `${x.n} (${x.feel} ${x.bpm})`);
+      songIdx = i;
+      song = SONGS[i];
+      barsLeft = Math.round(180 / (4 * 60 / song.bpm));
+      barNo = 0;
+      nextBarAt = ctx.currentTime + 0.08;
+      stats.song = song.n;
+      stats.songBpm = song.bpm;
+      stats.feel = song.feel;
+      return song.n;
     },
 
     suspend() {
