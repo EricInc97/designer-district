@@ -703,7 +703,11 @@ body[data-busy="1"] .pill, body[data-busy="1"] .pin { opacity: .55; }
   position: fixed;
   right: var(--shell);
   top: calc(var(--bar) + 14px);
-  z-index: 6;
+  /* Above the shop overlay, not level with it. Both were z-index 6 and the
+     overlay comes later in the document, so inside a shop the sound button
+     was drawn on top and then had its clicks taken by the bar behind it —
+     a control you could see, and could not press. */
+  z-index: 8;
   display: flex;
   flex-direction: row-reverse;      /* icon stays at the right edge */
   align-items: center;
@@ -735,6 +739,13 @@ body[data-busy="1"] .pill, body[data-busy="1"] .pin { opacity: .55; }
 
 /* Waiting to be used: the label is out and the ring pings. */
 .sound[data-state="prompt"] .lbl { max-width: 12rem; opacity: 1; padding-left: 1.1rem; }
+/* Except inside a shop, where "Tap for sound" runs straight into "Back to
+   the street" — two controls in the same corner, one of them clipped. In
+   there it is the icon and nothing else. */
+body[data-shopping="1"] .sound[data-state="prompt"] .lbl {
+  max-width: 0; opacity: 0; padding-left: 0;
+}
+body[data-shopping="1"] .sound[data-state="prompt"]::after { animation: none; opacity: .25; }
 .sound[data-state="prompt"]::after {
   content: "";
   position: absolute;
@@ -925,14 +936,26 @@ body[data-busy="1"] .pill, body[data-busy="1"] .pin { opacity: .55; }
   <nav class="index" id="index" aria-label="Districts on this street"></nav>
   <p class="hint halo" id="hint">Scroll</p>
 
-  <!--
-    Starts as an invitation, not a switch.
 
-    On a phone the audio cannot begin until something is tapped, and a bare
-    speaker glyph in a corner does not read as "this page has sound you are
-    currently missing". So it arrives as a pill that says so, pulses until it
-    is used, and then folds down to an icon and stays out of the way.
-  -->
+</div>
+
+
+<!--
+  Outside `.layer`, deliberately.
+
+  Starts as an invitation, not a switch. On a phone the audio cannot begin
+  until something is tapped, and a bare speaker glyph in a corner does not
+  read as "this page has sound you are currently missing". So it arrives as
+  a pill that says so, pulses until it is used, and then folds down to an
+  icon and stays out of the way.
+
+  It used to live in `.layer` with the rest of the over-scene chrome, and
+  `.layer` is `position: relative; z-index: 1` — a stacking context. So
+  inside a shop this button was painted on top of the overlay and then had
+  every click taken by the bar behind it, because no z-index of its own can
+  escape a context its parent established. A control you could see and
+  could not press. Out here its z-index means what it says.
+-->
   <button class="sound" id="sound" type="button" data-state="prompt"
           aria-pressed="false" aria-label="Turn sound on">
     <span class="ico" aria-hidden="true">
@@ -946,8 +969,6 @@ body[data-busy="1"] .pill, body[data-busy="1"] .pin { opacity: .55; }
     </span>
     <span class="lbl">Tap for sound</span>
   </button>
-
-</div>
 
 <!-- Inside a shop. Hidden until the camera is actually in one. -->
 <div id="shop" aria-hidden="true" role="dialog" aria-modal="true"
@@ -8332,7 +8353,10 @@ storeMode = (() => {
     document.getElementById("pins"),
     document.getElementById("index"),
     document.getElementById("hint"),
-    document.getElementById("sound"),
+    // Not the sound button: it is drawn above the overlay, it is visible
+    // while you are in a shop, and it is the one street control that is
+    // still worth having in there. Making it inert would have left a
+    // control you can see and cannot press.
     ...document.querySelectorAll(".panel"),
   ].filter(Boolean);
 
@@ -8341,6 +8365,8 @@ storeMode = (() => {
       if (on) { el.inert = true; el.setAttribute("aria-hidden", "true"); }
       else { el.inert = false; el.removeAttribute("aria-hidden"); }
     }
+    if (on) document.body.dataset.shopping = "1";
+    else delete document.body.dataset.shopping;
   }
 
   /** Says out loud what the shelf is now showing. */
