@@ -431,9 +431,7 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
   letter-spacing: -0.02em; text-transform: uppercase; color: #fff;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-#shop .who p { margin: .1rem 0 0; font-size: .6875rem; letter-spacing: .2em;
-  text-transform: uppercase; color: rgba(255,255,255,.72);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 #shop .out {
   margin-left: auto; flex: none;
   display: inline-flex; align-items: center; gap: .4rem;
@@ -557,11 +555,20 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
     width: auto; height: min(46vh, 430px);
     border-left: 0; border-top: 1px solid var(--rule);
   }
-  #shop .top { padding-top: .55rem; padding-bottom: .55rem; }
-  #shop .who h3 { font-size: 1rem; }
-  /* Tracked-out small caps are the first thing to overflow a phone bar.
-     "52 PIECES IN S…" is worse than the same words set tighter. */
-  #shop .who p { font-size: .625rem; letter-spacing: .1em; }
+  /* 375 wide, minus the gutter, the sound toggle, the mark and the way
+     out, leaves 128 for the house's name — and "Chrome Hearts" is the
+     longest one on the street at 124. Measured, not guessed. */
+  #shop .top {
+    padding-top: .55rem; padding-bottom: .55rem;
+    padding-right: calc(clamp(14px, 4vw, 30px) + 50px);
+  }
+  #shop .who h3 { font-size: .95rem; }
+  /* No auto margin here.
+     It pins the button to the padding edge whatever its width, so trimming
+     the button changed nothing and it kept touching the sound toggle. Let
+     the row pack left instead: the name takes what it needs, the button
+     follows it, and the slack collects on the right where the toggle is. */
+  #shop .out { margin-left: 0; padding: .5rem .72rem; }
   #shop .mark { width: 38px; height: 38px; border-radius: 8px; }
   #shop .out .long { display: none; }
   #shop .cats { padding: .55rem .6rem; }
@@ -827,7 +834,6 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
     <div class="mark" id="shop-mark"></div>
     <div class="who">
       <h3 id="shop-name">&mdash;</h3>
-      <p id="shop-count">&mdash;</p>
     </div>
     <button class="out" id="shop-out" type="button">
       <span class="arr" aria-hidden="true">←</span>
@@ -6082,7 +6088,6 @@ storeMode = (() => {
   const wipeEl   = document.getElementById("wipe");
   const markEl   = document.getElementById("shop-mark");
   const nameEl   = document.getElementById("shop-name");
-  const countEl  = document.getElementById("shop-count");
   const gridEl   = document.getElementById("shop-grid");
   const shelfEl  = document.getElementById("shop-shelf");
 
@@ -6506,9 +6511,6 @@ storeMode = (() => {
       markEl.appendChild(sp);
     }
     nameEl.textContent = b.name;
-    countEl.textContent = stock.length
-      ? `${stock.length} piece${stock.length === 1 ? "" : "s"} in store`
-      : "Stock is loading on the storefront";
     storeRoom.group.visible = true;
     lightsOn(conf);
     standBack();
