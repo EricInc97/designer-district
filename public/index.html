@@ -558,7 +558,10 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
     border-left: 0; border-top: 1px solid var(--rule);
   }
   #shop .top { padding-top: .55rem; padding-bottom: .55rem; }
-  #shop .who h3 { font-size: 1.05rem; }
+  #shop .who h3 { font-size: 1rem; }
+  /* Tracked-out small caps are the first thing to overflow a phone bar.
+     "52 PIECES IN S…" is worse than the same words set tighter. */
+  #shop .who p { font-size: .625rem; letter-spacing: .1em; }
   #shop .mark { width: 38px; height: 38px; border-radius: 8px; }
   #shop .out .long { display: none; }
   #shop .cats { padding: .55rem .6rem; }
