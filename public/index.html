@@ -672,7 +672,7 @@ const C = {
   rimTube:    0.30,      // thickness of the lip around it
   // Low. The reference is a broad circular step barely clear of the water
   // with the sphere overhanging it on every side, not a pedestal.
-  plinthTop:  0.42,
+  plinthTop:  0.62,
 
   poolY:      -0.28,
   plazaY:     0,
@@ -1416,7 +1416,7 @@ const travertine = asTexture(texTravertine(), { repeat: [44, 44] });
 // Sized off the reference: a shallow basin held close to the dome, with a
 // broad flat kerb, not the lake it was. The dome overhangs its own plinth
 // and the water reaches only a few metres past that.
-const POOL = { w: 25, d: 18, lip: 2.4, y: C.poolY };
+const POOL = { w: 27, d: 22, lip: 2.4, y: C.poolY };
 
 // The plaza is a slab with the pool cut out of it. It started as a plain
 // plane, which paved straight over the water: the basin is 0.28 below the
@@ -1485,21 +1485,24 @@ const POOL = { w: 25, d: 18, lip: 2.4, y: C.poolY };
     const midZ = inner + len / 2 - 0.6;
     const parts = [];
 
-    const deck = new THREE.BoxGeometry(6.4, 0.62, len);
+    // Narrow. At 6.4 wide with a 10.5 landing the walk covered most of the
+    // water in front of the dome, which is the one place its reflection has
+    // to land — the pool was there and had nowhere to show anything.
+    const deck = new THREE.BoxGeometry(4.2, 0.62, len);
     deck.translate(0, C.plazaY - 0.31 + 0.02, midZ);
     parts.push(deck);
 
     // A landing where it meets the step, so you arrive somewhere.
-    const landing = new THREE.BoxGeometry(10.5, 0.5, 3.4);
+    const landing = new THREE.BoxGeometry(6.6, 0.5, 2.6);
     landing.translate(0, C.plazaY - 0.25, inner + 1.1);
     parts.push(landing);
 
     for (const sx of [-1, 1]) {
       const wall = new THREE.BoxGeometry(0.46, 0.56, len);
-      wall.translate(sx * 3.2, C.plazaY + 0.28, midZ);
+      wall.translate(sx * 2.1, C.plazaY + 0.28, midZ);
       parts.push(wall);
       const cap = new THREE.BoxGeometry(0.66, 0.11, len);
-      cap.translate(sx * 3.2, C.plazaY + 0.6, midZ);
+      cap.translate(sx * 2.1, C.plazaY + 0.6, midZ);
       parts.push(cap);
     }
 
@@ -1510,12 +1513,28 @@ const POOL = { w: 25, d: 18, lip: 2.4, y: C.poolY };
 
   // The broad step the basin sits on, raised a hand above the paving.
   {
-    const step = new THREE.Mesh(
-      new THREE.BoxGeometry(POOL.w + POOL.lip * 2 + 7, 0.26, POOL.d + POOL.lip * 2 + 7),
-      new THREE.MeshStandardMaterial({ map: travertine.clone(), roughness: 0.86 })
-    );
-    step.material.map.repeat.set(8, 6);
-    step.position.y = C.plazaY - 0.13 + 0.26;
+    // A border, not a slab.
+    //
+    // This was one box spanning the whole basin plus a margin, sitting at
+    // y 0.13 — which is above the waterline at -0.28. It was a lid. The pool
+    // has been under it ever since, which is why the dome kept looking like
+    // it stood on dry paving however much work went into the water.
+    const inW = POOL.w + POOL.lip * 2, inD = POOL.d + POOL.lip * 2;
+    const band = 3.5;
+    const mat = new THREE.MeshStandardMaterial({ map: travertine.clone(), roughness: 0.86 });
+    mat.map.repeat.set(8, 6);
+    const slabs = [];
+    for (const [w, d, cx, cz] of [
+      [inW + band * 2, band, 0, -(inD / 2 + band / 2)],
+      [inW + band * 2, band, 0,   inD / 2 + band / 2],
+      [band, inD, -(inW / 2 + band / 2), 0],
+      [band, inD,   inW / 2 + band / 2,  0],
+    ]) {
+      const g = new THREE.BoxGeometry(w, 0.26, d);
+      g.translate(cx, C.plazaY + 0.13, cz);
+      slabs.push(g);
+    }
+    const step = new THREE.Mesh(mergeGeometries(slabs), mat);
     step.receiveShadow = true;
     scene.add(step);
   }
@@ -1547,6 +1566,8 @@ const waterUniforms = {
   uCam:      { value: new THREE.Vector3() },
   uFogColor: { value: C.fog.clone() },
   uFogDensity: { value: C.fogDensity },
+  uMirror:   { value: null },
+  uMirrorMat:{ value: new THREE.Matrix4() },
 };
 
 const water = new THREE.Mesh(
@@ -1556,16 +1577,21 @@ const water = new THREE.Mesh(
     transparent: false,
     vertexShader: /* glsl */`
       varying vec3 vWorld;
+      varying vec4 vMirror;
+      uniform mat4 uMirrorMat;
       void main(){
         vec4 wp = modelMatrix * vec4(position, 1.0);
         vWorld = wp.xyz;
+        vMirror = uMirrorMat * wp;
         gl_Position = projectionMatrix * viewMatrix * wp;
       }`,
     fragmentShader: /* glsl */`
       precision highp float;
       varying vec3 vWorld;
+      varying vec4 vMirror;
       uniform float uTime, uFogDensity;
       uniform vec3 uSun, uZenith, uHorizon, uUnder, uDeep, uShallow, uCam, uFogColor;
+      uniform sampler2D uMirror;
       ${SKY_GLSL}
 
       // Two crossing wave trains plus a fine chop, sampled as a height field.
@@ -1596,12 +1622,29 @@ const water = new THREE.Mesh(
         R.y = abs(R.y);                       // never sample below the horizon
         vec3 refl = skyColor(R, uSun, uZenith, uHorizon, uUnder, uTime);
 
-        // Body colour deepens away from the lip.
-        float edge = smoothstep(0.0, 9.0, min(
-          min(${(POOL.w / 2).toFixed(2)} - abs(vWorld.x), ${(POOL.d / 2).toFixed(2)} - abs(vWorld.z)), 9.0));
-        vec3 body = mix(uShallow, uDeep, edge);
+        // The dome itself, mirrored.
+        //
+        // Reflecting the sky function alone was the whole problem: the water
+        // showed a convincing sky and nothing that was standing in it, so it
+        // read as dark paving rather than as a pool. The basin is described
+        // as being kept deliberately dark precisely so it works as a mirror,
+        // and a mirror with nothing in it is just a dark floor.
+        vec2 muv = vMirror.xy / max(vMirror.w, 0.0001);
+        muv += n.xz * 0.055;                  // the ripple breaks it up
+        vec4 mirror = texture2D(uMirror, muv);
+        refl = mix(refl, mirror.rgb, clamp(mirror.a * 0.96, 0.0, 1.0));
 
-        vec3 col = mix(body, refl, fres);
+        // Body colour deepens away from the lip. Kept dark on purpose.
+        float edge = smoothstep(0.0, 6.0, min(
+          min(${(POOL.w / 2).toFixed(2)} - abs(vWorld.x), ${(POOL.d / 2).toFixed(2)} - abs(vWorld.z)), 6.0));
+        vec3 body = mix(uShallow, uDeep, edge) * 0.26;
+
+        // Dark body, strong reflection. A flat 0.45 floor on the mix washed
+        // the surface out to the same pale tone as the travertine around it,
+        // so at a glance there was no pool there at all — just more paving.
+        // Letting fresnel do the work gives a dark pool that lights up as
+        // your eye travels across it, which is how one actually looks.
+        vec3 col = mix(body, refl, clamp(fres * 0.82 + 0.16, 0.0, 1.0));
 
         // Sun glitter.
         vec3 H = normalize(uSun + V);
@@ -1625,6 +1668,86 @@ const water = new THREE.Mesh(
 water.rotation.x = -Math.PI / 2;
 water.position.y = POOL.y;
 scene.add(water);
+
+// ## 13B  MIRROR — the dome, upside down, in the pool
+//
+// A planar reflection, but only of the things worth reflecting.
+//
+// three's own Reflector renders the entire scene a second time, which is the
+// cost that was just taken out of the transmission materials and is not
+// worth paying again. Almost nothing here needs to appear in the water: the
+// dome, its plinth and the fountain. Those go on their own layer, and the
+// mirror camera is set to that layer alone — six or seven draw calls into a
+// small target instead of a whole second scene.
+//
+// The camera maths is the standard planar reflection: mirror the eye through
+// the water plane, mirror the point it is looking at, flip the up vector, and
+// build a texture matrix so the water can look itself up in screen space.
+
+const MIRROR_LAYER = 1;
+
+const mirror = (() => {
+  const size = QUALITY.light ? 256 : 512;
+  const target = new THREE.WebGLRenderTarget(size, size, {
+    minFilter: THREE.LinearFilter,
+    magFilter: THREE.LinearFilter,
+    format: THREE.RGBAFormat,
+    generateMipmaps: false,
+  });
+  const cam = new THREE.PerspectiveCamera();
+  cam.layers.set(MIRROR_LAYER);
+
+  const normal = new THREE.Vector3(0, 1, 0);
+  const origin = new THREE.Vector3(0, POOL.y, 0);
+  const view = new THREE.Vector3();
+  const look = new THREE.Vector3();
+  const rot = new THREE.Matrix4();
+  const up = new THREE.Vector3();
+
+  const texMat = new THREE.Matrix4();
+
+  waterUniforms.uMirror.value = target.texture;
+
+  return {
+    render(renderer, scene, camera) {
+      view.copy(camera.position).sub(origin);
+      view.reflect(normal).negate().add(origin);
+
+      rot.extractRotation(camera.matrixWorld);
+      look.set(0, 0, -1).applyMatrix4(rot).add(camera.position).sub(origin);
+      look.reflect(normal).negate().add(origin);
+
+      up.set(0, 1, 0).applyMatrix4(rot).reflect(normal).negate();
+
+      cam.position.copy(view);
+      cam.up.copy(up);
+      cam.lookAt(look);
+      cam.near = camera.near;
+      cam.far = camera.far;
+      cam.fov = camera.fov;
+      cam.aspect = camera.aspect;
+      cam.updateProjectionMatrix();
+      cam.updateMatrixWorld();
+
+      texMat.set(0.5, 0, 0, 0.5,
+                 0, 0.5, 0, 0.5,
+                 0, 0, 0.5, 0.5,
+                 0, 0, 0, 1);
+      texMat.multiply(cam.projectionMatrix);
+      texMat.multiply(cam.matrixWorldInverse);
+      waterUniforms.uMirrorMat.value.copy(texMat);
+
+      const prevTarget = renderer.getRenderTarget();
+      const prevAlpha = renderer.getClearAlpha();
+      renderer.setRenderTarget(target);
+      renderer.setClearColor(0x000000, 0);
+      renderer.clear(true, true, false);
+      renderer.render(scene, cam);
+      renderer.setRenderTarget(prevTarget);
+      renderer.setClearAlpha(prevAlpha);
+    },
+  };
+})();
 
 // ## 14  DOME — the Fly's Eye
 // A squashed sphere with circular openings punched through it. The holes are
@@ -1794,6 +1917,7 @@ function texDomeAlpha() {
 
   domeGroup.scale.set(1, C.domeSquash, 1);
   domeGroup.position.y = C.domeCenterY;
+  domeGroup.traverse((o) => o.layers.enable(MIRROR_LAYER));
 
   // The plinth it stands on, rising out of the water.
   const plinth = new THREE.Mesh(
@@ -1805,6 +1929,7 @@ function texDomeAlpha() {
   );
   plinth.position.y = (C.plinthTop + POOL.y - 0.7) / 2;
   plinth.castShadow = true; plinth.receiveShadow = true;
+  plinth.layers.enable(MIRROR_LAYER);
   scene.add(plinth);
 }
 
@@ -1850,6 +1975,7 @@ const fountain = (() => {
   const jets = new THREE.InstancedMesh(cone, water, JETS);
   jets.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   jets.frustumCulled = false;
+  jets.layers.enable(MIRROR_LAYER);
   scene.add(jets);
 
   // Nozzle surrounds, so each jet comes out of something.
@@ -1899,6 +2025,7 @@ const fountain = (() => {
     sizeAttenuation: true,
   }));
   spray.frustumCulled = false;
+  spray.layers.enable(MIRROR_LAYER);
   scene.add(spray);
 
   // Uplighters in the basin, and their fittings.
@@ -2033,7 +2160,12 @@ function frondGeometry(len, halfWidth, segs) {
     const x = len * t;
     const y = len * (0.48 * t - 0.92 * t * t);        // up, then over, then down
     const w = halfWidth * Math.sin(Math.pow(t, 0.6) * Math.PI) * (1 - 0.3 * t) + 0.02;
-    const fold = w * 0.34;                            // the V of the rachis
+    // A deeper V than looks right on paper, because of how these are seen.
+    // A shallow frond edge-on against the sky is two pixels of dotted alpha
+    // and reads as a scratch on the render rather than a leaf — and the
+    // taller the palm, the more of its crown is up there against the sky.
+    // Folding it harder means there is always a half turned toward you.
+    const fold = w * 0.55;                            // the V of the rachis
     pos.push(x, y - fold, -w); uv.push(t, 0);
     pos.push(x, y,         0); uv.push(t, 0.5);
     pos.push(x, y - fold,  w); uv.push(t, 1);
@@ -2074,10 +2206,20 @@ const crowns = [];   // world positions of every crown, for the leaf spawner
   const rand = rng(20260919);
   const trunkGeos = [], frondGeos = [];
 
-  function addPalm(x, z, scale, phase) {
-    const h = (7.6 + rand() * 3.4) * scale;
-    const leanX = (rand() - 0.5) * 2.4 * scale;
-    const leanZ = (rand() - 0.5) * 2.4 * scale;
+  function addPalm(x, z, scale, phase, opt = {}) {
+    // The dice are rolled either way, so that overriding a palm's height or
+    // lean does not shift every palm planted after it onto a different draw
+    // from the seeded stream.
+    const rh = 7.6 + rand() * 3.4;
+    const rlx = (rand() - 0.5) * 2.4 * scale;
+    const rlz = (rand() - 0.5) * 2.4 * scale;
+
+    const h = (opt.height ?? rh) * scale;
+    const leanX = opt.leanX ?? rlx;
+    const leanZ = opt.leanZ ?? rlz;
+    // Crown size separated from trunk height: the pair in the logo are tall
+    // and slender, and scaling one palm up whole gives a lollipop.
+    const crown = (opt.crown ?? 1) * scale;
 
     const curve = new THREE.CatmullRomCurve3([
       new THREE.Vector3(0, 0, 0),
@@ -2098,20 +2240,40 @@ const crowns = [];   // world positions of every crown, for the leaf spawner
 
     const n = QUALITY.frondsPer + Math.floor(rand() * 3);
     for (let i = 0; i < n; i++) {
-      const az = (i / n) * Math.PI * 2 + rand() * 0.42;
-      const pitch = -0.30 + rand() * 0.55;                  // some reach up, some hang
-      const len = (5.4 + rand() * 2.4) * scale;
-      const fg = frondGeometry(len, 0.95 * scale, 12);
+      // A crown can be aimed. Left to chance it is a sphere of fronds, which
+      // is fine for a palm in a row and no use at all for the two that have
+      // to arch over the dome: on a portrait phone the frame is barely 34
+      // degrees wide, the trunks stand outside it, and whether anything
+      // reached in over the dome came down to where the dice put frond zero.
+      // With `azTo` the crown is rotated so one frond points where it is
+      // wanted, and that frond is the long one, thrown a little flatter so it
+      // reaches rather than climbs.
+      const az = (i / n) * Math.PI * 2 + rand() * 0.42 + (opt.azTo ?? 0);
+      const rp = -0.30 + rand() * 0.55;                     // some reach up, some hang
+      const rl = 5.4 + rand() * 2.4;
+      const aimed = opt.azTo !== undefined && i === 0;
+      const pitch = aimed ? -0.24 : rp;
+      // The aimed frond takes a fixed length rather than the dice, so the
+      // pair either side of the dome reach in by the same amount. Chance
+      // there reads as one palm having more of a crown than its twin.
+      const len = aimed ? 7.6 * crown : rl * crown;
+      const fg = frondGeometry(len, 1.14 * crown, 12);
 
       // Sway is the trunk's contribution at the top plus the frond's own whip.
       stampSway(fg, (vx) => 0.42 + Math.pow(clamp(vx / len, 0, 1), 1.7) * 0.95);
       stamp(fg, "aPhase", phase + i * 0.29);
 
+      // Roll, about the frond's own spine. Left to chance it barely matters,
+      // but the aimed frond is the one arching over the dome against open
+      // sky, and edge-on it is a two-pixel dotted line that reads as a
+      // scratch on the render rather than a leaf. Rolled a radian it shows
+      // its face to anyone standing where the opening shot stands.
+      const rr = rand() * 0.5 - 0.25;
       const m = new THREE.Matrix4()
         .makeTranslation(crownWorld.x, crownWorld.y, crownWorld.z)
         .multiply(new THREE.Matrix4().makeRotationY(az))
         .multiply(new THREE.Matrix4().makeRotationZ(pitch))
-        .multiply(new THREE.Matrix4().makeRotationX(rand() * 0.5 - 0.25));
+        .multiply(new THREE.Matrix4().makeRotationX(aimed ? 1.05 : rr));
       fg.applyMatrix4(m);
       frondGeos.push(fg);
     }
@@ -2126,17 +2288,25 @@ const crowns = [];   // world positions of every crown, for the leaf spawner
    * being abandoned, which keeps the ring looking like a ring rather than
    * leaving gaps wherever a building happens to be.
    */
-  function plant(x, z, scale, phase) {
+  function plant(x, z, scale, phase, opt = {}) {
     // The trunk is not what collides. A frond runs about 7.8 units at full
     // scale and radiates in every direction, so a palm whose base clears a
     // wall by a metre still has half its crown inside the first floor —
     // which is exactly what was happening along the kerb. Test the crown's
     // reach, not the trunk.
-    const reach = 7.8 * scale;
+    //
+    // 0.82 of it, though. `inBuilt` already carries 1.4 units of clearance
+    // around every wall, and testing the full reach against a padded
+    // footprint means the crown may not even enter the padding — two
+    // margins stacked on each other. That is not a nicety: it rejected
+    // every palm down the paseo, all twelve of them, and the street has
+    // been bare ever since. The frond tip is allowed into the clearance;
+    // it is not allowed into the building.
+    const reach = 7.8 * scale * (opt.crown ?? 1) * 0.82;
     for (const [dx, dz] of [[0, 0], [reach, 0], [-reach, 0], [0, reach], [0, -reach]]) {
       if (inBuilt(x + dx, z + dz)) return false;
     }
-    addPalm(x, z, scale, phase);
+    addPalm(x, z, scale, phase, opt);
     return true;
   }
 
@@ -2146,7 +2316,22 @@ const crowns = [];   // world positions of every crown, for the leaf spawner
     const a = (i / ring) * Math.PI * 2 + 0.3;
     for (let attempt = 0; attempt < 4; attempt++) {
       const r = 21 + attempt * 2.6 + rand() * 4;
-      if (plant(Math.cos(a) * r, Math.sin(a) * r * 0.8, 0.9 + rand() * 0.35, rand() * 9)) break;
+      const rx = Math.cos(a) * r, rz = Math.sin(a) * r * 0.8;
+      const rs = 0.9 + rand() * 0.35, rp = rand() * 9;
+
+      // Nothing in the opening camera's lap.
+      //
+      // The ring is an ellipse squashed to 0.8 in z, which runs it straight
+      // through where the camera stands at the top of the page — one palm
+      // was landing about three metres behind the lens, and the fronds it
+      // hung forward over the shot were the pale hairy streaks across the
+      // sky. They never looked like a palm because the crown they belonged
+      // to was off the top of the frame; they looked like a scratch. A
+      // rejected slot pushes outward on the next attempt and is otherwise
+      // dropped, which is the right answer here: the dome's own palms
+      // already fill that arc.
+      if (Math.hypot(rx, rz - 20) < 16) continue;
+      if (plant(rx, rz, rs, rp)) break;
     }
   }
   // Down the alley, just inside the kerb on both sides. They used to stand
@@ -2155,10 +2340,98 @@ const crowns = [];   // world positions of every crown, for the leaf spawner
   // At the kerb there is no scale at which a palm both looks like a palm and
   // keeps its fronds out of the shopfront: the alley is only 22 wide and a
   // full-size crown is 15 across.
+  // Tall and narrow, not small. Scaling a palm down whole to fit an alley
+  // gives a shrub on a stick; what fits a 17-unit street is the profile the
+  // street actually has — a high slender trunk carrying a compact crown,
+  // clear above the canopies and well inside the shopfronts.
   for (let i = 0; i < QUALITY.palmsRow * 2; i++) {
     const z = -40 - i * 7.6 - rand() * 2.2;
-    const sideX = (i % 2 === 0 ? -1 : 1) * (STREET.half * 0.42);
-    plant(sideX, z, 0.58 + rand() * 0.14, rand() * 9);
+    const sideX = (i % 2 === 0 ? -1 : 1) * (STREET.half * 0.38);
+    plant(sideX, z, 1, rand() * 9, {
+      height: 8.4 + (i % 3) * 0.8,
+      crown: 0.55,
+    });
+  }
+
+  // ── the palms around the dome ─────────────────────────────────────────
+  //
+  // The logo is a sphere with a palm either side of it, and until now the
+  // scene had the sphere and no palms — the ring was laid out at a radius of
+  // 21 to 31, which is past the basin and behind whatever else is standing
+  // there, so the one shot that has to match the mark was the one shot with
+  // nothing in it.
+  //
+  // These are placed rather than scattered. All eight stand on the travertine
+  // border around the basin, never in the water: the side slabs run x 15.9 to
+  // 19.4, the end slabs z 13.4 to 16.9, and every position below is inside
+  // one of them. The near pair is close enough to the opening camera to sweep
+  // past as it swings out, which is most of the parallax in that move.
+  //
+  // The framing pair is the important one. From the hero camera the dome
+  // subtends about 26 degrees, so a trunk at x 16.5 sits just outside a
+  // laptop's frame and well outside a portrait phone's — but its inward
+  // fronds reach back to x 8.5, which lands inside both. What you get is the
+  // silhouette from the mark: the dome, and a frond arching over it from
+  // either side.
+  const DOME_PALMS = [
+    // x      z      height crown  lean (− is in over the water) / toward cam
+    { x: 16.5, z: -12.5, h: 15.6, c: 1.06, out: -1.6, fwd:  0.5, aim: true },
+    // Not aimed. This pair stands level with the opening camera and ten
+    // metres off it, so a frond thrown at the dome is thrown across the
+    // lens — at that range it fills the top third of the frame and, end-on,
+    // reads as a hair on the sensor rather than as a leaf. It earns its
+    // place on the sweep out of the plaza, where it is what the camera
+    // passes.
+    { x: 14.0, z:  15.0, h: 12.8, c: 0.94, out: -1.2, fwd:  1.0, aim: false },
+    // Both pulled in off the kerb and leant back over the water: at 18.8
+    // with an outward lean the crown reached x 29 and put frond tips inside
+    // the block that closes the plaza on that side.
+    { x: 17.6, z:   1.5, h: 13.9, c: 1.00, out: -1.0, fwd:  0.2, aim: true },
+    { x: 17.0, z:  -7.5, h: 14.5, c: 0.97, out: -1.0, fwd:  0.4, aim: true },
+  ];
+
+  const domePalms = DOME_PALMS.slice(0, QUALITY.light ? 2 : 4);
+  const planters = [];
+  for (const d of domePalms) {
+    for (const side of [-1, 1]) {
+      addPalm(d.x * side, d.z, 1, (d.x + d.z) * 0.11 + (side > 0 ? 0 : 3.1), {
+        height: d.h,
+        crown: d.c,
+        leanX: d.out * side,
+        // Frond zero points at the dome. Geometry: a frond is built along
+        // +x and rotated about Y, so pi aims it back toward −x — which is
+        // inward for the palm standing on the +x side, and 0 for its mirror.
+        azTo: d.aim ? (side > 0 ? Math.PI : 0) : undefined,
+        leanZ: d.fwd,
+      });
+
+      // A kerbed bed at the foot, because a trunk coming straight up through
+      // a stone slab reads as a prop stuck into the floor.
+      const kerb = new THREE.CylinderGeometry(1.42, 1.5, 0.44, 14);
+      kerb.translate(d.x * side, 0.22, d.z);
+      const soil = new THREE.CylinderGeometry(1.18, 1.18, 0.5, 14);
+      soil.translate(d.x * side, 0.25, d.z);
+      planters.push(kerb, soil);
+    }
+  }
+
+  {
+    // Two materials, so the beds are one draw call each rather than sixteen.
+    const kerbGeos = planters.filter((_, i) => i % 2 === 0);
+    const soilGeos = planters.filter((_, i) => i % 2 === 1);
+    const kerbMesh = new THREE.Mesh(
+      mergeGeometries(kerbGeos),
+      new THREE.MeshStandardMaterial({ color: 0xe6e0d2, roughness: 0.82 })
+    );
+    kerbMesh.castShadow = true; kerbMesh.receiveShadow = true;
+    scene.add(kerbMesh);
+
+    const soilMesh = new THREE.Mesh(
+      mergeGeometries(soilGeos),
+      new THREE.MeshStandardMaterial({ color: 0x3a3228, roughness: 1 })
+    );
+    soilMesh.receiveShadow = true;
+    scene.add(soilMesh);
   }
 
   const barkTex = asTexture(texBark(), { repeat: [1, 1] });
@@ -2167,6 +2440,8 @@ const crowns = [];   // world positions of every crown, for the leaf spawner
   }));
   const trunks = new THREE.Mesh(mergeGeometries(trunkGeos), trunkMat);
   trunks.castShadow = true; trunks.receiveShadow = true;
+  // A reflecting pool with only the dome in it is half a reflecting pool.
+  trunks.layers.enable(MIRROR_LAYER);
   scene.add(trunks);
 
   const frondTex = asTexture(texFrond());
@@ -2177,7 +2452,11 @@ const crowns = [];   // world positions of every crown, for the leaf spawner
   // carries the silhouette in its own alpha, which is what alphaTest wants.
   const frondMat = applyWind(new THREE.MeshStandardMaterial({
     map: frondTex,
-    alphaTest: 0.35,
+    // Low, on purpose. Leaflets are one or two texels wide, and once the
+    // texture minifies the mip average drops them under any honest
+    // threshold — a distant crown erodes to a few stray hairs. Cutting at
+    // 0.26 keeps the leaf and costs only a slightly softer silhouette.
+    alphaTest: 0.26,
     transparent: false,
     side: THREE.DoubleSide,
     roughness: 0.72,
@@ -2187,6 +2466,7 @@ const crowns = [];   // world positions of every crown, for the leaf spawner
   const fronds = new THREE.Mesh(mergeGeometries(frondGeos), frondMat);
   fronds.castShadow = true;
   fronds.receiveShadow = true;
+  fronds.layers.enable(MIRROR_LAYER);
   scene.add(fronds);
 
   // Shadows are rendered with a different material, so the sway has to be
@@ -2269,7 +2549,17 @@ const leaves = (() => {
         dummy.position.copy(s.p);
         q.setFromAxisAngle(s.spin, s.angle);
         dummy.quaternion.copy(q);
-        dummy.scale.setScalar(s.scale);
+        // Nothing gets to slap the camera in the face.
+        //
+        // A leaflet is 42cm long, which is a speck at twenty metres and a
+        // quarter of the screen at one. They spawn at crowns and drift, and
+        // now that palms stand around the basin there are crowns within a
+        // dozen metres of the opening shot — so one would occasionally sail
+        // up to the lens and read as a green tarpaulin thrown over the dome.
+        // Fading them out over the last couple of metres costs nothing and
+        // is invisible: at that range the leaf is leaving frame anyway.
+        const near = clamp((s.p.distanceTo(camera.position) - 1.2) / 2.2, 0, 1);
+        dummy.scale.setScalar(s.scale * near);
         dummy.updateMatrix();
         mesh.setMatrixAt(i, dummy.matrix);
       }
@@ -3738,6 +4028,9 @@ function step(dt, t, p) {
   motes.uniforms.uTime.value = t;
   if (leaves) leaves.update(dt, t);
   fountain.update(dt, t);
+  // Before the main pass, so the water samples this frame's dome and not
+  // the last one's.
+  mirror.render(renderer, scene, camera);
 
   // --- overlay ------------------------------------------------------------
   // A plain range test. This was a feathered curve once, and at the very top
