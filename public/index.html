@@ -316,10 +316,15 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
   left: 0; top: 0;
   display: grid;
   place-items: center;
-  width: 58px; height: 58px;
-  margin: 0; padding: 6px;
+  /* A tag, not a badge.
+     A circle letterboxes a wordmark — "GALLERY DEPT." had to shrink to its
+     own height to fit across a 46px disc, and most of the houses read as a
+     smudge. A wide rounded tag gives the artwork its own aspect and roughly
+     three times the area, and it is a better tap target with it. */
+  width: 104px; height: 66px;
+  margin: 0; padding: 9px 12px;
   border: 0;
-  border-radius: 999px;
+  border-radius: 18px;
   background: var(--pin-bg, #fff);
   color: var(--pin-ink, #0b0b0b);
   box-shadow: 0 4px 18px rgba(0,0,0,.4), 0 0 0 2px rgba(255,255,255,.85);
@@ -332,7 +337,7 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
   content: "";
   position: absolute;
   bottom: -6px; left: 50%;
-  width: 12px; height: 12px;
+  width: 14px; height: 14px;
   translate: -50% 0;
   rotate: 45deg;
   background: inherit;
@@ -340,7 +345,11 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
 }
 .pin img { max-width: 100%; max-height: 100%; width: auto; height: auto; display: block; }
 .pin b {
-  font-size: 15px; font-weight: 800; letter-spacing: .02em; line-height: 1;
+  font-size: 19px; font-weight: 800; letter-spacing: .03em; line-height: 1;
+}
+@media (max-width: 720px) {
+  .pin { width: 92px; height: 58px; padding: 8px 10px; border-radius: 16px; }
+  .pin b { font-size: 17px; }
 }
 .pin:hover, .pin:focus-visible {
   box-shadow: 0 8px 26px rgba(0,0,0,.5), 0 0 0 3px #fff;
@@ -4352,7 +4361,17 @@ const TRAVEL = (() => {
 // How far above the sign the marker floats. Generous: the line is what
 // keeps it attached, so the marker is free to sit clear of the shopfront
 // instead of on top of its own artwork.
-const PIN_LIFT = 5.0;
+// Lowered from 5.0. The markers floated near the top of the frame, which
+// is the part of a phone a thumb cannot reach; the leader line is what
+// keeps them attached to the shopfront, so they can sit much closer to it
+// and still read as belonging to it.
+const PIN_LIFT = 1.7;
+
+// Matches the width in the stylesheet at each breakpoint. Read from a
+// constant rather than the element, because asking fifteen buttons for
+// their offsetWidth every frame is fifteen forced reflows every frame.
+let PIN_W = innerWidth <= 720 ? 92 : 104;
+addEventListener("resize", () => { PIN_W = innerWidth <= 720 ? 92 : 104; });
 
 const pins = monoliths.map((m, i) => {
   const b = m.brand;
@@ -4397,7 +4416,9 @@ const pins = monoliths.map((m, i) => {
  * control straight back instead of fighting.
  */
 let travelling = 0;
+let travelStarted = 0;
 function travelTo(target) {
+  travelStarted = performance.now();
   const max = document.documentElement.scrollHeight - innerHeight;
   const from = window.scrollY;
   const to = clamp(target, 0, 1) * max;
@@ -4421,6 +4442,51 @@ function travelTo(target) {
   };
   requestAnimationFrame(tick);
 }
+
+/**
+ * Coming to rest on a house rather than between two.
+ *
+ * Fifteen houses share about nine screens of scroll, so one is roughly
+ * half a screen — and a flick on a phone carries a good deal further than
+ * that. You would aim for Rhude, let go, and the momentum would put you
+ * past it with the card already naming the next one. Nothing was broken;
+ * there was simply no reason for the page to stop anywhere in particular.
+ *
+ * So once the scrolling actually stops, it settles onto the nearest
+ * shopfront. Only inside the street — the dome at one end and the closing
+ * shot at the other are places you are meant to be able to sit anywhere in
+ * — and only when it is worth moving, and never while a tap-to-travel is
+ * already in flight or a shop is open. Any real input cancels it, because
+ * `travelTo` stands down the moment the page moves under it.
+ */
+const SETTLE_AFTER = 190;          // ms of stillness that counts as stopped
+let settleTimer = 0;
+
+function settle() {
+  if (storeMode && (storeMode.active || storeMode.busy)) return;
+  if (travelling && performance.now() - travelStarted < 900) return;
+
+  const p = scrollTarget;
+  if (p < BEATS.brands[0] || p > BEATS.brands[1]) return;
+
+  let best = -1, bestD = Infinity;
+  for (let i = 0; i < monoliths.length; i++) {
+    const d = Math.abs(TRAVEL(monoliths[i].z + LEAD) - p);
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  if (best < 0) return;
+
+  const target = TRAVEL(monoliths[best].z + LEAD);
+  // A hair's difference is not worth a tween, and if the nearest house is
+  // somehow a third of the journey away this is not the tool for it.
+  if (bestD < 0.004 || bestD > 0.12) return;
+  travelTo(target);
+}
+
+addEventListener("scroll", () => {
+  clearTimeout(settleTimer);
+  settleTimer = setTimeout(settle, SETTLE_AFTER);
+}, { passive: true });
 
 const pinPos = new THREE.Vector3();
 const pinFoot = new THREE.Vector3();
@@ -4448,9 +4514,17 @@ function placePins(active, visible) {
     pinPos.project(camera);
     pinFoot.project(camera);
 
+    // Fewer at once, now that each is three times the size: past sixty
+    // metres they were a row of overlapping tags down the vanishing point.
+    //
+    // The bounds are tighter than the frame on three sides. 1.15 let a
+    // marker hang half off the edge with its logo cut in two, and the top
+    // of the screen belongs to the header and the sound toggle — a marker
+    // up there is one that cannot be tapped.
     const onScreen = pinPos.z > -1 && pinPos.z < 1
-      && Math.abs(pinPos.x) < 1.15 && Math.abs(pinPos.y) < 1.15
-      && dist < 78;
+      && Math.abs(pinPos.x) < 1.06
+      && pinPos.y < 0.72 && pinPos.y > -1.0
+      && dist < 58;
 
     if (!onScreen) {
       if (pins[i].shown) {
@@ -4460,13 +4534,20 @@ function placePins(active, visible) {
       continue;
     }
 
-    const x = (pinPos.x * 0.5 + 0.5) * viewW;
+    // Held inside the frame rather than allowed to hang off it. A marker
+    // is 104 wide and anchored on its own centre, so one belonging to a
+    // shopfront near the edge of the view lost half its logo to the bezel.
+    // Nudging it in costs nothing, because the leader line is still drawn
+    // to the real spot on the building — which is the whole reason the
+    // line is there.
+    const half = PIN_W / 2 + 4;
+    const x = clamp((pinPos.x * 0.5 + 0.5) * viewW, half, viewW - half);
     const y = (-pinPos.y * 0.5 + 0.5) * viewH;
     const fx = (pinFoot.x * 0.5 + 0.5) * viewW;
     const fy = (-pinFoot.y * 0.5 + 0.5) * viewH;
     // Near markers are full size, far ones shrink away rather than crowding.
-    const k = clamp(1.15 - dist / 90, 0.42, 1);
-    const o = clamp(1.35 - dist / 70, 0.25, 1);
+    const k = clamp(1.2 - dist / 78, 0.52, 1);
+    const o = clamp(1.4 - dist / 54, 0.25, 1);
 
     el.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0) translate(-50%, -100%) scale(${k.toFixed(2)})`;
     el.style.opacity = o.toFixed(2);
@@ -4677,14 +4758,36 @@ if (window.visualViewport) {
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) {
     running = false;
-    sound.suspend();
   } else if (!running) {
-    sound.resume();
     running = true;
     clock.getDelta();       // drop the gap so nothing jumps
     frame();
   }
 });
+
+/**
+ * Sound follows the page, not the render loop.
+ *
+ * It used to be folded into the handler above, gated behind the same
+ * `running` flag — so a visibility change that did not happen to flip that
+ * flag left the music playing to nobody, and claiming the playback audio
+ * session for iOS made exactly that case audible in a pocket. It is its
+ * own listener now, and it listens for more than one thing: `pagehide`
+ * fires on iOS where `visibilitychange` sometimes does not, and covers
+ * navigating away and the back/forward cache on every browser.
+ */
+{
+  const hush = () => sound.suspend();
+  const wake = () => { if (sound.on) sound.resume(); };
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) hush(); else wake();
+  });
+  addEventListener("pagehide", hush);
+  addEventListener("pageshow", wake);
+  addEventListener("freeze", hush);
+  addEventListener("resume", wake);
+}
 
 // ## 24  STARTUP
 
@@ -5197,6 +5300,18 @@ const sound = (() => {
   const APPLE = /iPad|iPhone|iPod/.test(navigator.userAgent)
     || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
 
+  /**
+   * Whether the silence is ours.
+   *
+   * The interruption recovery below cannot tell "Safari took the session"
+   * from "the visitor switched away and we stopped on purpose" — both
+   * arrive as a state change away from running. Without this flag the
+   * recovery raced the page-hidden handler and won: the context suspended
+   * and resumed itself in the same breath, and the music kept playing to
+   * an empty screen.
+   */
+  let parked = false;
+
   function claimPlayback() {
     try {
       if (navigator.audioSession) {
@@ -5249,7 +5364,7 @@ const sound = (() => {
     // "interrupted" is Safari's, and it is terminal without this.
     ctx.onstatechange = () => {
       stats.state = ctx.state;
-      if (on && ctx.state !== "running" && ctx.state !== "closed") {
+      if (on && !parked && ctx.state !== "running" && ctx.state !== "closed") {
         const q = ctx.resume();
         if (q && q.catch) q.catch(() => {});
       }
@@ -5345,6 +5460,7 @@ const sound = (() => {
         if (!ok) return false;
       }
       claimPlayback();
+      parked = false;
       if (ctx.state !== "running") {
         holdSession();
         try { await ctx.resume(); } catch {}
@@ -5366,6 +5482,7 @@ const sound = (() => {
     enable() {
       if (!ctx) { start().then(() => this.enable()); return false; }
       on = true;
+      parked = false;
       // Both of these have to happen inside the gesture, before the resume.
       claimPlayback();
       holdSession();
@@ -5410,7 +5527,7 @@ const sound = (() => {
 
     /** For the console: is it running, is it audible, is it silent? */
     get debug() {
-      return { state: ctx ? ctx.state : "not started", on, apple: APPLE,
+      return { state: ctx ? ctx.state : "not started", on, apple: APPLE, parked,
                session: stats.session || "unset",
                keeper: keeper ? (keeper.paused ? "paused" : "playing") : "none",
                masterGain: master ? +master.gain.value.toFixed(3) : 0,
@@ -5418,12 +5535,15 @@ const sound = (() => {
     },
 
     suspend() {
+      parked = true;
       if (ctx && ctx.state === "running") ctx.suspend();
       dropSession();
     },
     resume() {
+      parked = false;
       if (!ctx || !on || ctx.state === "running") return;
       claimPlayback();
+      holdSession();
       const q = ctx.resume();
       if (q && q.catch) q.catch(() => {});
     },
