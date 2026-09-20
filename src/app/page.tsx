@@ -114,6 +114,28 @@ export default async function HomePage() {
           >
             At Designer District we carry a wide variety of exclusive brands.
           </p>
+
+          {/*
+            The way into the street.
+
+            /index.html is the WebGL district — the dome, the promenade and
+            the fifteen shopfronts you can walk into. It is a static file
+            served beside this app rather than a route, so it is a plain
+            anchor: Next's Link would try to client-navigate to something
+            its router has never heard of.
+
+            Glass rather than paper, because everything else on this screen
+            sits over the photograph and a solid button would read as a
+            sticker laid on it.
+          */}
+          <a
+            href="/index.html"
+            className="mt-7 inline-flex animate-rise items-center gap-2.5 rounded-full border border-white/55 bg-black/25 px-6 py-3 text-[0.6875rem] font-medium uppercase tracking-[0.22em] text-white backdrop-blur-md transition-colors hover:border-white hover:bg-white hover:text-ink"
+            style={{ animationDelay: "160ms" }}
+          >
+            Walk the district
+            <span aria-hidden>&rarr;</span>
+          </a>
         </div>
       </section>
 

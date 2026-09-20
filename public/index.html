@@ -436,7 +436,7 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #shop .out {
   margin-left: auto; flex: none;
-  display: inline-flex; align-items: center; gap: .45rem;
+  display: inline-flex; align-items: center; gap: .4rem;
   border: 1px solid rgba(255,255,255,.5); background: rgba(0,0,0,.35);
   color: #fff; border-radius: 999px;
   padding: .52rem .95rem; font: inherit; font-size: .6875rem; font-weight: 500;
@@ -444,158 +444,128 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
   -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
 }
 #shop .out:hover { background: #fff; color: #0b0b0b; border-color: #fff; }
+/* The way out said nothing but a cross, and on a phone the glyph did not
+   even render — it came out as a stray "15" in the corner. It is a word
+   now, shortened rather than dropped when the bar gets tight. */
+#shop .out .arr { font-size: 13px; line-height: 1; }
+#shop .out .lbl { line-height: 1; }
 
-/* The rail. Every piece the house has in stock, which is the listing the
-   storefront shows — the same rows, standing up in the room instead. */
-#shop .rail {
-  position: absolute; left: 0; right: 0; bottom: 0;
-  padding: 1.1rem clamp(14px, 4vw, 30px) calc(1.1rem + env(safe-area-inset-bottom));
-  background: linear-gradient(0deg, rgba(0,0,0,.78), rgba(0,0,0,.42) 60%, rgba(0,0,0,0));
+
+
+/* The shelf: a paper column against the room.
+   Paper on purpose. The point of the change is that this reads as the
+   storefront's own catalogue — a grid of cards you scroll down — and a
+   dark glass panel reads as more HUD. It takes the right-hand third on a
+   laptop and the bottom of the screen on a phone, and the camera is told
+   where it ends so the stock on the wall is framed in what is left. */
+#shop .shelf {
+  position: absolute;
+  right: 0; top: calc(var(--bar) + var(--topbar, 62px)); bottom: 0;
+  width: min(360px, 34vw);
+  display: flex; flex-direction: column;
+  background: var(--paper);
+  border-left: 1px solid var(--rule);
   pointer-events: auto;
 }
+
 #shop .cats {
-  display: flex; gap: .4rem; margin: 0 0 .7rem;
+  /* 0 0 auto, not the default 0 1 auto. The shelf is a flex column and the
+     grid below is always taller than the space it has, so a shrinkable
+     chip row was being crushed to half a line of type. */
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: .35rem; margin: 0;
+  padding: .6rem .7rem;
+  border-bottom: 1px solid var(--rule);
   overflow-x: auto; scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
+  background: var(--paper);
 }
 #shop .cats::-webkit-scrollbar { display: none; }
 #shop .cat {
-  flex: none; border: 1px solid rgba(255,255,255,.4);
-  background: rgba(0,0,0,.36); color: #fff;
-  border-radius: 999px; padding: .38rem .74rem;
-  font: inherit; font-size: .6875rem; font-weight: 500;
+  flex: none; border: 1px solid var(--rule-strong);
+  background: var(--paper); color: var(--ink-dim);
+  border-radius: 999px; padding: .34rem .68rem;
+  font: inherit; font-size: .625rem; font-weight: 500;
   letter-spacing: .14em; text-transform: uppercase;
-  white-space: nowrap; cursor: pointer;
-  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
-  transition: background .15s ease, color .15s ease;
+  white-space: nowrap; cursor: pointer; line-height: 1.15;
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
 }
-#shop .cat i { font-style: normal; opacity: .55; margin-left: .38rem; letter-spacing: 0; }
-#shop .cat[data-live="1"] { background: #fff; color: #0b0b0b; border-color: #fff; }
-#shop .cat[data-live="1"] i { opacity: .5; }
+#shop .cat i { font-style: normal; opacity: .55; margin-left: .32rem; letter-spacing: 0; }
+#shop .cat[data-live="1"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 
-#shop .rail .strip {
-  display: flex; gap: .6rem; overflow-x: auto; overflow-y: hidden;
-  scroll-snap-type: x proximity;
+#shop .grid {
+  flex: 1 1 auto; min-height: 0;
+  overflow-y: auto; overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  padding-bottom: .2rem;
+  display: grid; grid-template-columns: 1fr 1fr;
+  align-content: start;
 }
-#shop .rail .strip::-webkit-scrollbar { display: none; }
-#shop .item {
-  flex: none; width: 104px; scroll-snap-align: center;
-  border: 0; padding: 0; background: none; color: #fff;
-  text-align: left; cursor: pointer; font: inherit;
+#shop .card {
+  border-right: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  min-width: 0;
 }
-#shop .item .sh {
-  width: 104px; height: 104px; border-radius: 8px; overflow: hidden;
-  background: rgba(255,255,255,.1);
-  box-shadow: 0 0 0 1px rgba(255,255,255,.22);
-  transition: box-shadow .18s ease, transform .18s ease;
+#shop .card:nth-child(2n) { border-right: 0; }
+#shop .hit {
+  display: block; width: 100%; border: 0; background: none;
+  padding: .55rem .55rem .65rem; text-align: left; cursor: pointer;
+  font: inherit; color: var(--ink);
 }
-#shop .item .sh img { width: 100%; height: 100%; object-fit: cover; display: block; }
-#shop .item[data-live="1"] .sh { box-shadow: 0 0 0 2px #fff; transform: translateY(-3px); }
-#shop .item b {
-  display: block; margin-top: .4rem; font-size: .72rem; font-weight: 500;
-  line-height: 1.25; max-height: 2.5em; overflow: hidden;
-  text-shadow: 0 1px 3px rgba(0,0,0,.9);
+#shop .hit .pic {
+  display: block; aspect-ratio: 1; overflow: hidden;
+  background: var(--paper-sunken);
 }
-#shop .item i {
-  display: block; font-style: normal; font-size: .72rem;
-  color: rgba(255,255,255,.76); text-shadow: 0 1px 3px rgba(0,0,0,.9);
+#shop .hit img { width: 100%; height: 100%; object-fit: cover; display: block; }
+#shop .hit b {
+  display: block; margin-top: .45rem; font-size: .75rem; font-weight: 500;
+  line-height: 1.3; max-height: 2.6em; overflow: hidden;
 }
-#shop .item[data-gone="1"] .sh img { filter: grayscale(1) brightness(.6); }
+#shop .hit i { display: block; font-style: normal; font-size: .75rem; color: var(--ink-dim); }
+#shop .card[data-gone="1"] .hit img { filter: grayscale(1) brightness(.78); }
+#shop .card[data-live="1"] { background: var(--paper-raised); }
+#shop .card[data-live="1"] .hit .pic { outline: 2px solid var(--ink); outline-offset: -2px; }
 
-/* One piece, picked up. */
-#shop .look {
-  position: absolute; right: clamp(14px, 4vw, 30px);
-  top: 50%; translate: 0 -50%;
-  width: min(330px, 78vw);
-  /* A laptop in landscape is 560 tall, and a square picture plus a name,
-     a price, a size run and a button does not fit in it. Capped against the
-     viewport and allowed to scroll rather than running off both ends. */
-  max-height: calc(100dvh - var(--bar) - 200px);
-  overflow-y: auto;
-  background: var(--paper); color: var(--ink);
-  border: 1px solid var(--rule);
-  padding: 1.1rem 1.15rem 1.25rem;
-  pointer-events: auto;
-  opacity: 0; translate: 0 calc(-50% + 10px);
-  transition: opacity .22s ease, translate .22s ease;
+#shop .more { display: none; padding: 0 .55rem .7rem; }
+#shop .card[data-live="1"] .more { display: block; }
+#shop .more .sizes { display: flex; flex-wrap: wrap; gap: .25rem; }
+#shop .more .sizes span {
+  border: 1px solid var(--rule-strong); padding: .12rem .38rem; font-size: .625rem;
+  letter-spacing: .08em;
 }
-#shop .look[data-on="1"] { opacity: 1; translate: 0 -50%; }
-#shop .look .pic {
-  aspect-ratio: 1; background: var(--paper-sunken); overflow: hidden;
-  margin: 0 0 .9rem;
+#shop .more .stock {
+  margin: .45rem 0 0; font-size: .625rem; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--ink-faint);
 }
+#shop .more .pill {
+  margin-top: .55rem; width: 100%; justify-content: center;
+  padding: .5rem .6rem; font-size: .625rem;
+}
+
+
 @media (max-height: 720px) {
-  #shop .look { padding: .85rem .95rem 1rem; }
-  /* A fixed height, not a ratio: the card is a third of the screen wide, so
+    /* A fixed height, not a ratio: the card is a third of the screen wide, so
      any ratio still gives a picture taller than the room left for it. */
-  #shop .look .pic { aspect-ratio: auto; height: clamp(88px, 21vh, 150px); margin-bottom: .6rem; }
-  #shop .look .pill { margin-top: .75rem; }
-  #shop .look .stock { margin-top: .5rem; }
-  #shop .look .sizes { margin-top: .5rem; }
-}
-#shop .look .pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
-#shop .look h4 { margin: 0; font-size: 1rem; font-weight: 600; line-height: 1.25; }
-#shop .look .price { margin: .35rem 0 0; font-size: .9375rem; }
-#shop .look .sizes {
-  margin: .7rem 0 0; display: flex; flex-wrap: wrap; gap: .3rem;
-}
-#shop .look .sizes span {
-  border: 1px solid var(--rule-strong); padding: .18rem .5rem;
-  font-size: .6875rem; letter-spacing: .08em;
-}
-#shop .look .stock { margin: .7rem 0 0; font-size: .6875rem; letter-spacing: .18em;
-  text-transform: uppercase; color: var(--ink-faint); }
-#shop .look .pill { margin-top: 1rem; width: 100%; justify-content: center; }
+        }
 
 /* A phone is not a small laptop.
-   A square picture with the name, price, sizes and button stacked under it
-   is most of a 812-tall screen, and the room — the entire point of being in
-   here — ends up behind it. On a phone the card is a strip that sits above
-   the listing: thumbnail, the same facts beside it, and the room still
-   visible over the top of it. */
+   The shelf goes to the bottom of the screen and takes a little under half
+   of it, which leaves the room the part of the frame a phone is actually
+   good at: the tall middle. */
 @media (max-width: 720px) {
-  #shop .look {
-    left: clamp(12px, 3.5vw, 30px); right: clamp(12px, 3.5vw, 30px);
-    /* Measured, not guessed. The rail grew a row of category chips and the
-       card was still sitting where the rail used to end, on top of them. */
-    width: auto; top: auto; bottom: calc(var(--rail-h, 172px) + 10px);
-    max-height: none; overflow: visible;
-    translate: 0 10px;
-    display: grid;
-    grid-template-columns: 88px 1fr;
-    column-gap: .8rem;
-    align-items: start;
-    padding: .75rem .85rem .85rem;
+  #shop .shelf {
+    left: 0; right: 0; top: auto; bottom: 0;
+    width: auto; height: min(46vh, 430px);
+    border-left: 0; border-top: 1px solid var(--rule);
   }
-  #shop .look[data-on="1"] { translate: 0 0; }
-  #shop .look .pic {
-    grid-column: 1; grid-row: 1 / span 5;
-    width: 88px; height: 88px; aspect-ratio: auto; margin: 0;
-  }
-  #shop .look h4, #shop .look .price, #shop .look .sizes,
-  #shop .look .stock, #shop .look .pill { grid-column: 2; }
-  #shop .look h4 { font-size: .9rem; }
-  #shop .look .price { margin-top: .15rem; font-size: .875rem; }
-  #shop .look .sizes { margin-top: .4rem; }
-  #shop .look .stock { margin-top: .4rem; }
-  #shop .look .pill { margin-top: .55rem; padding: .5rem .9rem; }
-
   #shop .top { padding-top: .55rem; padding-bottom: .55rem; }
   #shop .who h3 { font-size: 1.05rem; }
   #shop .mark { width: 38px; height: 38px; border-radius: 8px; }
-  /* The label collapses to a glyph so the house's name has the width. */
-  #shop .out { width: 38px; height: 38px; padding: 0; justify-content: center; }
-  #shop .out span { display: none; }
-  #shop .out::before { content: "¹5"; font-size: 15px; line-height: 1; }
-
-  #shop .item, #shop .item .sh { width: 84px; }
-  #shop .item .sh { height: 84px; }
-  #shop .rail { padding-top: .8rem; }
-  #shop .cats { margin-bottom: .55rem; }
-  #shop .cat { padding: .34rem .6rem; font-size: .625rem; letter-spacing: .1em; }
+  #shop .out .long { display: none; }
+  #shop .cats { padding: .55rem .6rem; }
+  #shop .hit b { font-size: .7rem; }
+}
+@media (min-width: 721px) {
+  #shop .out .short { display: none; }
 }
 
 /* The cut between outside and in. A brand-coloured wipe, long enough to
@@ -856,24 +826,20 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
       <h3 id="shop-name">&mdash;</h3>
       <p id="shop-count">&mdash;</p>
     </div>
-    <button class="out" id="shop-out" type="button" aria-label="Back to the street">
-      <span>Back to the street</span>
+    <button class="out" id="shop-out" type="button">
+      <span class="arr" aria-hidden="true">←</span>
+      <span class="lbl long">Back to the street</span>
+      <span class="lbl short">Street</span>
     </button>
   </div>
 
-  <div class="look" id="shop-look" data-on="0">
-    <div class="pic"><img id="look-img" alt="" /></div>
-    <h4 id="look-name">&mdash;</h4>
-    <p class="price" id="look-price">&mdash;</p>
-    <div class="sizes" id="look-sizes"></div>
-    <p class="stock" id="look-stock">&mdash;</p>
-    <a class="pill" id="look-link" href="#">View on the store</a>
-  </div>
-
-  <div class="rail" id="shop-rail">
+  <!-- The stock, as a catalogue rather than a filmstrip: a column of cards
+       you scroll the way you scroll the storefront, and the room behind it
+       follows along. -->
+  <aside class="shelf" id="shop-shelf" aria-label="Stock">
     <div class="cats" id="shop-cats" role="group" aria-label="Filter by category"></div>
-    <div class="strip" id="shop-strip"></div>
-  </div>
+    <div class="grid" id="shop-grid"></div>
+  </aside>
 </div>
 
 <div id="wipe"></div>
@@ -5856,8 +5822,17 @@ const storeRoom = (() => {
   });
 
   // ── the brand's mark, on the back wall ─────────────────────────────────
-  const markCanvas = canvas(1024, 256);
-  const markTex = asTexture(markCanvas);
+  // Not through `canvas()`.
+  //
+  // That helper multiplies every texture by the quality budget's texScale,
+  // which on a phone is 0.6 — so the one piece of artwork rendered at three
+  // metres across was being drawn into a 614-pixel canvas and then blown up.
+  // It is a single texture for the whole street; it can afford to be sharp.
+  const markCanvas = document.createElement("canvas");
+  markCanvas.width = 1536; markCanvas.height = 384;
+  const markTex = new THREE.CanvasTexture(markCanvas);
+  markTex.colorSpace = THREE.SRGBColorSpace;
+  markTex.anisotropy = 8;
 
   /**
    * Paints the house's sign onto the back wall.
@@ -5921,7 +5896,11 @@ const storeRoom = (() => {
   // and swaps these as it scrolls, so the room is always showing the part of
   // the listing being read.
   const PANEL = ROOM_PORTRAIT ? { w: 1.86, h: 1.76 } : { w: 1.9, h: 1.8 };
-  const COLS = ROOM_PORTRAIT ? [-2.05, 2.05] : [-5.25, -1.75, 1.75, 5.25];
+  // The shelf takes a third of a landscape window, so the wall no longer
+  // has the width for four across unless the window is genuinely wide.
+  const COLS = ROOM_PORTRAIT ? [-2.05, 2.05]
+             : innerWidth >= 1240 ? [-3.5, 0, 3.5]
+             : [-2.4, 2.4];
   // Both rows dropped 0.13, which buys the sign above them a clean band
   // between the top frames and the ceiling.
   const ROWS = [3.15, 1.25];
@@ -5996,7 +5975,17 @@ const storeRoom = (() => {
     frame.castShadow = true;
     g.add(frame);
 
-    const mat = new THREE.MeshStandardMaterial({ color: 0x9a9a9a, roughness: 0.82, metalness: 0 });
+    // Lit mostly by itself.
+    //
+    // A photograph of a garment hanging in a room lit by a warm gold lamp
+    // comes out warm and gold, and every shop looked like it had a filter
+    // over it. Feeding the same picture into the emissive channel makes the
+    // panel a lightbox: the colours are the garment's own, with just enough
+    // of the room's light left on it to keep it in the room.
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0x5e5e5e, roughness: 0.9, metalness: 0,
+      emissive: 0xffffff, emissiveIntensity: 0.82,
+    });
     const art = new THREE.Mesh(new THREE.PlaneGeometry(PANEL.w, PANEL.h), mat);
     art.position.z = 0.012;
     g.add(art);
@@ -6032,8 +6021,8 @@ const storeRoom = (() => {
       matFloor.color.set(conf.floor);
       matCeil.color.set(conf.wall).lerp(new THREE.Color(0xffffff), 0.55);
       matTrim.color.set(conf.trim);
-      matGlow.color.set(conf.lamp);
-      matGlow.emissive.set(conf.lamp);
+      matGlow.color.set(conf.lamp).lerp(new THREE.Color(0xffffff), 0.5);
+      matGlow.emissive.copy(matGlow.color);
 
       for (const k in fixtures) fixtures[k].visible = (k === conf.kind);
 
@@ -6050,8 +6039,16 @@ const storeRoom = (() => {
         if (!it) return;
         texFor(it, (tex) => {
           if (pn.product !== it) return;   // the page moved on mid-flight
-          if (!tex) { pn.mat.map = null; pn.mat.color.set(0x8f8f8f); }
-          else { pn.mat.map = tex; pn.mat.color.set(0xffffff); }
+          if (!tex) {
+            pn.mat.map = pn.mat.emissiveMap = null;
+            pn.mat.color.set(0x8f8f8f);
+            pn.mat.emissiveIntensity = 0;
+          } else {
+            pn.mat.map = tex;
+            pn.mat.emissiveMap = tex;
+            pn.mat.color.set(0x5e5e5e);
+            pn.mat.emissiveIntensity = 0.82;
+          }
           pn.mat.needsUpdate = true;
         });
       });
@@ -6083,14 +6080,8 @@ storeMode = (() => {
   const markEl   = document.getElementById("shop-mark");
   const nameEl   = document.getElementById("shop-name");
   const countEl  = document.getElementById("shop-count");
-  const stripEl  = document.getElementById("shop-strip");
-  const lookEl   = document.getElementById("shop-look");
-  const lookImg  = document.getElementById("look-img");
-  const lookName = document.getElementById("look-name");
-  const lookPrice= document.getElementById("look-price");
-  const lookSizes= document.getElementById("look-sizes");
-  const lookStock= document.getElementById("look-stock");
-  const lookLink = document.getElementById("look-link");
+  const gridEl   = document.getElementById("shop-grid");
+  const shelfEl  = document.getElementById("shop-shelf");
 
   const money = new Intl.NumberFormat("en-US", {
     style: "currency", currency: "USD", minimumFractionDigits: 2,
@@ -6100,7 +6091,6 @@ storeMode = (() => {
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
   const catsEl = document.getElementById("shop-cats");
-  const railEl = document.getElementById("shop-rail");
   const topEl = document.querySelector("#shop .top");
 
   // Canonical running order, so every shop's filters read the same way
@@ -6115,7 +6105,7 @@ storeMode = (() => {
   let stock = [], items = [], cat = "all";
   let page = -1, picked = -1, house = -1;
   let savedScroll = 0;
-  let railCells = [];
+  let cards = [];
 
   // ── the catalogue ─────────────────────────────────────────────────────
   //
@@ -6135,52 +6125,67 @@ storeMode = (() => {
   setTimeout(loadCatalogue, 2500);
 
   // ── camera ────────────────────────────────────────────────────────────
+  const WHITE = new THREE.Color(0xffffff);
   const curPos = new THREE.Vector3(), curLook = new THREE.Vector3();
   const tgtPos = new THREE.Vector3(), tgtLook = new THREE.Vector3();
   const v3 = new THREE.Vector3(), q4 = new THREE.Quaternion();
 
   /**
-   * Where you stand when you walk in.
+   * The part of the screen the room actually gets.
    *
-   * Derived from the lens, not chosen: far enough back that the whole grid
-   * is inside the horizontal field, clamped to the room it has to fit in.
-   * The camera's fov changes with the viewport, so this is read fresh each
-   * time rather than baked at build.
+   * The chrome is not a strip along one edge any more: the header runs
+   * across the top and the shelf takes the right-hand third, or the bottom
+   * half on a phone. Everything about framing — how far back to stand, how
+   * far to shift, where to aim — comes out of this rectangle, measured off
+   * the real elements rather than assumed, so it keeps working when the
+   * category chips add a row or the viewport turns.
    */
+  function safeRect() {
+    const t = (topEl ? topEl.getBoundingClientRect().bottom : 120) / innerHeight;
+    const r = shelfEl.getBoundingClientRect();
+    const side = innerWidth > 720;
+    return {
+      left: 0,
+      right: side ? clamp(r.left / innerWidth, 0.35, 1) : 1,
+      top: clamp(t, 0, 0.4),
+      bottom: side ? 1 : clamp(r.top / innerHeight, 0.35, 1),
+    };
+  }
+
+  /** Where you stand when you walk in: the whole wall, framed in what is left. */
   function standBack() {
-    const hHalf = Math.atan(Math.tan(camera.fov * Math.PI / 360) * camera.aspect);
-    const want = (storeRoom.GRID_HALF + 0.5) / Math.tan(hHalf);
-    const dist = clamp(want, 5.2, ROOM.d - 1.5);
-    const z = ROOM_BACK + dist;
-    v3.set(0, 2.0, z).applyMatrix4(storeRoom.group.matrixWorld);
-    tgtPos.copy(v3);
+    const sr = safeRect();
+    const availW = Math.max(0.3, sr.right - sr.left);
+    const cx = (sr.left + sr.right) / 2;
+    const cy = (sr.top + sr.bottom) / 2;
 
-    // Aimed so the stock sits centred in the gap the chrome leaves.
-    //
-    // There are two bands, not one — the page header and the shop bar
-    // across the top, the category chips and the listing across the
-    // bottom — and what is actually available is the strip between them.
-    // Tilting by the bottom band alone pushed the top row up behind the
-    // header; the difference between the two bands is the right number,
-    // and it falls out of the same arithmetic on any screen.
     const vHalf = camera.fov * Math.PI / 360;
-    const visibleH = 2 * dist * Math.tan(vHalf);
-    const topF = clamp((topEl ? topEl.getBoundingClientRect().bottom : 120) / innerHeight, 0, 0.45);
-    const botF = clamp((railEl.offsetHeight || 150) / innerHeight, 0, 0.45);
-    const drop = visibleH * (botF - topF) / 2;
+    const hHalf = Math.atan(Math.tan(vHalf) * camera.aspect);
+    const want = (storeRoom.GRID_HALF + 0.45) / (Math.tan(hHalf) * availW);
+    const dist = clamp(want, 5.2, ROOM.d - 1.5);
 
-    const camY = 2.0, lookY = 2.2 - drop;
-    v3.set(0, lookY, ROOM_BACK).applyMatrix4(storeRoom.group.matrixWorld);
+    const visibleW = 2 * dist * Math.tan(hHalf);
+    const visibleH = 2 * dist * Math.tan(vHalf);
+    // Slide sideways rather than swing: moving the camera and what it is
+    // looking at by the same amount keeps the wall square on, and puts its
+    // middle in the middle of the gap the shelf leaves.
+    const slide = visibleW * (0.5 - cx);
+    const camY = 2.0;
+    const lookY = 2.2 - visibleH * (0.5 - cy);
+
+    v3.set(slide, camY, ROOM_BACK + dist).applyMatrix4(storeRoom.group.matrixWorld);
+    tgtPos.copy(v3);
+    v3.set(slide, lookY, ROOM_BACK).applyMatrix4(storeRoom.group.matrixWorld);
     tgtLook.copy(v3);
 
     // The house's sign only earns its place if it clears the header. On a
-    // short landscape window the wall simply is not tall enough for two
-    // rows of stock and a metre of signage, and the stock wins — the bar
-    // at the top is already carrying the name in type.
+    // short window the wall is not tall enough for two rows of stock and a
+    // metre of signage, and the stock wins — the bar at the top is already
+    // carrying the name in type.
     const rel = Math.atan((storeRoom.markTop() - camY) / dist)
               - Math.atan((lookY - camY) / dist);
     const markF = 0.5 - 0.5 * Math.tan(rel) / Math.tan(vHalf);
-    storeRoom.mark.visible = markF > topF + 0.008;
+    storeRoom.mark.visible = markF > sr.top + 0.008;
   }
 
   /** Step up to one piece, square on and close enough to read the label. */
@@ -6193,23 +6198,31 @@ storeMode = (() => {
     // garment filling the entire screen on a phone, where the horizontal
     // field is half as wide.
     const hHalf = Math.atan(Math.tan(camera.fov * Math.PI / 360) * camera.aspect);
-    const back = clamp((storeRoom.PANEL.w / 2 + 0.55) / Math.tan(hHalf), 2.9, 7.5);
+    // Against the gap the shelf leaves, not the whole window: a piece framed
+    // for a full-width screen fills the third of it that is still the room.
+    const sr0 = safeRect();
+    const availW0 = Math.max(0.3, sr0.right - sr0.left);
+    const availH0 = Math.max(0.3, sr0.bottom - sr0.top);
+    const fit = Math.min(Math.tan(hHalf) * availW0,
+                         Math.tan(camera.fov * Math.PI / 360) * availH0 * 1.25);
+    const back = clamp((storeRoom.PANEL.w / 2 + 0.5) / fit, 2.9, 8.5);
 
     v3.set(0, 0, 1).applyQuaternion(q4);
     tgtPos.copy(tgtLook).addScaledVector(v3, back);
 
-    const wide = innerWidth > 720;
-    if (wide) {
-      // The card docks right on a wide screen, so stand a pace to the right
-      // of square-on and the piece sits beside it rather than under it.
-      v3.set(1, 0, 0).applyQuaternion(q4);
-      tgtPos.addScaledVector(v3, back * 0.44);
-    }
-    tgtPos.y = Math.max(1.5, tgtLook.y - 0.3);
-    // On a phone the card and the listing own the bottom two fifths, so aim
-    // under the piece to lift it into the part of the screen still showing
-    // the room.
-    if (!wide) tgtLook.y -= 0.55;
+    // Then slid so the piece lands in the middle of the gap the shelf
+    // leaves, by the same arithmetic the wide shot uses.
+    const sr = safeRect();
+    const vHalf = camera.fov * Math.PI / 360;
+    const hHalf2 = Math.atan(Math.tan(vHalf) * camera.aspect);
+    const slide = 2 * back * Math.tan(hHalf2) * (0.5 - (sr.left + sr.right) / 2);
+    const lift = 2 * back * Math.tan(vHalf) * (0.5 - (sr.top + sr.bottom) / 2);
+
+    v3.set(1, 0, 0).applyQuaternion(q4);
+    tgtPos.addScaledVector(v3, slide);
+    tgtLook.addScaledVector(v3, slide);
+    tgtPos.y = Math.max(1.4, tgtLook.y - 0.25);
+    tgtLook.y -= lift;
   }
 
   // ── light ─────────────────────────────────────────────────────────────
@@ -6240,7 +6253,9 @@ storeMode = (() => {
       });
       v3.set(LAMPS[i][0], LAMPS[i][1], LAMPS[i][2]).applyMatrix4(storeRoom.group.matrixWorld);
       l.position.copy(v3);
-      l.color.set(conf.lamp);
+      // Halfway to white. A saturated bulb plus saturated walls is a room
+      // seen through a gel, which is what the tint was.
+      l.color.set(conf.lamp).lerp(WHITE, 0.45);
       l.distance = 22;
       l.decay = 1.7;
       l.intensity = LAMPS[i][3];
@@ -6299,13 +6314,15 @@ storeMode = (() => {
     }
   }
 
-  /** Tells the card how tall the listing is, so it can sit clear of it. */
-  function measureRail() {
+  /** Keeps the shelf clear of the shop bar, whose height varies with type. */
+  function measureChrome() {
     requestAnimationFrame(() => {
-      shopEl.style.setProperty("--rail-h", `${Math.round(railEl.offsetHeight)}px`);
+      const h = topEl ? topEl.getBoundingClientRect().height : 62;
+      shopEl.style.setProperty("--topbar", `${Math.round(h)}px`);
+      if (picked < 0) standBack();
     });
   }
-  addEventListener("resize", () => { if (active) measureRail(); });
+  addEventListener("resize", () => { if (active) measureChrome(); });
 
   function setCat(key) {
     if (key === cat) return;
@@ -6324,95 +6341,118 @@ storeMode = (() => {
     items = cat === "all" ? stock.slice() : stock.filter((it) => it.cat === cat);
     page = -1;
     setPage(0);
-    buildRail();
+    buildGrid();
     picked = -1;
-    lookEl.dataset.on = "0";
     standBack();
-    stripEl.scrollLeft = 0;
+    gridEl.scrollTop = 0;
   }
 
-  function buildRail() {
-    stripEl.textContent = "";
-    railCells = items.map((it, i) => {
-      const cell = document.createElement("button");
-      cell.type = "button";
-      cell.className = "item";
-      cell.dataset.gone = it.stock > 0 ? "0" : "1";
+  /**
+   * The catalogue.
+   *
+   * Two columns of cards scrolled vertically, hairline-ruled, which is how
+   * the storefront lists a house — a horizontal filmstrip made you drag
+   * sideways through fifty-two pieces to find one. Tapping a card opens its
+   * sizes and its way through to the product page inside the card itself,
+   * so there is no second floating panel over the room.
+   */
+  function buildGrid() {
+    gridEl.textContent = "";
+    cards = items.map((it, i) => {
+      const card = document.createElement("article");
+      card.className = "card";
+      card.dataset.gone = it.stock > 0 ? "0" : "1";
+      card.dataset.live = "0";
 
-      const sh = document.createElement("div");
-      sh.className = "sh";
+      const hit = document.createElement("button");
+      hit.type = "button";
+      hit.className = "hit";
+      hit.setAttribute("aria-label", `${it.name}, ${money.format(it.price)}`);
+
+      const pic = document.createElement("span");
+      pic.className = "pic";
       const img = document.createElement("img");
       img.loading = "lazy";
       img.decoding = "async";
       img.alt = "";
       img.src = it.image;
-      sh.appendChild(img);
+      pic.appendChild(img);
 
-      const b = document.createElement("b");
-      b.textContent = it.name;
-      const price = document.createElement("i");
-      price.textContent = money.format(it.price);
+      const nm = document.createElement("b");
+      nm.textContent = it.name;
+      const pr = document.createElement("i");
+      pr.textContent = money.format(it.price);
+      hit.append(pic, nm, pr);
+      hit.addEventListener("click", () => choose(i, false));
 
-      cell.append(sh, b, price);
-      cell.addEventListener("click", () => choose(i, true));
-      stripEl.appendChild(cell);
-      return cell;
+      const more = document.createElement("div");
+      more.className = "more";
+      const sizes = document.createElement("div");
+      sizes.className = "sizes";
+      for (const sz of it.sizes || []) {
+        const el = document.createElement("span");
+        el.textContent = sz;
+        sizes.appendChild(el);
+      }
+      const stockLine = document.createElement("p");
+      stockLine.className = "stock";
+      stockLine.textContent = it.stock > 0 ? `${it.stock} in stock` : "Sold out";
+      const link = document.createElement("a");
+      link.className = "pill";
+      link.href = `${SITE}/products/${it.id}`;
+      link.textContent = "View on the store";
+      more.append(sizes, stockLine, link);
+
+      card.append(hit, more);
+      gridEl.appendChild(card);
+      return card;
     });
-    stripEl.scrollLeft = 0;
+    gridEl.scrollTop = 0;
   }
 
-  /** Selects one piece: the card, the rail, and the camera all follow. */
-  function choose(i, scrollRail) {
+  /** Selects one piece: the card opens, the camera steps up to it. */
+  function choose(i, scrollTo) {
     if (i < 0 || i >= items.length) return;
-    picked = i;
-    const it = items[i];
+    const again = picked === i;
+    picked = again ? -1 : i;
 
-    railCells.forEach((c, k) => { c.dataset.live = k === i ? "1" : "0"; });
-    if (scrollRail && railCells[i]) {
-      railCells[i].scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    cards.forEach((c, k) => { c.dataset.live = k === picked ? "1" : "0"; });
+    if (picked < 0) { standBack(); return; }
+
+    if (scrollTo && cards[picked]) {
+      cards[picked].scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
-
-    setPage(Math.floor(i / PAGE));
-    const pn = storeRoom.panels[i - page * PAGE];
+    setPage(Math.floor(picked / PAGE));
+    const pn = storeRoom.panels[picked - page * PAGE];
     if (pn && pn.product) standAt(pn);
-
-    lookImg.src = it.image;
-    lookName.textContent = it.name;
-    lookPrice.textContent = money.format(it.price);
-    lookSizes.textContent = "";
-    for (const sz of it.sizes || []) {
-      const el = document.createElement("span");
-      el.textContent = sz;
-      lookSizes.appendChild(el);
-    }
-    lookStock.textContent = it.stock > 0 ? `${it.stock} in stock` : "Sold out";
-    lookLink.href = `${SITE}/products/${it.id}`;
-    lookEl.dataset.on = "1";
   }
 
   function clearPick() {
     picked = -1;
-    lookEl.dataset.on = "0";
-    railCells.forEach((c) => { c.dataset.live = "0"; });
+    cards.forEach((c) => { c.dataset.live = "0"; });
     standBack();
   }
 
   // Scrolling the listing walks the walls along with it, so the room is
   // always showing the run of stock being read rather than a fixed dozen.
-  let railTick = 0;
-  stripEl.addEventListener("scroll", () => {
-    if (!active || railTick) return;
-    railTick = requestAnimationFrame(() => {
-      railTick = 0;
-      const kids = stripEl.children;
-      if (kids.length < 1) return;
-      const pitch = kids.length > 1 ? kids[1].offsetLeft - kids[0].offsetLeft
-                                    : kids[0].offsetWidth;
-      const mid = stripEl.scrollLeft + stripEl.clientWidth / 2;
-      const idx = clamp(Math.round((mid - kids[0].offsetWidth / 2) / pitch), 0, items.length - 1);
-      // A deadband of one item either side of the page already hanging.
-      // Without it a thumb resting on a page boundary turns the wall over
-      // and back with every pixel of scroll.
+  let gridTick = 0;
+  gridEl.addEventListener("scroll", () => {
+    if (!active || gridTick) return;
+    gridTick = requestAnimationFrame(() => {
+      gridTick = 0;
+      if (!cards.length) return;
+      // Which card is in the middle of the shelf's viewport. Two columns,
+      // so the row under the midpoint is the pair at that index.
+      const mid = gridEl.scrollTop + gridEl.clientHeight / 2;
+      let idx = 0, best = Infinity;
+      for (let k = 0; k < cards.length; k++) {
+        const c = cards[k];
+        const d = Math.abs(c.offsetTop + c.offsetHeight / 2 - mid);
+        if (d < best) { best = d; idx = k; }
+      }
+      // A deadband of one item either side of the page already hanging,
+      // so a thumb resting on a boundary does not turn the wall over and
+      // back with every pixel of scroll.
       if (idx >= page * PAGE - 1 && idx <= page * PAGE + PAGE) return;
       setPage(Math.floor(idx / PAGE));
     });
@@ -6446,8 +6486,8 @@ storeMode = (() => {
     setPage(0);
     if (items.length === 0) storeRoom.hang([]);
     buildCats();
-    buildRail();
-    measureRail();
+    buildGrid();
+    measureChrome();
 
     const art = logoFor(b.slug);
     markEl.textContent = "";
@@ -6466,8 +6506,6 @@ storeMode = (() => {
     countEl.textContent = stock.length
       ? `${stock.length} piece${stock.length === 1 ? "" : "s"} in store`
       : "Stock is loading on the storefront";
-    lookLink.textContent = "View on the store";
-
     storeRoom.group.visible = true;
     lightsOn(conf);
     standBack();
@@ -6476,7 +6514,6 @@ storeMode = (() => {
 
     savedScroll = window.scrollY;
     lockScroll(true);
-    lookEl.dataset.on = "0";
     picked = -1;
     shopEl.dataset.on = "1";
     shopEl.setAttribute("aria-hidden", "false");
@@ -6505,7 +6542,6 @@ storeMode = (() => {
     active = false;
     shopEl.dataset.on = "0";
     shopEl.setAttribute("aria-hidden", "true");
-    lookEl.dataset.on = "0";
     storeRoom.group.visible = false;
     lightsOff();
     house = -1;
