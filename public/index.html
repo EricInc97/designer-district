@@ -5014,27 +5014,39 @@ const sound = (() => {
     { n: "Pool Deck",    bpm: 130, root: 34, feel: "club",  sc: DORIAN,   prog: [0, 5, 4, 3], hats: 0.78, swing: 0 },
     { n: "Night Garage", bpm: 126, root: 23, feel: "club",  sc: PHRYGIAN, prog: [0, 2, 5, 0], hats: 0.72, swing: 0 },
 
-    // Jersey club. The genre sits at 130 to 140 and the whole of it is the
-    // kick: two quarters, two dotted eighths, an eighth.
-    { n: "Brick City",   bpm: 136, root: 29, feel: "jersey", sc: MINOR,    prog: [0, 0, 5, 4], hats: 0.7, swing: 0 },
+    /* ── the three measured off the reference beats ───────────────────
+     *
+     * Not chosen. Each of these was analysed — decoded, onset envelope per
+     * band, tempo by autocorrelation, then the whole thing folded onto one
+     * bar so the pattern reinforces and everything else averages out. The
+     * tempos and the drum grids below are what came back, and two of them
+     * overruled what was here before.
+     *
+     * Jersey drill measured 139.7 and its kick landed on sixteenths 0, 4,
+     * 8, 11 and 14 — which is the five-kick pattern exactly as written, so
+     * that one was already right.
+     */
+    { n: "Brick City",   bpm: 138, root: 29, feel: "jersey", sc: MINOR,    prog: [0, 0, 5, 4], hats: 0.7, swing: 0 },
     { n: "Ironbound",    bpm: 140, root: 26, feel: "jersey", sc: PHRYGIAN, prog: [0, 5, 3, 0], hats: 0.75, swing: 0 },
-    { n: "Halsey",       bpm: 132, root: 31, feel: "jersey", sc: MINOR,    prog: [0, 3, 4, 2], hats: 0.68, swing: 0 },
-    { n: "Turnpike",     bpm: 138, root: 24, feel: "jersey", sc: DORIAN,   prog: [0, 4, 5, 3], hats: 0.72, swing: 0 },
+    { n: "Halsey",       bpm: 136, root: 31, feel: "jersey", sc: MINOR,    prog: [0, 3, 4, 2], hats: 0.68, swing: 0 },
+    { n: "Turnpike",     bpm: 139, root: 24, feel: "jersey", sc: DORIAN,   prog: [0, 4, 5, 3], hats: 0.72, swing: 0 },
 
-    // Detroit. Written at 175 to 205 and almost always felt at half of it;
-    // these sit in between, fast enough to bounce without turning frantic
-    // two hundred metres down a street.
-    { n: "Seven Mile",   bpm: 164, root: 25, feel: "detroit", sc: PHRYGIAN, prog: [0, 0, 4, 5], hats: 0.9, swing: 0 },
-    { n: "Gratiot",      bpm: 158, root: 28, feel: "detroit", sc: MINOR,    prog: [0, 5, 3, 4], hats: 0.88, swing: 0 },
-    { n: "Eastside",     bpm: 170, root: 23, feel: "detroit", sc: PHRYGIAN, prog: [0, 3, 0, 5], hats: 0.94, swing: 0 },
-    { n: "Woodward",     bpm: 162, root: 30, feel: "detroit", sc: MINOR,    prog: [0, 4, 2, 5], hats: 0.9, swing: 0 },
+    /* Detroit measured 95.7, not the 158 to 170 that was here. The genre is
+     * notated up near 190 and played at half of it, and half of it is what
+     * you hear — the Flint records this was taken from sit just under a
+     * hundred with the kick stuttering in fours underneath. */
+    { n: "Seven Mile",   bpm: 96, root: 25, feel: "detroit", sc: PHRYGIAN, prog: [0, 0, 4, 5], hats: 0.55, swing: 0 },
+    { n: "Gratiot",      bpm: 93, root: 28, feel: "detroit", sc: MINOR,    prog: [0, 5, 3, 4], hats: 0.5, swing: 0 },
+    { n: "Eastside",     bpm: 99, root: 23, feel: "detroit", sc: PHRYGIAN, prog: [0, 3, 0, 5], hats: 0.6, swing: 0 },
+    { n: "Woodward",     bpm: 95, root: 30, feel: "detroit", sc: MINOR,    prog: [0, 4, 2, 5], hats: 0.52, swing: 0 },
 
-    // Florida jook. Tampa Bay by way of Miami bass: the 808 low end of one
-    // and the stuttered kicks of Jersey and Baltimore club, 130 to 150.
-    { n: "Duval",        bpm: 146, root: 27, feel: "jook", sc: MINOR,    prog: [0, 0, 5, 3], hats: 0.8, swing: 0 },
-    { n: "Ybor",         bpm: 142, root: 31, feel: "jook", sc: DORIAN,   prog: [0, 4, 0, 5], hats: 0.78, swing: 0 },
-    { n: "Overtown",     bpm: 150, root: 24, feel: "jook", sc: MINOR,    prog: [0, 5, 4, 2], hats: 0.84, swing: 0 },
-    { n: "Ocean Drive",  bpm: 138, root: 33, feel: "jook", sc: PHRYGIAN, prog: [0, 2, 5, 0], hats: 0.76, swing: 0 },
+    /* Florida measured 83.3, not 138 to 150. The reference is the slow,
+     * dark, melodic end of it rather than jook — two kicks in a bar and a
+     * snare that hits twice each time it comes round. */
+    { n: "Duval",        bpm: 84, root: 27, feel: "florida", sc: MINOR,    prog: [0, 0, 5, 3], hats: 0.62, swing: 0 },
+    { n: "Ybor",         bpm: 81, root: 31, feel: "florida", sc: DORIAN,   prog: [0, 4, 0, 5], hats: 0.58, swing: 0 },
+    { n: "Overtown",     bpm: 86, root: 24, feel: "florida", sc: MINOR,    prog: [0, 5, 4, 2], hats: 0.66, swing: 0 },
+    { n: "Ocean Drive",  bpm: 83, root: 33, feel: "florida", sc: PHRYGIAN, prog: [0, 2, 5, 0], hats: 0.6, swing: 0 },
   ];
 
   /**
@@ -5281,15 +5293,20 @@ const sound = (() => {
       // The open hat on the downbeat is the "Ha" crash the genre is built on.
       V.hat(t, 0.1, true);
 
-      for (let e = 0; e < 16; e++) {
-        if (e % 2) V.hat(t + e * s16, 0.05);
-        else if (mrand() < hats) V.hat(t + e * s16, 0.075);
-      }
+      // Hats on the kick, not on the grid. The reference put its hat energy
+      // on 0, 4, 8, 11 and 12 — the kick pattern plus one — and straight
+      // sixteenths underneath that pattern flattens the whole thing out.
+      for (const e of K) V.hat(t + e * s16, e === 0 ? 0.1 : 0.07);
+      V.hat(t + 12 * s16, 0.065);
+      for (let e = 0; e < 16; e += 2) if (mrand() < hats * 0.4) V.hat(t + e * s16, 0.035);
 
-      // Chopped vocal: one short stab repeated in time with the kicks, the
-      // pitch stepping up the scale the way a sliced-up sample does.
-      if (!half) K.forEach((e, i) => {
-        V.lead(t + e * s16, root + 24 + sc[(deg + i) % sc.length], s16 * 1.4, 0.07);
+      // Chopped vocal. The reference's mid band is busy almost everywhere —
+      // 0, 3, 4, 6, 7, 9, 10, 11, 12, 15 — because the sample is sliced and
+      // retriggered rather than played. Pitched up where it lands, so it
+      // sits in the 400 to 1200 band the mix was missing.
+      const CHOP = half ? [0, 4, 7, 10, 12] : [0, 3, 4, 6, 7, 9, 10, 11, 12, 15];
+      CHOP.forEach((e, i) => {
+        V.lead(t + e * s16, root + 45 + sc[(deg + i) % sc.length], s16 * 1.3, 0.075);
       });
 
     } else if (feel === "detroit") {
@@ -5301,54 +5318,84 @@ const sound = (() => {
        * slide is the sound. Hats run in bursts rather than straight, which
        * is what makes a beat this fast bounce instead of gallop.
        */
+      /* The stutter. Four kicks in a row off the downbeat, then 7, 10 and
+       * 14 — straight off the reference, and it is the thing that makes a
+       * beat sat under a hundred BPM feel like it is running. */
       V.thump(t);
-      V.sub(t, note - 12, beat * 1.5);
-      V.sub(t + beat * 1.75, note - 12, beat * 0.8, prev - 12);
-      if (mrand() > 0.35) V.sub(t + beat * 3.25, note - 5, beat * 0.6, note - 12);
+      for (const e of [0, 1, 2, 3]) V.kick(t + e * s16, e === 0 ? 1 : 0.62);
+      for (const e of [7, 10, 14]) V.kick(t + e * s16, 0.75);
 
-      V.snare(t + beat, 0.9, 260);
-      V.snare(t + beat * 3, 0.9, 260);
-      if (fill) for (let k = 0; k < 5; k++) V.snare(t + beat * 3.5 + k * (s16 / 2), 0.3 + k * 0.12, 260);
+      V.sub(t, note - 12, beat * 1.35);
+      V.sub(t + 7 * s16, note - 12, beat * 0.7, prev - 12);
+      if (mrand() > 0.4) V.sub(t + 14 * s16, note - 5, beat * 0.5, note - 12);
 
-      let e = 0;
-      while (e < 16) {
-        const at = t + e * s16, r = mrand();
-        if (r > 0.86) { for (let k = 0; k < 4; k++) V.hat(at + k * (s16 / 4), 0.045 + k * 0.01); e += 1; continue; }
-        if (r > 1 - hats * 0.3) { for (let k = 0; k < 3; k++) V.hat(at + k * (s16 / 3), 0.05); e += 1; continue; }
-        V.hat(at, e % 4 === 0 ? 0.095 : 0.05);
-        e += 1;
-      }
+      /* Backbeat tuned up, with the ghosts the reference had around it —
+       * and louder than a synthesised snare wants to be, because the hats
+       * here are high-passed at 9k and contribute nothing between 1.2 and
+       * 4k. On the reference, sampled drums fill that band; here the snare
+       * is the only thing in it, so it has to carry the presence alone. */
+      V.snare(t + 4 * s16, 1.35, 265);
+      V.snare(t + 12 * s16, 1.35, 265);
+      for (const e of [6, 9, 14]) if (mrand() > 0.45) V.snare(t + e * s16, 0.45, 265);
+      if (fill) for (let k = 0; k < 5; k++) V.snare(t + 13 * s16 + k * (s16 / 2), 0.3 + k * 0.12, 265);
 
-      // The dark piano, low and close, two notes rather than a chord.
-      V.keys(t, root + 12 + sc[deg % sc.length], beat * 1.8, 0.055, -5);
-      V.keys(t + beat * 2, root + 12 + sc[(deg + 2) % sc.length], beat * 1.6, 0.05, 5);
+      // Sparse and syncopated, not a run: 4, 5, 7, 13, 15 is what came back.
+      for (const e of [4, 5, 7, 13, 15]) V.hat(t + e * s16, e === 4 ? 0.125 : 0.075);
+      for (let e = 0; e < 16; e += 2) if (mrand() < hats * 0.35) V.hat(t + e * s16, 0.055);
+      if (mrand() > 0.7) for (let k = 0; k < 4; k++) V.hat(t + 11 * s16 + k * (s16 / 4), 0.05 + k * 0.014);
 
-    } else if (feel === "jook") {
+      /* The piano, two octaves up from where it was.
+       * At root + 12 its fundamentals sat around 70Hz, underneath the 808
+       * rather than over it, and the 400 to 1200 band — where these records
+       * keep most of their body — was 20dB emptier than the references. */
+      const fig = [0, 3, 0, 4, 2, 4];
+      fig.forEach((step, i) => {
+        if (i % 2 && mrand() > 0.55) return;
+        V.keys(t + i * (bar / fig.length), root + 43 + sc[(deg + step) % sc.length],
+               bar / fig.length * 0.9, 0.085, i % 2 ? 6 : -6);
+      });
+      V.keys(t, root + 31 + sc[deg % sc.length], bar * 0.95, 0.045, -8);
+
+    } else if (feel === "florida") {
       /**
-       * Miami bass underneath, club stutter on top.
+       * Slow, dark and mostly empty, which is the point.
        *
-       * The long 808 is the Florida half — a sustained low note doing the
-       * work a kick drum does elsewhere — and the clipped triplet kicks
-       * over it are what the style took from Jersey and Baltimore.
+       * The reference has two kicks in a bar — the downbeat and the and of
+       * three — and a snare that hits twice every time it comes round, the
+       * second landing a sixteenth behind the first. Everything else is
+       * space and one long 808.
        */
-      V.sub(t, note - 12, beat * 2.1);
-      V.sub(t + beat * 2, note - 12, beat * 1.4, mrand() > 0.5 ? prev - 12 : null);
+      V.sub(t, note - 12, beat * 2.4);
+      V.sub(t + 10 * s16, note - 12, beat * 1.5, mrand() > 0.5 ? prev - 12 : null);
 
       V.kick(t, 1);
-      for (const e of [6, 7, 10]) V.kick(t + e * s16, 0.8);
-      if (!half) for (const e of [13, 14]) V.kick(t + e * s16, 0.75);
+      V.kick(t + 10 * s16, 0.88);
+      if (mrand() > 0.6) V.kick(t + 6 * s16, 0.5);
 
-      V.clap(t + beat); V.clap(t + beat * 3);
-      if (fill) for (let k = 0; k < 4; k++) V.clap(t + beat * 3.5 + k * (s16 / 2), 0.35 + k * 0.15);
-
-      for (let e = 0; e < 16; e++) {
-        V.hat(t + e * s16, e % 4 === 0 ? 0.09 : 0.048, e === 14 && mrand() < hats);
+      // The doubled snare. One on the backbeat, one right behind it, and
+      // both carrying the 1.2 to 4k presence on their own — the hats sit
+      // above 9k and leave that band empty.
+      for (const e of [4, 12]) {
+        V.snare(t + e * s16, 1.3);
+        V.snare(t + (e + 1) * s16, 0.7);
       }
+      if (fill) for (let k = 0; k < 3; k++) V.snare(t + 13 * s16 + k * (s16 / 2), 0.35 + k * 0.15);
 
-      // Clipped commands, short and high and always on the offbeat.
-      if (!half) for (const e of [3, 11]) {
-        V.lead(t + e * s16, root + 24 + sc[(deg + 4) % sc.length], s16 * 1.2, 0.08);
+      for (const e of [0, 1, 4, 10, 11, 12, 13]) {
+        V.hat(t + e * s16, e === 0 ? 0.11 : 0.068);
       }
+      for (let e = 2; e < 16; e += 2) if (mrand() < hats * 0.45) V.hat(t + e * s16, 0.045);
+      if (mrand() > 0.75) for (let k = 0; k < 3; k++) V.hat(t + 14 * s16 + k * (s16 / 3), 0.055);
+
+      /* The melody, and it carries the record. Sparse, high enough to be
+       * heard over the 808, and the same figure each bar so it reads as a
+       * loop rather than as playing. */
+      const mel = [0, 4, 7, 4];
+      mel.forEach((step, i) => {
+        V.keys(t + i * (bar / 4), root + 43 + sc[(deg + step) % sc.length],
+               bar / 4 * 0.85, 0.095, i % 2 ? 5 : -5);
+      });
+      if (!half) V.lead(t + 6 * s16, root + 55 + sc[deg % sc.length], s16 * 2.2, 0.055);
 
     } else {   // lofi
       V.kick(t);
