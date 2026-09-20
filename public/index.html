@@ -5676,36 +5676,63 @@ const sound = (() => {
     const subLP = ctx.createBiquadFilter();
     subLP.type = "lowpass"; subLP.frequency.value = 120; subLP.Q.value = 0.9;
 
+    /* 5dB, not 9, and broad rather than pointed.
+     * Nine decibels into a peak that narrow is not a big cabinet, it is
+     * a resonance — one note in the bass line jumping out over everything
+     * else. The box still has a bump, it just is not the loudest thing in
+     * the street any more. */
     const subPeak = ctx.createBiquadFilter();
-    subPeak.type = "peaking"; subPeak.frequency.value = 48;
-    subPeak.Q.value = 1.4; subPeak.gain.value = 9;
+    subPeak.type = "peaking"; subPeak.frequency.value = 50;
+    subPeak.Q.value = 0.9; subPeak.gain.value = 5;
 
+    /* And barely driven. At 1.7 the soft clip was generating harmonics all
+     * the way up from a signal that is meant to be almost a sine, and those
+     * harmonics were a good part of the buzz. */
     const subDrive = ctx.createGain();
-    subDrive.gain.value = 1.7;
+    subDrive.gain.value = 1.15;
 
     const subSat = ctx.createWaveShaper();
-    subSat.curve = satCurve(2.6); subSat.oversample = "2x";
+    subSat.curve = satCurve(1.8); subSat.oversample = "2x";
+
+    /* The sub gets its own limiter, ahead of the bus.
+     * This is what actually stops the bass running the place. With one
+     * compressor on the sum, the kick was triggering it and everything else
+     * was ducking underneath — the bass was both the loudest thing and the
+     * reason nothing else could be heard. Held here, the bass stays even
+     * and the mids are left alone. */
+    const subComp = ctx.createDynamicsCompressor();
+    subComp.threshold.value = -26;
+    subComp.knee.value = 4;
+    subComp.ratio.value = 9;
+    subComp.attack.value = 0.004;
+    subComp.release.value = 0.13;
 
     subGain = ctx.createGain();
-    subGain.gain.value = 1.0;
+    subGain.gain.value = 0.75;
 
     musicGain.connect(subLP);
     subLP.connect(subPeak); subPeak.connect(subDrive);
-    subDrive.connect(subSat); subSat.connect(subGain);
+    subDrive.connect(subSat); subSat.connect(subComp);
+    subComp.connect(subGain);
     subGain.connect(system);
 
     // ── rattle, shaken out of the sub itself ──
+    /* Nine times into a six-times clipper made a square wave, and a square
+     * wave through a wide band at 2.4k is not a rattle, it is a buzz — the
+     * one you could hear. Three things pull it back: a third of the drive,
+     * a band half the width, and it sits lower, at 1.6k, where a loose
+     * panel actually lives rather than up where fizz does. */
     const rattleDrive = ctx.createGain();
-    rattleDrive.gain.value = 9;
+    rattleDrive.gain.value = 3;
 
     const rattleClip = ctx.createWaveShaper();
-    rattleClip.curve = clipCurve(6);
+    rattleClip.curve = clipCurve(4);
 
     const rattleBP = ctx.createBiquadFilter();
-    rattleBP.type = "bandpass"; rattleBP.frequency.value = 2400; rattleBP.Q.value = 1.1;
+    rattleBP.type = "bandpass"; rattleBP.frequency.value = 1600; rattleBP.Q.value = 2.6;
 
     rattleGain = ctx.createGain();
-    rattleGain.gain.value = 0.03;
+    rattleGain.gain.value = 0.012;
 
     subSat.connect(rattleDrive);
     rattleDrive.connect(rattleClip); rattleClip.connect(rattleBP);
@@ -5720,10 +5747,10 @@ const sound = (() => {
 
     const boxHonk = ctx.createBiquadFilter();
     boxHonk.type = "peaking"; boxHonk.frequency.value = 820;
-    boxHonk.Q.value = 1.1; boxHonk.gain.value = 5;
+    boxHonk.Q.value = 1.1; boxHonk.gain.value = 3.5;
 
     boxGain = ctx.createGain();
-    boxGain.gain.value = 0.3;
+    boxGain.gain.value = 0.6;
 
     musicGain.connect(boxHP);
     boxHP.connect(boxLP); boxLP.connect(boxHonk);
@@ -5733,12 +5760,15 @@ const sound = (() => {
      * A fast attack and a slowish release is what makes a system pump —
      * everything ducking under each kick and swelling back between them.
      * On a rig this size that pumping *is* the sound. */
+    /* Gentler than it was, because the sub is held before it gets here.
+     * At -19 and 6:1 on the sum, the bass was doing all the triggering and
+     * the pumping read as ducking rather than as drive. */
     const amp = ctx.createDynamicsCompressor();
-    amp.threshold.value = -19;
-    amp.knee.value = 6;
-    amp.ratio.value = 6;
-    amp.attack.value = 0.005;
-    amp.release.value = 0.19;
+    amp.threshold.value = -13;
+    amp.knee.value = 8;
+    amp.ratio.value = 3.2;
+    amp.attack.value = 0.009;
+    amp.release.value = 0.22;
 
     sysOut = amp;
     system.connect(amp);
@@ -5869,11 +5899,14 @@ const sound = (() => {
       const near = clamp(1 - d / 85, 0, 1);
       const now = ctx.currentTime;
 
-      const hz = 420 + 2200 * Math.pow(near, 1.7);
+      const hz = 500 + 3100 * Math.pow(near, 1.45);
       boxLP.frequency.setTargetAtTime(hz, now, 0.25);
-      boxGain.gain.setTargetAtTime(0.035 + 0.52 * Math.pow(near, 1.7), now, 0.3);
-      subGain.gain.setTargetAtTime(0.95 + 0.6 * (1 - near), now, 0.3);
-      rattleGain.gain.setTargetAtTime(0.008 + 0.06 * Math.pow(near, 1.8), now, 0.3);
+      // Up from 0.035-0.55 to 0.09-0.95: you should be able to tell what is
+      // playing, not just that something is.
+      boxGain.gain.setTargetAtTime(0.09 + 0.86 * Math.pow(near, 1.45), now, 0.3);
+      // And the sub no longer climbs past unity on the way out of town.
+      subGain.gain.setTargetAtTime(0.72 + 0.36 * (1 - near), now, 0.3);
+      rattleGain.gain.setTargetAtTime(0.003 + 0.016 * Math.pow(near, 2.1), now, 0.3);
 
       stats.distance = Math.round(d);
       stats.muffleHz = Math.round(hz);
@@ -5908,6 +5941,13 @@ const sound = (() => {
      * distance, and a tilt is not something "it sounds right" can settle.
      * This reports what is actually coming out of it.
      */
+    /** Sets or reads the rattle level, for tuning it against your own ears. */
+    rattle(v) {
+      if (!rattleGain) return null;
+      if (v != null) rattleGain.gain.setTargetAtTime(v, ctx.currentTime, 0.05);
+      return +rattleGain.gain.value.toFixed(4);
+    },
+
     async spectrum(ms = 2500, where = "out") {
       const tap = where === "in" ? musicGain : sysOut;
       if (!ctx || !tap) return null;
