@@ -1390,7 +1390,10 @@ scene.add(bounce);
 
 const travertine = asTexture(texTravertine(), { repeat: [44, 44] });
 
-const POOL = { w: 46, d: 34, lip: 1.5, y: C.poolY };
+// Sized off the reference: a shallow basin held close to the dome, with a
+// broad flat kerb, not the lake it was. The dome overhangs its own plinth
+// and the water reaches only a few metres past that.
+const POOL = { w: 25, d: 18, lip: 2.4, y: C.poolY };
 
 // The plaza is a slab with the pool cut out of it. It started as a plain
 // plane, which paved straight over the water: the basin is 0.28 below the
@@ -1425,7 +1428,7 @@ const POOL = { w: 46, d: 34, lip: 1.5, y: C.poolY };
 {
   const stone = new THREE.MeshStandardMaterial({ map: travertine.clone(), roughness: 0.85 });
   stone.map.repeat.set(6, 2);
-  const lipH = Math.abs(C.plazaY - POOL.y) + 0.22;
+  const lipH = Math.abs(C.plazaY - POOL.y) + 0.34;
   const coping = [];
   const hw = POOL.w / 2 + POOL.lip / 2, hd = POOL.d / 2 + POOL.lip / 2;
   for (const [w, d, px, pz] of [
@@ -1441,6 +1444,18 @@ const POOL = { w: 46, d: 34, lip: 1.5, y: C.poolY };
   const lip = new THREE.Mesh(mergeGeometries(coping), stone);
   lip.castShadow = true; lip.receiveShadow = true;
   scene.add(lip);
+
+  // The broad step the basin sits on, raised a hand above the paving.
+  {
+    const step = new THREE.Mesh(
+      new THREE.BoxGeometry(POOL.w + POOL.lip * 2 + 7, 0.26, POOL.d + POOL.lip * 2 + 7),
+      new THREE.MeshStandardMaterial({ map: travertine.clone(), roughness: 0.86 })
+    );
+    step.material.map.repeat.set(8, 6);
+    step.position.y = C.plazaY - 0.13 + 0.26;
+    step.receiveShadow = true;
+    scene.add(step);
+  }
 
   // Basin floor, so the water has something to be deep over.
   const floor = new THREE.Mesh(
@@ -1557,6 +1572,9 @@ scene.add(water);
 const domeGroup = new THREE.Group();
 scene.add(domeGroup);
 
+// Reached by the clock, so the shell can glow after dark.
+let domeShellMat = null, domeRimMat = null;
+
 /** Fibonacci points on the unit sphere, in the same frame SphereGeometry uses. */
 function holeDirections(count, cutTheta) {
   const golden = Math.PI * (3 - Math.sqrt(5));
@@ -1645,6 +1663,8 @@ function texDomeAlpha() {
       iridescenceIOR: 1.32,
       iridescenceThicknessRange: [120, 760],
       alphaMap: texDomeAlpha(),
+      emissive: 0xbfe4ee,
+      emissiveIntensity: 0,
       transparent: true,
       alphaTest: 0.45,
       side: THREE.DoubleSide,
@@ -1653,6 +1673,7 @@ function texDomeAlpha() {
   );
   shell.castShadow = true;
   shell.receiveShadow = true;
+  domeShellMat = shell.material;
   domeGroup.add(shell);
 
   // Rims and panes, merged into one mesh each.
@@ -1681,9 +1702,11 @@ function texDomeAlpha() {
     mergeGeometries(rimGeos),
     new THREE.MeshPhysicalMaterial({
       color: 0xfdfefe, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.1, envMapIntensity: 1.1,
+      emissive: 0xdff2f7, emissiveIntensity: 0,
     })
   );
   rims.castShadow = true;
+  domeRimMat = rims.material;
   domeGroup.add(rims);
 
   const panes = new THREE.Mesh(
@@ -1717,6 +1740,141 @@ function texDomeAlpha() {
   plinth.castShadow = true; plinth.receiveShadow = true;
   scene.add(plinth);
 }
+
+// ## 14B  FOUNTAIN — jets around the dome, and the lights on it
+//
+// The reference is a fountain, not a still pool: a ring of low jets inside
+// the basin throwing water up around the base of the dome. Two pieces make
+// it read — the columns themselves, which are cones scaled on their own
+// sine so no two are at the same height at the same moment, and the spray,
+// which is a point cloud falling back under gravity and respawning at the
+// nozzle it came from.
+//
+// The lights are the other half of the brief, and they only matter after
+// dark. Uplighters sit in the basin around the plinth throwing warm light up
+// into the shell; the clock turns them on as the sun goes down and off again
+// at dawn, and the dome itself picks up a faint emissive at the same time so
+// it glows rather than merely being lit. Their count comes off the quality
+// budget: point lights are per-fragment work on every material in the scene,
+// which is the one kind of cost a phone really feels.
+
+const fountain = (() => {
+  const JETS = QUALITY.light ? 10 : 16;
+  const ring = C.domeRadius * Math.sin(C.domeCut * Math.PI) * 1.32;
+  const nozzleY = POOL.y + 0.05;
+
+  const water = new THREE.MeshPhysicalMaterial({
+    color: 0xcfeaf2,
+    roughness: 0.08,
+    metalness: 0,
+    transmission: 0.85,
+    thickness: 0.4,
+    ior: 1.33,
+    transparent: true,
+    opacity: 0.55,
+    side: THREE.DoubleSide,
+    envMapIntensity: 1.4,
+  });
+
+  // One cone, instanced. Scaled on Y each frame; the geometry is built with
+  // its foot at the origin so scaling grows it upward out of the water.
+  const cone = new THREE.ConeGeometry(0.14, 1, 7, 1, true);
+  cone.translate(0, 0.5, 0);
+  const jets = new THREE.InstancedMesh(cone, water, JETS);
+  jets.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  jets.frustumCulled = false;
+  scene.add(jets);
+
+  // Nozzle surrounds, so each jet comes out of something.
+  {
+    const rims = [];
+    for (let i = 0; i < JETS; i++) {
+      const a = (i / JETS) * Math.PI * 2;
+      const g = new THREE.CylinderGeometry(0.26, 0.3, 0.16, 8);
+      g.translate(Math.cos(a) * ring, nozzleY + 0.02, Math.sin(a) * ring);
+      rims.push(g);
+    }
+    const m = new THREE.Mesh(
+      mergeGeometries(rims),
+      new THREE.MeshStandardMaterial({ color: 0xb9b6ae, roughness: 0.5, metalness: 0.4 })
+    );
+    scene.add(m);
+  }
+
+  // Spray: a cloud that falls under gravity and goes back to its nozzle.
+  const N = QUALITY.light ? 220 : 520;
+  const pos = new Float32Array(N * 3);
+  const vel = new Float32Array(N * 3);
+  const life = new Float32Array(N);
+  const sr = rng(70707);
+  const respawn = (i, stagger) => {
+    const j = i % JETS;
+    const a = (j / JETS) * Math.PI * 2;
+    pos[i * 3] = Math.cos(a) * ring + (sr() - 0.5) * 0.1;
+    pos[i * 3 + 1] = nozzleY;
+    pos[i * 3 + 2] = Math.sin(a) * ring + (sr() - 0.5) * 0.1;
+    vel[i * 3] = (sr() - 0.5) * 0.55;
+    vel[i * 3 + 1] = 3.1 + sr() * 1.5;
+    vel[i * 3 + 2] = (sr() - 0.5) * 0.55;
+    life[i] = stagger ? sr() * 1.1 : 0;
+  };
+  for (let i = 0; i < N; i++) respawn(i, true);
+
+  const sprayGeo = new THREE.BufferGeometry();
+  sprayGeo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  const spray = new THREE.Points(sprayGeo, new THREE.PointsMaterial({
+    map: asTexture(texGlow(), { srgb: false }),
+    size: 0.17,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    opacity: 0.5,
+    sizeAttenuation: true,
+  }));
+  spray.frustumCulled = false;
+  scene.add(spray);
+
+  // Uplighters in the basin, and their fittings.
+  const lights = [];
+  const LAMPS = QUALITY.light ? 3 : 6;
+  for (let i = 0; i < LAMPS; i++) {
+    const a = (i / LAMPS) * Math.PI * 2 + 0.4;
+    const r = ring * 0.82;
+    const l = new THREE.PointLight(0xffd9a0, 0, 26, 1.7);
+    l.position.set(Math.cos(a) * r, POOL.y + 0.25, Math.sin(a) * r);
+    scene.add(l);
+    lights.push(l);
+  }
+
+  const dummy = new THREE.Object3D();
+
+  return {
+    lights,
+    update(dt, t) {
+      for (let i = 0; i < JETS; i++) {
+        const a = (i / JETS) * Math.PI * 2;
+        const h = 1.5 + Math.sin(t * 1.35 + i * 1.7) * 0.5 + Math.sin(t * 2.9 + i) * 0.22;
+        dummy.position.set(Math.cos(a) * ring, nozzleY, Math.sin(a) * ring);
+        dummy.scale.set(1, h, 1);
+        dummy.rotation.set(0, 0, 0);
+        dummy.updateMatrix();
+        jets.setMatrixAt(i, dummy.matrix);
+      }
+      jets.instanceMatrix.needsUpdate = true;
+
+      for (let i = 0; i < N; i++) {
+        if (life[i] > 0) { life[i] -= dt; continue; }
+        const k = i * 3;
+        vel[k + 1] -= 7.6 * dt;
+        pos[k] += vel[k] * dt;
+        pos[k + 1] += vel[k + 1] * dt;
+        pos[k + 2] += vel[k + 2] * dt;
+        if (pos[k + 1] < nozzleY) respawn(i, false);
+      }
+      sprayGeo.attributes.position.needsUpdate = true;
+    },
+  };
+})();
 
 // ## 15  PALMS — trunks, fronds, wind
 // Every palm in the scene ends up in exactly two draw calls: one merged trunk
@@ -3423,6 +3581,7 @@ function step(dt, t, p) {
   waterUniforms.uCam.value.copy(camera.position);
   motes.uniforms.uTime.value = t;
   if (leaves) leaves.update(dt, t);
+  fountain.update(dt, t);
 
   // --- overlay ------------------------------------------------------------
   // A plain range test. This was a feathered curve once, and at the very top
@@ -4334,6 +4493,13 @@ function applyTimeOfDay(hour) {
   if (interiorMat) interiorMat.emissiveIntensity = mixNum(a.inn, b.inn, k);
   const signGlow = mixNum(a.sg, b.sg, k);
   for (const m of signMats) m.emissiveIntensity = signGlow;
+
+  // The dome's own lighting. Uplighters come up as the sun goes down, and
+  // the shell takes a faint emissive with them so it reads as lit from
+  // within rather than merely illuminated.
+  for (const l of fountain.lights) l.intensity = mixNum(0, 14, night);
+  if (domeShellMat) domeShellMat.emissiveIntensity = mixNum(0, 0.34, night);
+  if (domeRimMat) domeRimMat.emissiveIntensity = mixNum(0, 0.26, night);
 
   if (bloomPass) bloomPass.strength = mixNum(a.bl, b.bl, k);
 
