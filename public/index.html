@@ -5517,54 +5517,134 @@ const sound = (() => {
     const crickets = ctx.createGain();
     crickets.gain.value = 0;
     crickets.connect(amb);
-    for (const [hz, rate, pan] of [[4500, 11.5, -0.55], [5300, 13.4, 0.5]]) {
-      const bp = ctx.createBiquadFilter();
-      bp.type = "bandpass"; bp.frequency.value = hz; bp.Q.value = 16;
 
+    /* Three patches of them, and each one stops.
+     *
+     * The first pass at this ran continuously: a slow swell that bottomed
+     * out at a quarter of full rather than at zero, so there was never a
+     * moment without crickets in it. Constant narrowband noise at 5kHz is
+     * about the most fatiguing thing you can put in a mix, and it was.
+     *
+     * Each patch now has its own life — a few seconds of chirping, a fade,
+     * and a gap of up to six seconds before it starts again. Three of them
+     * on independent schedules overlap into something that ebbs, and every
+     * so often all three are down at once and the street is just quiet.
+     */
+    /* Lower and wider than an actual cricket, and two patches rather than
+     * three.
+     *
+     * A cricket is around 5kHz, which is the exact middle of where human
+     * hearing is most sensitive — and a narrow filter there does not make
+     * an insect, it makes a whistle you cannot stop noticing. From the far
+     * side of a plaza the air has taken the top off anyway, so these sit
+     * down at 3.4 and 4.1 with a much broader band, which is duller and a
+     * great deal easier to be near. Three patches also meant one was
+     * nearly always going; two leaves real holes. */
+    const cricketLives = [];
+    for (const [hz, rate, pan, q] of [
+      [3400, 10.5, -0.6, 7], [4100, 12.8, 0.5, 8],
+    ]) {
+      const bp = ctx.createBiquadFilter();
+      bp.type = "bandpass"; bp.frequency.value = hz; bp.Q.value = q;
+
+      /* Triangle, not square. A square wave chopping a tone at a dozen
+       * hertz is a buzzer; a triangle is a trill, which is what an insect
+       * actually sounds like from across a plaza. */
       const puls = ctx.createGain(); puls.gain.value = 0.5;
       const chirp = ctx.createOscillator();
-      chirp.type = "square"; chirp.frequency.value = rate;
+      chirp.type = "triangle"; chirp.frequency.value = rate;
       const chirpAmt = ctx.createGain(); chirpAmt.gain.value = 0.5;
       chirp.connect(chirpAmt); chirpAmt.connect(puls.gain); chirp.start();
 
-      // And they do not all go at once.
-      const burst = ctx.createGain(); burst.gain.value = 0.62;
-      const slow = ctx.createOscillator();
-      slow.type = "sine"; slow.frequency.value = 0.19 + Math.random() * 0.14;
-      const slowAmt = ctx.createGain(); slowAmt.gain.value = 0.38;
-      slow.connect(slowAmt); slowAmt.connect(burst.gain); slow.start();
+      // The rate wanders, so it never settles into a pulse you can count.
+      const drift = ctx.createOscillator();
+      drift.type = "sine"; drift.frequency.value = 0.05 + Math.random() * 0.06;
+      const driftAmt = ctx.createGain(); driftAmt.gain.value = 1.4;
+      drift.connect(driftAmt); driftAmt.connect(chirp.frequency); drift.start();
 
+      const life = ctx.createGain(); life.gain.value = 0;
       const pn = ctx.createStereoPanner(); pn.pan.value = pan;
       loop().connect(bp);
-      bp.connect(puls); puls.connect(burst); burst.connect(pn); pn.connect(crickets);
+      bp.connect(puls); puls.connect(life); life.connect(pn); pn.connect(crickets);
+      cricketLives.push(life);
     }
 
-    /* An owl, now and then, and only when it is properly dark. */
+    /** One patch: chirp for a while, fade, wait, go again. */
+    function cricketCycle(life) {
+      const go = () => {
+        if (!ctx || ctx.state !== "running" || nightLevel < 0.25) {
+          setTimeout(go, 3000 + Math.random() * 3000);
+          return;
+        }
+        const t = ctx.currentTime;
+        const rise = 0.6 + Math.random() * 0.9;
+        const hold = 1.6 + Math.random() * 3.0;
+        const fall = 0.9 + Math.random() * 1.4;
+        // Long enough that the street is properly silent a good part of
+        // the time, which is the half of this that was missing.
+        const gap = 2.6 + Math.random() * 7.5;
+        life.gain.cancelScheduledValues(t);
+        life.gain.setTargetAtTime(0.5 + Math.random() * 0.5, t, rise * 0.35);
+        life.gain.setTargetAtTime(0, t + rise + hold, fall * 0.35);
+        setTimeout(go, (rise + hold + fall + gap) * 1000);
+      };
+      setTimeout(go, Math.random() * 5000);
+    }
+    cricketLives.forEach(cricketCycle);
+
+    /* The owl.
+     *
+     * There was one before and nobody heard it: a single sine at 0.042,
+     * once every fifty seconds, under a field of crickets that never shut
+     * up. It is twice as loud, twice as often, and built properly now — a
+     * hollow tone is a strong fundamental with a weak second partial and
+     * almost nothing else, and the little waver on the end of the call is
+     * most of what makes it read as a bird rather than a test tone.
+     */
     function owl() {
-      if (on && ctx && ctx.state === "running" && nightLevel > 0.45
-          && Math.random() < nightLevel) {
+      if (on && ctx && ctx.state === "running" && nightLevel > 0.4
+          && Math.random() < 0.55 + nightLevel * 0.45) {
         const t0 = ctx.currentTime + 0.1;
         const pn = ctx.createStereoPanner();
-        pn.pan.value = Math.random() * 1.4 - 0.7;
+        pn.pan.value = Math.random() * 1.5 - 0.75;
         pn.connect(amb);
-        const calls = Math.random() > 0.5 ? 2 : 3;
-        for (let i = 0; i < calls; i++) {
-          const at = t0 + i * (0.44 + Math.random() * 0.14);
-          const f = 370 + Math.random() * 95;
-          const o = ctx.createOscillator(); o.type = "sine";
-          o.frequency.setValueAtTime(f * 1.07, at);
-          o.frequency.exponentialRampToValueAtTime(f, at + 0.2);
-          const g = ctx.createGain();
-          g.gain.setValueAtTime(0.0001, at);
-          g.gain.exponentialRampToValueAtTime(0.042 * nightLevel, at + 0.1);
-          g.gain.exponentialRampToValueAtTime(0.0001, at + 0.44);
-          o.connect(g); g.connect(pn);
-          o.start(at); o.stop(at + 0.46);
-        }
+
+        stats.owls = (stats.owls || 0) + 1;
+        // Two short, then a long one held: the shape of a tawny call.
+        const shape = Math.random() > 0.45 ? [0.26, 0.24, 0.62] : [0.3, 0.55];
+        let at = t0;
+        const f = 355 + Math.random() * 85;
+        shape.forEach((len, i) => {
+          const last = i === shape.length - 1;
+          for (const [mult, amp] of [[1, 1], [2, 0.22]]) {
+            const o = ctx.createOscillator();
+            o.type = "sine";
+            o.frequency.setValueAtTime(f * mult * 1.05, at);
+            o.frequency.exponentialRampToValueAtTime(f * mult, at + len * 0.45);
+            if (last) {
+              // the waver
+              const vib = ctx.createOscillator();
+              vib.type = "sine"; vib.frequency.value = 5.5;
+              const vibAmt = ctx.createGain(); vibAmt.gain.value = f * mult * 0.012;
+              vib.connect(vibAmt); vibAmt.connect(o.frequency);
+              vib.start(at); vib.stop(at + len + 0.1);
+            }
+            const g = ctx.createGain();
+            g.gain.setValueAtTime(0.0001, at);
+            g.gain.exponentialRampToValueAtTime(0.085 * amp * nightLevel, at + len * 0.3);
+            g.gain.exponentialRampToValueAtTime(0.0001, at + len);
+            o.connect(g); g.connect(pn);
+            o.start(at); o.stop(at + len + 0.05);
+          }
+          at += len + 0.1 + Math.random() * 0.06;
+        });
       }
-      setTimeout(owl, 17000 + Math.random() * 33000);
+      // Every quarter of a minute to three quarters. Often enough to be
+      // part of the place, rare enough that it is still an event.
+      setTimeout(owl, 14000 + Math.random() * 34000);
     }
-    setTimeout(owl, 6000 + Math.random() * 12000);
+    stats.owls = 0;
+    setTimeout(owl, 4000 + Math.random() * 9000);
 
     // Birds, occasionally, from somewhere off to one side — by day.
     function bird() {
@@ -5610,7 +5690,7 @@ const sound = (() => {
     if (!ambParts || !ctx) return;
     const t = ctx.currentTime;
     const n = nightLevel;
-    ambParts.crickets.gain.setTargetAtTime(0.05 * Math.pow(n, 1.4), t, 1.6);
+    ambParts.crickets.gain.setTargetAtTime(0.03 * Math.pow(n, 1.4), t, 1.6);
     ambParts.leaves.gain.setTargetAtTime(0.0065 * (1 - 0.45 * n), t, 2.2);
     ambParts.city.gain.setTargetAtTime(0.10 * (1 - 0.28 * n), t, 2.2);
   }
