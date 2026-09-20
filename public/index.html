@@ -5530,19 +5530,19 @@ const sound = (() => {
      * on independent schedules overlap into something that ebbs, and every
      * so often all three are down at once and the street is just quiet.
      */
-    /* Lower and wider than an actual cricket, and two patches rather than
-     * three.
+    /* High, because that is what a cricket is.
      *
-     * A cricket is around 5kHz, which is the exact middle of where human
-     * hearing is most sensitive — and a narrow filter there does not make
-     * an insect, it makes a whistle you cannot stop noticing. From the far
-     * side of a plaza the air has taken the top off anyway, so these sit
-     * down at 3.4 and 4.1 with a much broader band, which is duller and a
-     * great deal easier to be near. Three patches also meant one was
-     * nearly always going; two leaves real holes. */
+     * I moved these down to 3.4kHz on the theory that 5k is where the ear
+     * is most sensitive and therefore where the irritation was. Wrong
+     * diagnosis: dropping the pitch lost the sound people actually
+     * recognise as night, and what made the first version grating was that
+     * it never stopped, which is fixed separately below. So they are back
+     * at 4.6 and 5.4 where they belong, with a wider band than the first
+     * attempt so they are a chorus rather than a test tone, and two
+     * patches rather than three so there are real holes between them. */
     const cricketLives = [];
     for (const [hz, rate, pan, q] of [
-      [3400, 10.5, -0.6, 7], [4100, 12.8, 0.5, 8],
+      [4600, 10.5, -0.6, 10], [5400, 12.8, 0.5, 12],
     ]) {
       const bp = ctx.createBiquadFilter();
       bp.type = "bandpass"; bp.frequency.value = hz; bp.Q.value = q;
@@ -5601,9 +5601,9 @@ const sound = (() => {
      * almost nothing else, and the little waver on the end of the call is
      * most of what makes it read as a bird rather than a test tone.
      */
-    function owl() {
-      if (on && ctx && ctx.state === "running" && nightLevel > 0.4
-          && Math.random() < 0.55 + nightLevel * 0.45) {
+    function owl(force) {
+      if (force || (on && ctx && ctx.state === "running" && nightLevel > 0.4
+          && Math.random() < 0.55 + nightLevel * 0.45)) {
         const t0 = ctx.currentTime + 0.1;
         const pn = ctx.createStereoPanner();
         pn.pan.value = Math.random() * 1.5 - 0.75;
@@ -5613,7 +5613,10 @@ const sound = (() => {
         // Two short, then a long one held: the shape of a tawny call.
         const shape = Math.random() > 0.45 ? [0.26, 0.24, 0.62] : [0.3, 0.55];
         let at = t0;
-        const f = 355 + Math.random() * 85;
+        // Up a little from 355. A tawny runs 300 to 600 and the top of
+        // that range carries through a mix; the bottom of it was sitting
+        // underneath the city hum and the music's low mids.
+        const f = 430 + Math.random() * 95;
         shape.forEach((len, i) => {
           const last = i === shape.length - 1;
           for (const [mult, amp] of [[1, 1], [2, 0.22]]) {
@@ -5631,7 +5634,7 @@ const sound = (() => {
             }
             const g = ctx.createGain();
             g.gain.setValueAtTime(0.0001, at);
-            g.gain.exponentialRampToValueAtTime(0.085 * amp * nightLevel, at + len * 0.3);
+            g.gain.exponentialRampToValueAtTime(0.16 * amp * Math.max(nightLevel, force ? 1 : 0), at + len * 0.3);
             g.gain.exponentialRampToValueAtTime(0.0001, at + len);
             o.connect(g); g.connect(pn);
             o.start(at); o.stop(at + len + 0.05);
@@ -5639,12 +5642,13 @@ const sound = (() => {
           at += len + 0.1 + Math.random() * 0.06;
         });
       }
-      // Every quarter of a minute to three quarters. Often enough to be
-      // part of the place, rare enough that it is still an event.
-      setTimeout(owl, 14000 + Math.random() * 34000);
+      // Every nine to thirty seconds. It was every fifty at half the
+      // volume, which is indistinguishable from not being there.
+      setTimeout(owl, 9000 + Math.random() * 21000);
     }
     stats.owls = 0;
-    setTimeout(owl, 4000 + Math.random() * 9000);
+    setTimeout(owl, 3000 + Math.random() * 6000);
+    ambCalls = { owl };
 
     // Birds, occasionally, from somewhere off to one side — by day.
     function bird() {
@@ -5690,7 +5694,7 @@ const sound = (() => {
     if (!ambParts || !ctx) return;
     const t = ctx.currentTime;
     const n = nightLevel;
-    ambParts.crickets.gain.setTargetAtTime(0.03 * Math.pow(n, 1.4), t, 1.6);
+    ambParts.crickets.gain.setTargetAtTime(0.034 * Math.pow(n, 1.4), t, 1.6);
     ambParts.leaves.gain.setTargetAtTime(0.0065 * (1 - 0.45 * n), t, 2.2);
     ambParts.city.gain.setTargetAtTime(0.10 * (1 - 0.28 * n), t, 2.2);
   }
@@ -5706,6 +5710,7 @@ const sound = (() => {
    */
   let nightLevel = 0;
   let ambParts = null;
+  let ambCalls = null;
   const stats = { beatSeconds: 0, beatRMS: 0, beatPeak: 0 };
 
   /**
@@ -6161,6 +6166,19 @@ const sound = (() => {
      * distance, and a tilt is not something "it sounds right" can settle.
      * This reports what is actually coming out of it.
      */
+    /**
+     * Calls the owl now, whatever the time.
+     *
+     * Because "I cannot hear it" and "it is not firing" are different
+     * problems and waiting thirty seconds in the dark to tell them apart
+     * is no way to work. `DD.sound.owl()` from the console.
+     */
+    owl() {
+      if (!ambCalls) return "no ambience yet";
+      ambCalls.owl(true);
+      return "called";
+    },
+
     /** The clock's night value, 0 by day and 1 in the dark. */
     setNight(v) {
       nightLevel = clamp(v, 0, 1);
