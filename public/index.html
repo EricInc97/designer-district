@@ -101,6 +101,17 @@ body {
   font-weight: 600;
 }
 :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.vh {
+  position: absolute; width: 1px; height: 1px; margin: -1px;
+  padding: 0; border: 0; overflow: hidden; clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* Over the live scene there is no telling what is behind the ring, so these
+   carry their own contrast the way the waypoint pins already do. */
+.index .ix:focus-visible, .sound:focus-visible {
+  outline: 2px solid #fff; outline-offset: 3px;
+  box-shadow: 0 0 0 5px rgba(0,0,0,.55);
+}
 ::selection { background: var(--ink); color: var(--paper); }
 
 /* Copy that floats over the scene instead of sitting on paper takes the
@@ -435,6 +446,10 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
   transition: opacity .32s ease, visibility 0s linear .32s;
   --shop-ink: #ffffff;
   --shop-bg: #101010;
+  /* The global :focus-visible ring is `2px solid var(--ink)`, and --ink is
+     #0b0b0b. On the shop's near-black top bar that is a black ring on a
+     black ground — which is to say no ring at all. */
+  --ink: #ffffff;
 }
 #shop[data-on="1"] {
   opacity: 1; visibility: visible;
@@ -655,19 +670,30 @@ body[data-busy="1"] .pill, body[data-busy="1"] .pin { opacity: .55; }
 /* The running order down the street. */
 .index {
   position: fixed; right: var(--shell); top: 56%; translate: 0 -50%;
-  display: grid; gap: .38rem; text-align: right;
+  display: grid; gap: .38rem; justify-items: end;
   font-size: .6875rem; font-weight: 500;
   letter-spacing: .22em; text-transform: uppercase;
   color: #fff;
-  opacity: 0; transition: opacity .5s ease;
+  /* `visibility` and `pointer-events`, not opacity on its own. Invisible is
+     not the same as gone: this used to leave fifteen hittable, focusable
+     items over the right of the screen whenever it was "off". */
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity .5s ease, visibility 0s linear .5s;
 }
-.index[data-on="1"] { opacity: 1; }
-.index b {
-  font-weight: 500; opacity: .5;
+.index[data-on="1"] {
+  opacity: 1; visibility: visible; pointer-events: auto;
+  transition: opacity .5s ease, visibility 0s;
+}
+.index .ix {
+  font: inherit; font-weight: 500; letter-spacing: inherit;
+  text-transform: inherit; text-align: right;
+  border: 0; background: none; padding: 0; cursor: pointer;
+  color: #fff; opacity: .5;
   text-shadow: 0 1px 3px rgba(0,0,0,.95), 0 0 16px rgba(0,0,0,.7);
   transition: opacity .3s ease;
 }
-.index b[data-live="1"] { opacity: 1; }
+.index .ix[data-live="1"] { opacity: 1; }
+.index .ix:hover { opacity: .85; }
 
 /* ---- sound: an invitation that folds into a control ------------------- */
 .sound {
@@ -798,9 +824,13 @@ body[data-busy="1"] .pill, body[data-busy="1"] .pin { opacity: .55; }
 
 <body>
 <!-- ## 04  MARKUP -->
-<canvas id="stage"></canvas>
+<!-- Named, because otherwise the entire street and everything in it is an
+     unlabelled rectangle. The label follows the state; the shelf beside it
+     is the real, reachable copy of the same catalogue. -->
+<canvas id="stage" role="img"
+        aria-label="A street of fifteen shopfronts, seen in 3D"></canvas>
 
-<div id="boot"><div class="bar"><i></i></div></div>
+<div id="boot" role="status" aria-label="Loading the street"><div class="bar"><i></i></div></div>
 
 <div id="fallback">
   <div>
@@ -921,7 +951,8 @@ body[data-busy="1"] .pill, body[data-busy="1"] .pin { opacity: .55; }
 </div>
 
 <!-- Inside a shop. Hidden until the camera is actually in one. -->
-<div id="shop" aria-hidden="true">
+<div id="shop" aria-hidden="true" role="dialog" aria-modal="true"
+     aria-labelledby="shop-name">
   <div class="top">
     <div class="mark" id="shop-mark"></div>
     <div class="who">
@@ -939,7 +970,9 @@ body[data-busy="1"] .pill, body[data-busy="1"] .pin { opacity: .55; }
        follows along. -->
   <aside class="shelf" id="shop-shelf" aria-label="Stock">
     <div class="cats" id="shop-cats" role="group" aria-label="Filter by category"></div>
-    <div class="grid" id="shop-grid"></div>
+    <div class="grid" id="shop-grid" role="list"></div>
+    <!-- Filtering replaces the whole list, so something has to say so. -->
+    <p class="vh" id="shop-live" role="status" aria-live="polite"></p>
   </aside>
 </div>
 
@@ -4546,8 +4579,16 @@ const pinsEl = document.getElementById("pins");
 const hintEl = document.getElementById("hint");
 document.getElementById("enter").href = SITE;
 
+/* Buttons, not bold text.
+ *
+ * This was fifteen `<b>` elements with click handlers hung on them, inside a
+ * `<nav aria-label="Districts on this street">` — a navigation region where
+ * nothing could be reached by keyboard, nothing announced itself as a
+ * control, and nothing said which district you were currently at. */
 BRANDS.forEach((b) => {
-  const el = document.createElement("b");
+  const el = document.createElement("button");
+  el.type = "button";
+  el.className = "ix";
   el.textContent = b.name;
   indexEl.appendChild(el);
 });
@@ -4902,7 +4943,12 @@ function showBrand(i) {
   card.link.href = `${SITE}/brands/${b.slug}`;
   card.link.textContent = `Step inside ${b.name}`;
   card.link.dataset.house = String(i);
-  indexItems.forEach((el, k) => { el.dataset.live = k === i ? "1" : "0"; });
+  indexItems.forEach((el, k) => {
+    const on = k === i;
+    el.dataset.live = on ? "1" : "0";
+    if (on) el.setAttribute("aria-current", "true");
+    else el.removeAttribute("aria-current");
+  });
 }
 
 // ## 22  FRAME LOOP
@@ -6713,7 +6759,13 @@ const sound = (() => {
     const state = playing ? "on" : (sound.on ? "prompt" : "off");
     btn.dataset.state = state;
     btn.setAttribute("aria-pressed", playing ? "true" : "false");
-    btn.setAttribute("aria-label", playing ? "Turn sound off" : "Turn sound on");
+    // The visible words have to appear in the accessible name, or voice
+    // control cannot act on what it can read: "click Sound on" matched
+    // nothing at all when the name was "Turn sound off".
+    btn.setAttribute("aria-label",
+      state === "prompt" ? "Tap for sound"
+      : playing ? "Sound on — press M to turn it off"
+      : "Sound off — press M to turn it on");
     btn.querySelector(".lbl").textContent =
       state === "prompt" ? "Tap for sound" : (playing ? "Sound on" : "Sound off");
   }
@@ -6785,8 +6837,16 @@ sound.boot()
     if (!document.hidden && sound.blocked) { sound.enable(); arm(); setTimeout(paint, 60); }
   });
 
+  // Bare `m`, so it is guarded: not while a modifier is down (that is a
+  // browser shortcut), not while the user is typing into something, and not
+  // mid-composition.
   addEventListener("keydown", (e) => {
-    if (e.key === "m" || e.key === "M") { sound.toggle(); setTimeout(paint, 60); }
+    if (e.key !== "m" && e.key !== "M") return;
+    if (e.metaKey || e.ctrlKey || e.altKey || e.isComposing) return;
+    const t = e.target;
+    if (t && t !== document.body && t.closest && t.closest("input, textarea, [contenteditable]")) return;
+    sound.toggle();
+    setTimeout(paint, 60);
   });
 }
 
@@ -8073,6 +8133,37 @@ storeMode = (() => {
   // Which bay the camera is at, and which panel is under the pointer. The
   // room has sections now, so "where you are" is a thing to keep track of.
   let hereBay = null, hover = null;
+  // What was activated to get in here, so it can be given focus back.
+  let cameFrom = null;
+
+  /* The page behind the overlay, switched off while the overlay is up.
+   *
+   * Without this, Tab walks straight out of the shop into the header, the
+   * waypoint pins and the district index — all of which are behind a
+   * full-screen overlay and none of which can be seen. `inert` does the
+   * whole job in one attribute; the aria-hidden is for Safari before 16.4,
+   * where it at least takes them out of the accessibility tree. */
+  const OUTSIDE = () => [
+    document.getElementById("bar"),
+    document.getElementById("pins"),
+    document.getElementById("index"),
+    document.getElementById("hint"),
+    document.getElementById("sound"),
+    ...document.querySelectorAll(".panel"),
+  ].filter(Boolean);
+
+  function outsideInert(on) {
+    for (const el of OUTSIDE()) {
+      if (on) { el.inert = true; el.setAttribute("aria-hidden", "true"); }
+      else { el.inert = false; el.removeAttribute("aria-hidden"); }
+    }
+  }
+
+  /** Says out loud what the shelf is now showing. */
+  function announce(text) {
+    const el = document.getElementById("shop-live");
+    if (el) el.textContent = text;
+  }
   let savedScroll = 0;
   let cards = [];
 
@@ -8555,6 +8646,13 @@ storeMode = (() => {
     clearFocus();
     gridEl.scrollTop = 0;
 
+    // `buildGrid` throws the whole list away and builds a new one, which is
+    // silent — so this is the only thing that says the filter did anything.
+    const named = cat === "all"
+      ? "All sections"
+      : ((stock.find((it) => it.cat === cat) || {}).catName || cat);
+    announce(`${named}. ${items.length} ${items.length === 1 ? "piece" : "pieces"}.`);
+
     if (cat === "all") {
       // Every bay back to the section it was given at the door.
       for (const b of storeRoom.bays) storeRoom.borrow(b, null);
@@ -8661,13 +8759,20 @@ storeMode = (() => {
     cards = items.map((it, i) => {
       const card = document.createElement("article");
       card.className = "card";
+      card.setAttribute("role", "listitem");
       card.dataset.gone = it.stock > 0 ? "0" : "1";
       card.dataset.live = "0";
 
       const hit = document.createElement("button");
       hit.type = "button";
       hit.className = "hit";
-      hit.setAttribute("aria-label", `${it.name}, ${money.format(it.price)}`);
+      // Sold out belongs in the name. It was in the body text inside
+      // `.more`, which is `display: none` until the card is opened — so a
+      // sold-out piece read as available right up until you chose it. And
+      // the button reveals that panel, which is what aria-expanded is for.
+      hit.setAttribute("aria-label",
+        `${it.name}, ${money.format(it.price)}${it.stock > 0 ? "" : ", sold out"}`);
+      hit.setAttribute("aria-expanded", "false");
 
       const pic = document.createElement("span");
       pic.className = "pic";
@@ -8741,7 +8846,12 @@ storeMode = (() => {
     const again = picked === i;
     picked = again ? -1 : i;
 
-    cards.forEach((c, k) => { c.dataset.live = k === picked ? "1" : "0"; });
+    cards.forEach((c, k) => {
+      const on = k === picked;
+      c.dataset.live = on ? "1" : "0";
+      const h = c.querySelector(".hit");
+      if (h) h.setAttribute("aria-expanded", on ? "true" : "false");
+    });
     if (picked < 0) { clearFocus(); standBack(); return; }
 
     const it = items[picked];
@@ -8767,7 +8877,11 @@ storeMode = (() => {
 
   function clearPick() {
     picked = -1;
-    cards.forEach((c) => { c.dataset.live = "0"; });
+    cards.forEach((c) => {
+      c.dataset.live = "0";
+      const h = c.querySelector(".hit");
+      if (h) h.setAttribute("aria-expanded", "false");
+    });
     clearFocus();
     standBack();
   }
@@ -8837,6 +8951,7 @@ storeMode = (() => {
     busy = true;
     const m = monoliths[i];
     const b = m.brand;
+    cameFrom = document.activeElement !== document.body ? document.activeElement : null;
 
     sound.click();
 
@@ -8920,6 +9035,20 @@ storeMode = (() => {
     seq = null;
     shopEl.dataset.on = "1";
     shopEl.setAttribute("aria-hidden", "false");
+
+    /* Focus was not merely un-moved before — it was destroyed.
+     *
+     * The thing you activate to get in here is the card's pill, which lives
+     * in `#p-brands`; the frame loop then sets that panel to `data-on="0"`,
+     * which is `visibility: hidden`, so the focused element stopped existing
+     * mid-animation and focus fell back to `<body>` with nothing announced.
+     * It is remembered on the way in and given back on the way out. */
+    outsideInert(true);
+    const outEl = document.getElementById("shop-out");
+    if (outEl) outEl.focus({ preventScroll: true });
+    announce(`Inside ${b.name}. ${stock.length} pieces.`);
+    canvasEl.setAttribute("aria-label", `Inside the ${b.name} shop, seen in 3D`);
+
     busy = false;
   }
 
@@ -8933,6 +9062,8 @@ storeMode = (() => {
     seq = null;
     hover = null;
     clearFocus();
+    outsideInert(false);
+    canvasEl.setAttribute("aria-label", "A street of fifteen shopfronts, seen in 3D");
     doors.set(house, 0);
     doorBacks.show(house);
     shopEl.dataset.on = "0";
@@ -8943,6 +9074,26 @@ storeMode = (() => {
 
     lockScroll(false);
     scrollTo(0, savedScroll);
+    /* Back where it came from — but not this instant.
+     *
+     * The element that was activated lives in a `.panel`, and the panels are
+     * `visibility: hidden` for as long as the frame loop thinks we are
+     * inside a shop. It does not think that any more, but it has not run
+     * since; and `focus()` on something inside a hidden subtree is simply
+     * refused, silently, which is how this landed on `<body>` the first
+     * time. So it tries again for a few frames and gives up quietly.
+     */
+    const back = cameFrom;
+    cameFrom = null;
+    if (back && document.contains(back)) {
+      let tries = 12;
+      const give = () => {
+        if (!back.isConnected || active) return;
+        back.focus({ preventScroll: true });
+        if (document.activeElement !== back && --tries > 0) requestAnimationFrame(give);
+      };
+      requestAnimationFrame(give);
+    }
     readScroll();
     scrollEased = scrollTarget;
 
@@ -8955,6 +9106,27 @@ storeMode = (() => {
   addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
     if (picked >= 0) clearPick(); else leave();
+  });
+
+  /* Tab wraps inside the shop rather than walking out of it.
+   *
+   * `inert` on everything outside is what actually removes those stops; this
+   * is the other half — without it, Tab off the last card lands on the
+   * browser chrome and the next Tab comes back at the top of the document
+   * rather than at the top of the shop.
+   */
+  addEventListener("keydown", (e) => {
+    if (e.key !== "Tab" || !active) return;
+    const stops = [...shopEl.querySelectorAll(
+      'button, a[href], input, [tabindex]:not([tabindex="-1"])',
+    )].filter((el) => el.offsetParent !== null && !el.disabled);
+    if (!stops.length) return;
+    const first = stops[0], last = stops[stops.length - 1];
+    if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault(); first.focus();
+    } else if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault(); last.focus();
+    }
   });
 
   return {
@@ -9023,8 +9195,12 @@ card.link.addEventListener("click", (e) => {
 });
 
 indexItems.forEach((el, i) => {
-  el.style.cursor = "pointer";
-  el.style.pointerEvents = "auto";
+  // No `pointerEvents = "auto"` here any more. `.index` hid itself with
+  // opacity alone, and forcing each child to stay hittable meant that when
+  // it was "hidden" there were still fifteen invisible, clickable,
+  // focusable targets stacked down the right-hand side of the screen,
+  // swallowing clicks meant for the street behind them. The CSS handles
+  // both now.
   el.addEventListener("click", () => {
     sound.click();
     travelTo(TRAVEL(monoliths[i].z + LEAD));
