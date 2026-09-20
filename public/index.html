@@ -3242,9 +3242,23 @@ const streetLamps = [];
         sill.translate(dir * (2.0 + sillW / 2), 0.25, -0.2);
         con(sill);
       }
-      const rear = new THREE.BoxGeometry(W, 6.4, 0.6);
-      rear.translate(0, 3.2, -2.3);
-      con(rear);
+      // The back wall stops at the doorway and picks up again on the far
+      // side, with a header over it. It used to run straight across, which
+      // was invisible while the door was a slab of concrete and is a
+      // problem the moment somebody can walk through one: the room behind
+      // it is the shop, and the shop has to be on the other side of the
+      // opening rather than sealed off behind it.
+      {
+        const rearW = (W - 3.0) / 2;
+        for (const dir of [-1, 1]) {
+          const rear = new THREE.BoxGeometry(rearW, 6.4, 0.6);
+          rear.translate(dir * (1.5 + rearW / 2), 3.2, -2.3);
+          con(rear);
+        }
+        const rearTop = new THREE.BoxGeometry(3.0, 6.4 - 4.3, 0.6);
+        rearTop.translate(0, (6.4 + 4.3) / 2, -2.3);
+        con(rearTop);
+      }
 
       // The reveal was a solid block of concrete 4m wide and 1.8m deep,
       // sitting exactly where the door goes — so every house had a grey
@@ -3263,9 +3277,9 @@ const streetLamps = [];
       lintel.translate(0, (revH + 4.3) / 2, -revD / 2);
       con(lintel);
 
-      const doorway = new THREE.BoxGeometry(doorW, 4.3, 0.12);
-      doorway.translate(0, 2.15, -1.6);
-      room(doorway);
+      // The lit panel that used to close the back of the doorway is now an
+      // instance in section 18B, because exactly one of them has to be
+      // removable and a merged one is not.
 
       const paneW = (W - 2.0 - doorW - 1.0) / 2;
       for (const dir of [-1, 1]) {
@@ -4269,12 +4283,51 @@ const doors = (() => {
     mesh,
     /** 0 shut, 1 flat against the inside wall. */
     set(i, v) {
+      if (i < 0 || i >= monoliths.length) return;
       const n = clamp(v, 0, 1);
       if (Math.abs(n - open[i]) < 0.002) return;
       open[i] = n;
       write(i);
     },
     get(i) { return open[i]; },
+  };
+})();
+
+/**
+ * The lit panel at the back of each doorway.
+ *
+ * It is what a shop looks like from the street — a warm depth behind the
+ * glass rather than a hole — and it is also exactly what stands between the
+ * camera and the real interior during the walk in. So it is pulled out of
+ * the merged shopfronts and instanced: one draw call for all fifteen, and
+ * taking one away is a matrix with a zero scale rather than a rebuild of
+ * the street.
+ */
+const doorBacks = (() => {
+  const geo = new THREE.BoxGeometry(3.0, 4.3, 0.12);
+  const mesh = new THREE.InstancedMesh(geo, interiorMat, monoliths.length);
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  mesh.frustumCulled = false;
+  scene.add(mesh);
+
+  const dummy = new THREE.Object3D();
+  function write(i, on) {
+    const m = monoliths[i];
+    m.group.updateMatrixWorld(true);
+    dummy.position.set(0, 2.15, -1.6);
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.setScalar(on ? 1 : 0);
+    dummy.updateMatrix();
+    dummy.matrix.premultiply(m.group.matrixWorld);
+    mesh.setMatrixAt(i, dummy.matrix);
+    mesh.instanceMatrix.needsUpdate = true;
+  }
+  for (let i = 0; i < monoliths.length; i++) write(i, true);
+
+  return {
+    mesh,
+    show(i) { if (i >= 0) write(i, true); },
+    hide(i) { if (i >= 0) write(i, false); },
   };
 })();
 
@@ -6899,11 +6952,22 @@ const storeRoom = (() => {
   group.add(add([box(ROOM.w, 0.3, ROOM.d, 0, -0.09, midZ)], matFloor, true));
   group.add(add([box(ROOM.w, 0.24, ROOM.d, 0, ROOM.h + 0.12, midZ)], matCeil, false));
   group.add(add([box(ROOM.w, ROOM.h, 0.24, 0, ROOM.h / 2, ROOM_BACK - 0.12)], matWall2, true));
-  group.add(add([
-    box(0.24, ROOM.h, ROOM.d, -(ROOM.w / 2 + 0.12), ROOM.h / 2, midZ),
-    box(0.24, ROOM.h, ROOM.d,  (ROOM.w / 2 + 0.12), ROOM.h / 2, midZ),
-    box(ROOM.w, ROOM.h, 0.24, 0, ROOM.h / 2, ROOM.front + 0.12),
-  ], matWall, true));
+  // The front wall is three pieces around a 3.0 x 4.3 hole that lines up
+  // with the shopfront's doorway, one wall's thickness outside it. The room
+  // was a sealed box when the only way in was a cut; it is somewhere you
+  // walk into now, and the last thing between the street and the stock had
+  // to come out. Nothing else about it changes — from anywhere inside, a
+  // hole in the wall you came through is the wall you cannot see.
+  {
+    const jamb = (ROOM.w - 3.0) / 2;
+    group.add(add([
+      box(0.24, ROOM.h, ROOM.d, -(ROOM.w / 2 + 0.12), ROOM.h / 2, midZ),
+      box(0.24, ROOM.h, ROOM.d,  (ROOM.w / 2 + 0.12), ROOM.h / 2, midZ),
+      box(jamb, ROOM.h, 0.24, -(1.5 + jamb / 2), ROOM.h / 2, ROOM.front + 0.12),
+      box(jamb, ROOM.h, 0.24,  (1.5 + jamb / 2), ROOM.h / 2, ROOM.front + 0.12),
+      box(3.0, ROOM.h - 4.3, 0.24, 0, (ROOM.h + 4.3) / 2, ROOM.front + 0.12),
+    ], matWall, true));
+  }
 
   // Skirting and a cove. Two lines of trim around the room, which is the
   // cheapest thing that stops walls and floor reading as one folded sheet.
@@ -7368,9 +7432,9 @@ storeMode = (() => {
    * Cutting straight to the inside of a shop skips the one moment that
    * makes the street a place you are standing in rather than a picture of
    * one. So the camera squares up on the shopfront, the doors swing back,
-   * and it walks through them — and only at the threshold, where a real
-   * doorway takes the light away anyway, does the wipe cover the last
-   * fraction of a second and the room appear behind it.
+   * and it walks through them into the room — one shot, no cut, no wipe:
+   * the shop is dressed and lit behind its own doorway before the camera
+   * has moved a metre, so there is nothing left to hide.
    *
    * Seconds from the click. The phases overlap on purpose: the doors start
    * moving before the camera has finished turning, and the camera starts
@@ -7380,20 +7444,24 @@ storeMode = (() => {
   const SEQ = {
     turn: [0.00, 0.80],     // swing round and square up on the door
     doors: [0.55, 1.40],    // the leaves go back
-    walk: [1.05, 2.00],     // and through
-    wipe: 1.58,             // brand colour starts coming up under the arch
-    end: 2.00,
+    walk: [1.05, 2.35],     // through it, and on into the room
+    end: 2.35,
   };
   let seq = null;
 
-  /** Starts the walk-in for house `i`. Resolves at the threshold. */
-  function walkIn(i, onWipe) {
+  /** Starts the walk-in for house `i`. Resolves once it is inside. */
+  function walkIn(i) {
     const m = monoliths[i];
     m.group.updateMatrixWorld(true);
     const at = (x, y, z) => new THREE.Vector3(x, y, z).applyMatrix4(m.group.matrixWorld);
     return new Promise((resolve) => {
       seq = {
-        house: i, t: 0, resolve, onWipe, creaked: false, wiped: false, landed: false,
+        // Wall clock, not accumulated frame deltas. The loop clamps dt to
+        // 0.05 so that a dropped frame cannot teleport the camera down the
+        // street — sound reasoning for a scroll path, wrong for this, where
+        // anything under twenty frames a second would stretch a two-second
+        // move into four and leave somebody staring at a door.
+        house: i, start: performance.now(), resolve, creaked: false, landed: false,
         // Wherever the camera actually is, including this frame's parallax,
         // so the move starts from the picture rather than near it.
         from: camera.position.clone(),
@@ -7401,10 +7469,13 @@ storeMode = (() => {
         // Far enough out to hold the whole shopfront, then the threshold,
         // which is the façade plane — a pace short of the open leaves.
         stand: at(0, 1.95, 8.4),
-        // Into the reveal, between the open leaves, close enough to the
-        // shop at the back of it that the wipe has nothing left to hide.
-        thresh: at(0, 1.85, -0.45),
+        // Straight down the middle and out the other side of the doorway,
+        // finishing roughly where the shop wants the camera anyway — the
+        // move has to stay on x = 0 until it is through, which is why this
+        // is a line to a point inside rather than a line to the final one.
+        into: at(0, 1.95, -4.6),
         door: at(0, 2.05, -1.2),
+        deep: at(0, 2.25, ROOM_BACK),
       };
     });
   }
@@ -7412,18 +7483,20 @@ storeMode = (() => {
   /** One frame of it. True while the walk still owns the camera. */
   function stepSeq(dt, outPos, outLook) {
     if (!seq) return false;
-    seq.t += dt;
-    const T = seq.t;
+    const T = (performance.now() - seq.start) / 1000;
     const ramp = (a, b) => {
       const x = clamp((T - a) / (b - a), 0, 1);
       return x * x * (3 - 2 * x);
     };
 
     if (T < SEQ.walk[0]) outPos.lerpVectors(seq.from, seq.stand, ramp(SEQ.turn[0], SEQ.turn[1]));
-    else outPos.lerpVectors(seq.stand, seq.thresh, ramp(SEQ.walk[0], SEQ.walk[1]));
+    else outPos.lerpVectors(seq.stand, seq.into, ramp(SEQ.walk[0], SEQ.walk[1]));
     // The turn finishes a beat after the move does, so the camera settles
-    // onto the door rather than arriving already pointed at it.
+    // onto the door rather than arriving already pointed at it — and then
+    // the aim carries on past it to the back wall, which is what stops the
+    // last second being a doorframe filling the screen.
     outLook.lerpVectors(seq.fromLook, seq.door, ramp(SEQ.turn[0], SEQ.turn[1] + 0.12));
+    outLook.lerp(seq.deep, ramp(SEQ.walk[0], SEQ.walk[1]));
 
     doors.set(seq.house, ramp(SEQ.doors[0], SEQ.doors[1]));
     if (!seq.creaked && T >= SEQ.doors[0]) {
@@ -7431,23 +7504,13 @@ storeMode = (() => {
       sound.door();
     }
 
-    // The colour comes up while the camera is still moving, not after it
-    // has stopped. The last half-second of the push is nothing but the flat
-    // panel at the back of the doorway filling the frame — a stretched
-    // texture two metres from the lens, which reads as a mistake rather
-    // than as an interior. Starting the fade under the arch means the last
-    // thing anyone sees of the street is the doorway with its frame still
-    // around it, and the brand's colour arriving over the top of it.
-    if (!seq.wiped && T >= SEQ.wipe) {
-      seq.wiped = true;
-      if (seq.onWipe) seq.onWipe();
-    }
+    // Where the room picks the camera up. `seq` is not cleared here but at
+    // the moment that happens, because the two are a handover and a single
+    // frame in between is the scroll path snapping the camera back out into
+    // the middle of the street.
+    curPos.copy(outPos);
+    curLook.copy(outLook);
 
-    // And then it holds. `seq` is not cleared here but at the moment the
-    // room takes over, because the two are a handover and anything in
-    // between — even one frame — is the scroll path snapping the camera
-    // back into the middle of the street behind a wipe that has not
-    // finished fading up yet.
     if (T >= SEQ.end && !seq.landed) {
       seq.landed = true;
       seq.resolve();
@@ -7791,6 +7854,17 @@ storeMode = (() => {
     document.body.style.overflow = on ? "hidden" : "";
   }
 
+  /** Loads a house's stock into the listing, the chips and the walls. */
+  function fill(b) {
+    stock = (catalogue && catalogue[b.slug]) ? catalogue[b.slug].slice() : [];
+    cat = "all";
+    items = stock.slice();
+    page = -1;
+    setPage(0);
+    buildCats();
+    buildGrid();
+  }
+
   async function enter(i) {
     if (busy || active || i < 0 || i >= monoliths.length) return;
     busy = true;
@@ -7798,29 +7872,26 @@ storeMode = (() => {
     const b = m.brand;
 
     sound.click();
-    // Fetched during the walk rather than before it, so the two seconds
-    // buy the request time instead of being spent after it.
+
+    // There is no wipe over any of this now — the walk in is one continuous
+    // shot from the pavement to the stock — so the two things a wipe was
+    // covering have to be dealt with instead of hidden.
+    //
+    // The first is the fetch. It is warmed at load and cached after the
+    // first shop, so it is normally already in hand; when it is not the
+    // click gets seven tenths of a second and then the room opens empty and
+    // fills itself a moment later, which is better than a dead button.
     const catalogueReady = loadCatalogue();
+    await Promise.race([catalogueReady, wait(700)]);
 
-    savedScroll = window.scrollY;
-    lockScroll(true);
-    await walkIn(i, () => {
-      wipeEl.style.background = b.bg[0];
-      wipeEl.dataset.on = "1";
-    });
-    await catalogueReady;
-    await wait(90);
-
+    // The second is the layout. Building the shelf and measuring it costs a
+    // couple of hundred milliseconds of main thread, and that has to land
+    // inside the click, where a pause reads as the page responding, rather
+    // than inside the move, where it would read as a stutter.
     house = i;
     const conf = storeRoom.dress(m);
-    stock = (catalogue && catalogue[b.slug]) ? catalogue[b.slug].slice() : [];
-    cat = "all";
-    items = stock.slice();
-    page = -1;
-    setPage(0);
-    if (items.length === 0) storeRoom.hang([]);
-    buildCats();
-    buildGrid();
+    fill(b);
+    storeRoom.hang([]);
     measureChrome();
 
     const art = logoFor(b.slug);
@@ -7837,29 +7908,46 @@ storeMode = (() => {
       markEl.appendChild(sp);
     }
     nameEl.textContent = b.name;
+
+    // Lit, dressed and standing behind its own doorway before the camera
+    // has moved a metre — which is the whole point. The panel that closes
+    // that doorway from the street is the one thing in the way, and it
+    // comes out for the duration.
     storeRoom.group.visible = true;
     lightsOn(conf);
-    standBack();
-    curPos.copy(tgtPos);
-    curLook.copy(tgtLook);
+    doorBacks.hide(i);
 
+    savedScroll = window.scrollY;
+    lockScroll(true);
     picked = -1;
+
+    // The walls fill in while the doors are still opening. Hanging them
+    // before the pictures have decoded would have meant walking towards a
+    // grid of grey rectangles, or worse, towards the last shop's stock,
+    // since a panel keeps its old texture until the new one is ready.
+    Promise.race([storeRoom.preload(items.slice(0, PAGE)), wait(950)])
+      .then(() => { if (house === i) storeRoom.hang(items.slice(0, PAGE)); });
+
+    // And if the catalogue lost the race above, the room catches up.
+    if (stock.length === 0) {
+      catalogueReady.then(() => {
+        if (house !== i || !catalogue || !catalogue[b.slug]) return;
+        fill(b);
+        measureChrome();
+        if (active) standBack();
+      });
+    }
+
+    await walkIn(i);
+
+    // The camera is already inside and already pointed at the back wall;
+    // all that is left is to let the room's own framing take it the last
+    // metre, which `aim` does by easing towards it.
+    standBack();
     active = true;
     seq = null;
     shopEl.dataset.on = "1";
     shopEl.setAttribute("aria-hidden", "false");
-
-    // Hold the wipe until the first wall of stock has actually decoded.
-    // Lifting on a timer meant every shop opened on twelve grey rectangles
-    // that filled in one by one, which reads as the page struggling. The
-    // race is there because a slow picture must not trap anyone behind a
-    // coloured screen.
-    await Promise.race([
-      storeRoom.preload(items.slice(0, PAGE)),
-      wait(1100),
-    ]);
-    await wait(120);
-    wipeEl.dataset.on = "0";
     busy = false;
   }
 
@@ -7871,7 +7959,8 @@ storeMode = (() => {
 
     active = false;
     seq = null;
-    if (house >= 0) doors.set(house, 0);
+    doors.set(house, 0);
+    doorBacks.show(house);
     shopEl.dataset.on = "0";
     shopEl.setAttribute("aria-hidden", "true");
     storeRoom.group.visible = false;
