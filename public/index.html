@@ -558,6 +558,29 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
   line-height: 1.3; max-height: 2.6em; overflow: hidden;
 }
 #shop .hit i { display: block; font-style: normal; font-size: .75rem; color: var(--ink-dim); }
+
+/* The three things a shelf can be doing other than showing stock: waiting on
+   the catalogue, having none, and having failed to fetch it. One blank sheet
+   of paper used to stand for all three and said nothing about any of them. */
+#shop .skel {
+  padding: .55rem .55rem .65rem;
+  border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
+  animation: shelfWait 1.3s ease-in-out infinite;
+}
+#shop .skel:nth-child(2n) { border-right: 0; }
+#shop .skel span { display: block; background: var(--paper-sunken); }
+#shop .skel span.p { aspect-ratio: 1; }
+#shop .skel span.t { height: .72rem; margin-top: .5rem; }
+#shop .skel span.u { height: .72rem; margin-top: .3rem; width: 45%; }
+@keyframes shelfWait { 0%, 100% { opacity: 1 } 50% { opacity: .45 } }
+#shop .note { grid-column: 1 / -1; padding: 2.2rem 1.3rem; text-align: center; }
+#shop .note p { margin: 0 0 1.1rem; font-size: .8rem; line-height: 1.6; color: var(--ink-dim); }
+#shop .note .pill { display: inline-block; }
+
+/* While the click is waiting on the network. The pointer says so, and the
+   thing that was clicked stops looking clickable. */
+body[data-busy="1"] { cursor: progress; }
+body[data-busy="1"] .pill, body[data-busy="1"] .pin { opacity: .55; }
 #shop .card[data-gone="1"] .hit img { filter: grayscale(1) brightness(.78); }
 #shop .card[data-live="1"] { background: var(--paper-raised); }
 #shop .card[data-live="1"] .hit .pic { outline: 2px solid var(--ink); outline-offset: -2px; }
@@ -766,6 +789,9 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
 @media (prefers-reduced-motion: reduce) {
   .hint::after { animation: none; }
   .panel { transition: none; }
+  #shop .skel { animation: none; opacity: .7; }
+  #boot .bar i { animation: none; width: 100%; }
+  #shop, #wipe, .index, #shop .cat, .sound .lbl, .index b { transition: none; }
 }
 </style>
 </head>
@@ -779,11 +805,38 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
 <div id="fallback">
   <div>
     <p class="eyebrow">Designer District</p>
-    <h2 class="display title">This page needs WebGL.</h2>
-    <p style="margin:1.2rem 0 1.6rem;color:var(--ink-dim)">Your browser could not start a 3D context.</p>
+    <h2 class="display title" id="fallback-head">This page needs WebGL.</h2>
+    <p style="margin:1.2rem 0 1.6rem;color:var(--ink-dim)" id="fallback-note">Your browser could not start a 3D context.</p>
     <a class="pill" href="https://designer-district.vercel.app">Continue to the store</a>
   </div>
 </div>
+
+<!--
+  The one script on this page that is not a module, and that is the point.
+
+  Everything else here — the scene, the fallback that raises itself when
+  WebGL will not start, the loading bar's own dismissal — lives inside a
+  `type="module"` that imports three from a CDN. Which means that if the CDN
+  is slow, blocked by a network, or down, none of it ever runs: the module
+  never executes, the bar at the top of the screen sweeps forever, and the
+  fallback that exists to explain exactly this cannot raise itself, because
+  it is inside the thing that did not load.
+
+  So this one sits outside it and watches the clock.
+-->
+<script>
+  (function () {
+    setTimeout(function () {
+      var boot = document.getElementById("boot");
+      if (!boot || boot.dataset.done === "1") return;
+      document.getElementById("fallback-head").textContent = "This is taking too long.";
+      document.getElementById("fallback-note").textContent =
+        "The 3D library could not be reached. A network or a blocker is in the way.";
+      document.getElementById("fallback").dataset.on = "1";
+      boot.dataset.done = "1";
+    }, 12000);
+  })();
+</script>
 
 <!-- The store's own header, kept as it is there: paper ground, hairline rule,
      and the wordmark cut straight from the logo rather than set in a face that
@@ -916,14 +969,23 @@ import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
 const SITE = "https://designer-district.vercel.app";
 
+/* Reduced motion is read live; the rest is not.
+ *
+ * Everything else in here decides how the scene is built — buffer sizes,
+ * particle counts, whether glass is real glass — and none of it can change
+ * without tearing the scene down, so it is sampled once and a reload is the
+ * honest answer. `still` is different: it decides how things *move*, every
+ * frame, and somebody who turns the setting on because a page is making them
+ * ill should not have to reload that page to get relief from it. */
+const STILL = matchMedia("(prefers-reduced-motion: reduce)");
+
 const QUALITY = (() => {
   const coarse = matchMedia("(pointer: coarse)").matches;
   const small  = Math.min(innerWidth, innerHeight) < 700;
-  const still  = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const light  = coarse || small;
   return {
     light,
-    still,
+    get still() { return STILL.matches; },
     dpr:       light ? 1.2  : 2,
     shadowMap: light ? 1024 : 2048,
     leaves:    light ? 36  : 110,
@@ -4954,7 +5016,10 @@ function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
   // Scroll easing: the camera always trails the scrollbar slightly, which is
   // what makes it feel like a dolly rather than a scrubbed video.
-  scrollEased += (scrollTarget - scrollEased) * Math.min(1, dt * 3.4);
+  // The camera trails the scrollbar by design — but trailing is drift, and
+  // drift after the wheel has stopped is the part that makes people ill.
+  if (QUALITY.still) scrollEased = scrollTarget;
+  else scrollEased += (scrollTarget - scrollEased) * Math.min(1, dt * 3.4);
   step(dt, clock.elapsedTime, clamp(scrollEased, 0, 1));
 }
 
@@ -8016,17 +8081,44 @@ storeMode = (() => {
   // One request for the whole street, kept for the session. Fifteen shops
   // browsed in one visit is fifteen round trips otherwise, and the payload
   // is small precisely so it can be fetched whole.
-  let catalogue = null, catalogueP = null;
+  /**
+   * The catalogue, and whether it actually arrived.
+   *
+   * This used to turn every failure into `{}` and then memoise it, which had
+   * two consequences and both of them were silent. A house with no stock and
+   * a house whose fetch had failed rendered identically — a lit, dressed,
+   * empty room — and once one fetch had failed, the cached empty object meant
+   * every other shop in the street was empty too, for the rest of the visit,
+   * with no way back short of a reload.
+   *
+   * So the outcome is carried rather than flattened, and only a success is
+   * kept. A failure leaves nothing behind, so the next door opened tries
+   * again.
+   */
+  let catalogue = null, catalogueP = null, catalogueState = "idle";
   function loadCatalogue() {
     if (catalogueP) return catalogueP;
+    catalogueState = "loading";
     catalogueP = fetch("/api/storefront", { headers: { accept: "application/json" } })
-      .then((r) => (r.ok ? r.json() : { brands: {} }))
-      .then((j) => (catalogue = j.brands || {}))
-      .catch(() => (catalogue = {}));
+      .then((r) => r.json().then((j) => ({ ok: r.ok && j.ok !== false, j })))
+      .then(({ ok, j }) => {
+        if (!ok) throw new Error(j && j.error ? j.error : "catalogue unavailable");
+        catalogue = j.brands || {};
+        catalogueState = j.configured === false ? "unconfigured" : "ready";
+        return catalogue;
+      })
+      .catch((e) => {
+        catalogueState = "failed";
+        catalogueP = null;            // so the next shop retries
+        throw e;
+      });
     return catalogueP;
   }
+
+  /** Swallows the rejection for callers that only want to wait. */
+  const catalogueSettled = () => loadCatalogue().catch(() => null);
   // Warm it once the street is up, so the first door opens on a hit.
-  setTimeout(loadCatalogue, 2500);
+  setTimeout(catalogueSettled, 2500);
 
   // ── camera ────────────────────────────────────────────────────────────
   const WHITE = new THREE.Color(0xffffff);
@@ -8055,8 +8147,18 @@ storeMode = (() => {
   };
   let seq = null;
 
-  /** Starts the walk-in for house `i`. Resolves once it is inside. */
-  function walkIn(i) {
+  /**
+   * Starts the walk-in for house `i`. Resolves once it is inside.
+   *
+   * Under reduced motion the whole thing happens on the first frame rather
+   * than over two and a third seconds. Note that it *happens* — the clock is
+   * wound past the end instead of the sequence being skipped, because every
+   * ramp in `stepSeq` is read off that clock: the doors, the camera, and the
+   * fade that takes the street's sun off the room. Returning early would
+   * leave `indoor` at zero and open the shop lit by the sun outside, which is
+   * the exact bug the light fade was written to fix.
+   */
+  function walkIn(i, instant) {
     const m = monoliths[i];
     m.group.updateMatrixWorld(true);
     const at = (x, y, z) => new THREE.Vector3(x, y, z).applyMatrix4(m.group.matrixWorld);
@@ -8067,7 +8169,8 @@ storeMode = (() => {
         // street — sound reasoning for a scroll path, wrong for this, where
         // anything under twenty frames a second would stretch a two-second
         // move into four and leave somebody staring at a door.
-        house: i, start: performance.now(), resolve, creaked: false, landed: false,
+        house: i, resolve, creaked: false, landed: false,
+        start: performance.now() - (instant || QUALITY.still ? SEQ.end * 1000 : 0),
         // Wherever the camera actually is, including this frame's parallax,
         // so the move starts from the picture rather than near it.
         from: camera.position.clone(),
@@ -8481,8 +8584,80 @@ storeMode = (() => {
    * sizes and its way through to the product page inside the card itself,
    * so there is no second floating panel over the room.
    */
+  /**
+   * What the shelf is showing, which is not always stock.
+   *
+   * Order matters: a failed fetch beats an empty house, because an empty
+   * house is a fact about the house and a failed fetch is a fact about the
+   * network, and confusing the two is exactly what this is here to stop.
+   */
+  function shelfKind() {
+    if (catalogueState === "failed") return "failed";
+    if (catalogueState === "loading" && !stock.length) return "loading";
+    if (!items.length) return "empty";
+    return "stock";
+  }
+
+  /** Six grey cards, or a sentence explaining why there are none. */
+  function shelfNote(kind) {
+    if (kind === "loading") {
+      for (let k = 0; k < 6; k++) {
+        const el = document.createElement("div");
+        el.className = "skel";
+        el.setAttribute("aria-hidden", "true");
+        el.innerHTML = '<span class="p"></span><span class="t"></span><span class="u"></span>';
+        gridEl.appendChild(el);
+      }
+      gridEl.setAttribute("aria-busy", "true");
+      return;
+    }
+
+    gridEl.removeAttribute("aria-busy");
+    const note = document.createElement("div");
+    note.className = "note";
+    const line = document.createElement("p");
+
+    if (kind === "failed") {
+      line.textContent = "The catalogue could not be loaded. This is a connection problem, not an empty shop.";
+      const again = document.createElement("button");
+      again.type = "button";
+      again.className = "pill";
+      again.textContent = "Try again";
+      again.addEventListener("click", () => {
+        const b = monoliths[house] && monoliths[house].brand;
+        if (!b) return;
+        // The fetch goes first, because it is what moves the state off
+        // "failed" — rebuilding before it would render the same error back
+        // and the button would look like it had done nothing.
+        const back = catalogueSettled();
+        buildGrid();                       // now: the skeleton
+        back.then(() => {
+          if (house < 0 || monoliths[house].brand !== b) return;
+          fill(b);
+          measureChrome();
+          if (active) standBack();
+        });
+      });
+      note.append(line, again);
+    } else {
+      line.textContent = cat === "all"
+        ? "Nothing on the shelves here yet."
+        : "Nothing in this section.";
+      const out = document.createElement("a");
+      out.className = "pill";
+      out.href = SITE;
+      out.textContent = "Browse the whole store";
+      note.append(line, out);
+    }
+    gridEl.appendChild(note);
+  }
+
   function buildGrid() {
     gridEl.textContent = "";
+    cards = [];
+    const kind = shelfKind();
+    if (kind !== "stock") { shelfNote(kind); gridEl.scrollTop = 0; return; }
+    gridEl.removeAttribute("aria-busy");
     cards = items.map((it, i) => {
       const card = document.createElement("article");
       card.className = "card";
@@ -8571,7 +8746,9 @@ storeMode = (() => {
 
     const it = items[picked];
     if (scrollTo && cards[picked]) {
-      cards[picked].scrollIntoView({ behavior: "smooth", block: "nearest" });
+      cards[picked].scrollIntoView({
+        behavior: QUALITY.still ? "auto" : "smooth", block: "nearest",
+      });
     }
 
     let pn = storeRoom.panelFor(it);
@@ -8637,7 +8814,19 @@ storeMode = (() => {
     stock = (catalogue && catalogue[b.slug]) ? catalogue[b.slug].slice() : [];
     cat = "all";
     items = stock.slice();
-    storeRoom.layout(sectionsOf(), b);
+
+    // A house with nothing to hang used to open as a bare lit room, which
+    // reads as broken whatever the cause. One empty case with a sign on it
+    // at least says which kind of nothing this is.
+    const secs = sectionsOf();
+    storeRoom.layout(secs.length ? secs : [{
+      key: "other",
+      label: catalogueState === "failed" ? "Unavailable"
+           : catalogueState === "loading" ? "Loading"
+           : "No stock",
+      items: [],
+    }], b);
+
     hereBay = storeRoom.bays[0];
     buildCats();
     buildGrid();
@@ -8655,12 +8844,17 @@ storeMode = (() => {
     // shot from the pavement to the stock — so the two things a wipe was
     // covering have to be dealt with instead of hidden.
     //
-    // The first is the fetch. It is warmed at load and cached after the
-    // first shop, so it is normally already in hand; when it is not the
-    // click gets seven tenths of a second and then the room opens empty and
-    // fills itself a moment later, which is better than a dead button.
-    const catalogueReady = loadCatalogue();
+    // The first is the fetch. It is warmed at load and kept after the first
+    // shop, so it is normally already in hand; when it is not the click gets
+    // seven tenths of a second and then the room opens with the shelf saying
+    // what it is waiting for. The cursor carries that seven tenths — it used
+    // to be a button that had simply stopped responding.
+    const catalogueReady = catalogueSettled();
+    document.body.dataset.busy = "1";
+    shopEl.setAttribute("aria-busy", "true");
     await Promise.race([catalogueReady, wait(700)]);
+    delete document.body.dataset.busy;
+    shopEl.removeAttribute("aria-busy");
 
     // The second is the layout. Building the shelf and measuring it costs a
     // couple of hundred milliseconds of main thread, and that has to land
@@ -8704,10 +8898,12 @@ storeMode = (() => {
     // round, which is longer than a picture needs.
     storeRoom.preload((storeRoom.bays[0].items || []).slice(0, BAY_MAX));
 
-    // And if the catalogue lost the race above, the room catches up.
+    // And if the catalogue lost the race above, the room catches up — or
+    // the shelf says the fetch failed, which `fill` now reads off the
+    // catalogue's own state rather than inferring from an empty object.
     if (stock.length === 0) {
       catalogueReady.then(() => {
-        if (house !== i || !catalogue || !catalogue[b.slug]) return;
+        if (house !== i) return;
         fill(b);
         measureChrome();
         if (active) standBack();

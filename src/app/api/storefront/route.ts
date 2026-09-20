@@ -17,7 +17,19 @@ import { supabaseConfigured } from "@/lib/supabase/config";
  * would triple the payload for something nothing on that page reads.
  */
 
-export const revalidate = 300;
+/*
+ * Dynamic, with the caching done by the header rather than by the segment.
+ *
+ * `revalidate = 300` cached the route's response whatever it was — including
+ * a failed one. A database blip at the wrong moment was served to everybody
+ * for the next five minutes, and since a failure here renders as fifteen
+ * empty shops rather than as an error, nobody would have known why.
+ *
+ * The success path still sets `s-maxage=300`, so a healthy deployment caches
+ * exactly as it did before. The failure path sets `no-store` and is never
+ * held onto by anything.
+ */
+export const dynamic = "force-dynamic";
 
 type Rel<T> = T | T[] | null;
 const one = <T,>(r: Rel<T>): T | null => (Array.isArray(r) ? r[0] ?? null : r);
@@ -34,8 +46,13 @@ type Row = {
 };
 
 export async function GET() {
+  // Not an error: the project has not been pointed at a database yet. The
+  // page can say so rather than pretending the shops are empty.
   if (!supabaseConfigured) {
-    return NextResponse.json({ brands: {} }, { status: 200 });
+    return NextResponse.json(
+      { ok: true, configured: false, brands: {} },
+      { status: 200, headers: { "Cache-Control": "no-store" } },
+    );
   }
 
   const supabase = await createClient();
@@ -49,8 +66,14 @@ export async function GET() {
     .order("is_featured", { ascending: false })
     .order("created_at", { ascending: true });
 
+  // 503, not 200. This used to answer "here are your products: none" to a
+  // failed query, which is a different sentence from "the catalogue is
+  // down" and the page had no way to tell them apart.
   if (error) {
-    return NextResponse.json({ brands: {}, error: error.message }, { status: 200 });
+    return NextResponse.json(
+      { ok: false, error: error.message },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
   }
 
   const brands: Record<string, unknown[]> = {};
@@ -76,7 +99,7 @@ export async function GET() {
   }
 
   return NextResponse.json(
-    { brands },
+    { ok: true, configured: true, brands },
     {
       headers: {
         // Long enough that a visitor scrolling in and out of fifteen shops
