@@ -4911,7 +4911,11 @@ requestAnimationFrame(() => {
 
 const sound = (() => {
   const SPEAKER = new THREE.Vector3(STREET.half - 2.5, 3.4, STREET.from + 8 * STREET.step);
-  let ctx = null, master = null, panner = null, muffle = null, ready = false, on = false;
+  let ctx = null, master = null, panner = null, ready = false, on = false;
+  // The system: a sub path, the mids that leak out around it, and the
+  // rattle the sub shakes out of whatever it is bolted to.
+  let boxLP = null, boxGain = null, subGain = null, rattleGain = null;
+  let sysOut = null;
 
   const midi = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
@@ -4932,6 +4936,25 @@ const sound = (() => {
    * burst of work at start-up instead of a permanent scheduling overhead.
    */
   /** Soft clip, so the 808 has edge instead of just being loud. */
+  /**
+   * A hard clip, as opposed to `satCurve`'s soft one.
+   *
+   * Used on a copy of the bass to make the rattle: squaring off a sine
+   * generates a stack of odd harmonics that follows the bass note exactly,
+   * and a narrow band of those a couple of octaves up is what a boot lid
+   * and a number plate actually sound like when something is hitting them.
+   * No envelope follower needed — the harmonics are only there when there
+   * is something loud enough to clip.
+   */
+  function clipCurve(hardness) {
+    const n = 1024, c = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const x = (i / (n - 1)) * 2 - 1;
+      c[i] = Math.max(-1, Math.min(1, x * hardness));
+    }
+    return c;
+  }
+
   function satCurve(amount) {
     const n = 1024, c = new Float32Array(n);
     for (let i = 0; i < n; i++) {
@@ -5620,16 +5643,106 @@ const sound = (() => {
                         panner.positionZ.value = SPEAKER.z)
                      : panner.setPosition(SPEAKER.x, SPEAKER.y, SPEAKER.z);
 
-    muffle = ctx.createBiquadFilter();
-    muffle.type = "lowpass";
-    muffle.frequency.value = 420;
-    muffle.Q.value = 0.3;
-
+    /* ── the system ────────────────────────────────────────────────────
+     *
+     * Not a speaker: a rig. Two fifteens in a boot, or a pair of tops on
+     * stands outside a shop, and you are stood in the street listening to
+     * it rather than sat in front of it.
+     *
+     * One lowpass could not do that. What you actually hear from outside a
+     * car is two different signals that behave differently with distance —
+     * a sub that is nearly all of it, and a thin, boxy leak of everything
+     * above it that dies off much faster. So the music splits in two.
+     *
+     *   sub   lowpass 120 → a fat peak at the box tuning → driven into a
+     *         soft clip, because nobody runs one of these quietly
+     *   box   highpass 220 → a lowpass that closes with distance → a honk
+     *         around 800 where a cabin resonates, at a level that falls
+     *         away far faster than the sub does
+     *
+     * Walk off down the street and the box path fades out from under the
+     * sub, which is why a system three blocks away is just bass. Walk up to
+     * it and the mids come back.
+     */
     musicGain = ctx.createGain();
-    musicGain.gain.value = 0.9;
+    // Trimmed: the sub path below adds a peak, a drive and a compressor,
+    // and the bus has to leave room for all three.
+    musicGain.gain.value = 0.62;
 
-    musicGain.connect(muffle);
-    muffle.connect(panner);
+    const system = ctx.createGain();
+    system.gain.value = 1;
+
+    // ── sub ──
+    const subLP = ctx.createBiquadFilter();
+    subLP.type = "lowpass"; subLP.frequency.value = 120; subLP.Q.value = 0.9;
+
+    const subPeak = ctx.createBiquadFilter();
+    subPeak.type = "peaking"; subPeak.frequency.value = 48;
+    subPeak.Q.value = 1.4; subPeak.gain.value = 9;
+
+    const subDrive = ctx.createGain();
+    subDrive.gain.value = 1.7;
+
+    const subSat = ctx.createWaveShaper();
+    subSat.curve = satCurve(2.6); subSat.oversample = "2x";
+
+    subGain = ctx.createGain();
+    subGain.gain.value = 1.0;
+
+    musicGain.connect(subLP);
+    subLP.connect(subPeak); subPeak.connect(subDrive);
+    subDrive.connect(subSat); subSat.connect(subGain);
+    subGain.connect(system);
+
+    // ── rattle, shaken out of the sub itself ──
+    const rattleDrive = ctx.createGain();
+    rattleDrive.gain.value = 9;
+
+    const rattleClip = ctx.createWaveShaper();
+    rattleClip.curve = clipCurve(6);
+
+    const rattleBP = ctx.createBiquadFilter();
+    rattleBP.type = "bandpass"; rattleBP.frequency.value = 2400; rattleBP.Q.value = 1.1;
+
+    rattleGain = ctx.createGain();
+    rattleGain.gain.value = 0.03;
+
+    subSat.connect(rattleDrive);
+    rattleDrive.connect(rattleClip); rattleClip.connect(rattleBP);
+    rattleBP.connect(rattleGain); rattleGain.connect(system);
+
+    // ── box ──
+    const boxHP = ctx.createBiquadFilter();
+    boxHP.type = "highpass"; boxHP.frequency.value = 220; boxHP.Q.value = 0.7;
+
+    boxLP = ctx.createBiquadFilter();
+    boxLP.type = "lowpass"; boxLP.frequency.value = 900; boxLP.Q.value = 0.4;
+
+    const boxHonk = ctx.createBiquadFilter();
+    boxHonk.type = "peaking"; boxHonk.frequency.value = 820;
+    boxHonk.Q.value = 1.1; boxHonk.gain.value = 5;
+
+    boxGain = ctx.createGain();
+    boxGain.gain.value = 0.3;
+
+    musicGain.connect(boxHP);
+    boxHP.connect(boxLP); boxLP.connect(boxHonk);
+    boxHonk.connect(boxGain); boxGain.connect(system);
+
+    /* The amp, and it is being asked for more than it has.
+     * A fast attack and a slowish release is what makes a system pump —
+     * everything ducking under each kick and swelling back between them.
+     * On a rig this size that pumping *is* the sound. */
+    const amp = ctx.createDynamicsCompressor();
+    amp.threshold.value = -19;
+    amp.knee.value = 6;
+    amp.ratio.value = 6;
+    amp.attack.value = 0.005;
+    amp.release.value = 0.19;
+
+    sysOut = amp;
+    system.connect(amp);
+    amp.connect(panner);
     panner.connect(master);
 
     // The music is performed from here on, not played back. Starts on the
@@ -5741,15 +5854,34 @@ const sound = (() => {
         L.setPosition(p.x, p.y, p.z);
         L.setOrientation(vTmp.x, vTmp.y, vTmp.z, 0, 1, 0);
       }
-      // Distance does not only make a sound quieter, it makes it duller —
-      // and the dullness is what the ear reads as distance. Without this the
-      // beat from across the plaza just sounds like a quiet beat.
+      /* Distance does not only make a sound quieter, it makes it duller —
+       * and the dullness is what the ear reads as distance.
+       *
+       * Three things move with it now rather than one. The box path closes
+       * down and drops away, which is most of the effect: mids are what
+       * distance eats. The sub is pushed the other way, up, to offset the
+       * panner's rolloff — long wavelengths carry, which is why you hear
+       * the bass from a car two streets before you hear the song. And the
+       * rattle only shows up close, because panel buzz is a near-field
+       * detail that never survives the walk.
+       */
       const d = p.distanceTo(SPEAKER);
       const near = clamp(1 - d / 85, 0, 1);
-      const hz = 380 + 5200 * Math.pow(near, 1.7);
-      muffle.frequency.setTargetAtTime(hz, ctx.currentTime, 0.25);
+      const now = ctx.currentTime;
+
+      const hz = 420 + 2200 * Math.pow(near, 1.7);
+      boxLP.frequency.setTargetAtTime(hz, now, 0.25);
+      boxGain.gain.setTargetAtTime(0.035 + 0.52 * Math.pow(near, 1.7), now, 0.3);
+      subGain.gain.setTargetAtTime(0.95 + 0.6 * (1 - near), now, 0.3);
+      rattleGain.gain.setTargetAtTime(0.008 + 0.06 * Math.pow(near, 1.8), now, 0.3);
+
       stats.distance = Math.round(d);
       stats.muffleHz = Math.round(hz);
+      stats.box = +boxGain.gain.value.toFixed(3);
+      stats.sub = +subGain.gain.value.toFixed(3);
+      // Negative dB, and it is the proof the amp is working: the number is
+      // how hard everything is being squashed under the kick at this instant.
+      if (sysOut) stats.ampDb = +sysOut.reduction.toFixed(1);
     },
 
     /** For the console: is it running, is it audible, is it silent? */
@@ -5769,11 +5901,49 @@ const sound = (() => {
      * scheduled perfectly into a voice that never fires. This taps the bus
      * the beat goes through and reports what is actually on it.
      */
-    async meter(ms = 2500) {
-      if (!ctx || !musicGain) return null;
+    /**
+     * Energy per octave band off the system's output, as dB.
+     *
+     * The point of the system chain is a spectral tilt that changes with
+     * distance, and a tilt is not something "it sounds right" can settle.
+     * This reports what is actually coming out of it.
+     */
+    async spectrum(ms = 2500, where = "out") {
+      const tap = where === "in" ? musicGain : sysOut;
+      if (!ctx || !tap) return null;
+      const an = ctx.createAnalyser();
+      an.fftSize = 4096;
+      an.smoothingTimeConstant = 0.6;
+      tap.connect(an);
+      const bins = new Float32Array(an.frequencyBinCount);
+      const hzPer = ctx.sampleRate / an.fftSize;
+      const BANDS = [[20, 120], [120, 400], [400, 1200], [1200, 4000], [4000, 14000]];
+      const acc = BANDS.map(() => ({ sum: 0, n: 0 }));
+      const until = performance.now() + ms;
+      while (performance.now() < until) {
+        an.getFloatFrequencyData(bins);
+        for (let i = 1; i < bins.length; i++) {
+          const hz = i * hzPer;
+          const v = Math.pow(10, bins[i] / 20);
+          for (let b = 0; b < BANDS.length; b++) {
+            if (hz >= BANDS[b][0] && hz < BANDS[b][1]) { acc[b].sum += v * v; acc[b].n++; }
+          }
+        }
+        await new Promise((r) => setTimeout(r, 40));
+      }
+      tap.disconnect(an);
+      return BANDS.map((b, i) => ({
+        band: `${b[0]}-${b[1]}`,
+        db: +(20 * Math.log10(Math.sqrt(acc[i].sum / Math.max(acc[i].n, 1)) + 1e-12)).toFixed(1),
+      }));
+    },
+
+    async meter(ms = 2500, where = "in") {
+      const tap = where === "out" ? sysOut : musicGain;
+      if (!ctx || !tap) return null;
       const an = ctx.createAnalyser();
       an.fftSize = 2048;
-      musicGain.connect(an);
+      tap.connect(an);
       const buf = new Float32Array(an.fftSize);
       let peak = 0, sum = 0, n = 0;
       const until = performance.now() + ms;
@@ -5786,7 +5956,7 @@ const sound = (() => {
         }
         await new Promise((r) => setTimeout(r, 25));
       }
-      musicGain.disconnect(an);
+      tap.disconnect(an);
       return { peak: +peak.toFixed(4), rms: +Math.sqrt(sum / Math.max(n, 1)).toFixed(4) };
     },
 
