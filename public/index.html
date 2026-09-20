@@ -5763,190 +5763,122 @@ const sound = (() => {
     const cityGain = ctx.createGain(); cityGain.gain.value = 0.10;
     loop().connect(city); city.connect(cityGain); cityGain.connect(amb);
 
-    /* Crickets.
+    /* Night, with nothing living in it.
      *
-     * Not scheduled — a field of them is continuous, and a few hundred
-     * timers a minute to fake that would be absurd. Noise through a very
-     * narrow band becomes a whistle rather than a hiss, and chopping that
-     * whistle with a square wave at a dozen hertz is a chirp. Two of them
-     * at different pitches and rates, panned apart, is a hedge.
+     * There were crickets and an owl here and neither of them worked.
+     * Both were measured hard against reference recordings and both came
+     * back close on paper — pitch, chirp rate, pulse structure, envelope
+     * shape, harmonic-to-noise ratio — and both still read as a
+     * synthesiser doing an impression. That is the risk with any sound a
+     * listener already knows by heart: there is a right answer in their
+     * head and anything short of it is a wrong one.
      *
-     * The rate is not arbitrary either: crickets chirp faster when it is
-     * warm, and this is Florida, so they are quick.
+     * Nobody has a reference in their head for what still air sounds
+     * like. So what is here instead is the things a street is actually
+     * made of after dark, none of which anyone would name if asked:
+     * heavier air low down, a faint hiss where the day's noise used to
+     * be, the hum off lit signage, and a car going past several streets
+     * away.
      */
-    const crickets = ctx.createGain();
-    crickets.gain.value = 0;
-    crickets.connect(amb);
+    const night = ctx.createGain();
+    night.gain.value = 0;
+    night.connect(amb);
 
-    /* Three patches of them, and each one stops.
-     *
-     * The first pass at this ran continuously: a slow swell that bottomed
-     * out at a quarter of full rather than at zero, so there was never a
-     * moment without crickets in it. Constant narrowband noise at 5kHz is
-     * about the most fatiguing thing you can put in a mix, and it was.
-     *
-     * Each patch now has its own life — a few seconds of chirping, a fade,
-     * and a gap of up to six seconds before it starts again. Three of them
-     * on independent schedules overlap into something that ebbs, and every
-     * so often all three are down at once and the street is just quiet.
-     */
-    /* Measured off the reference, and it was not what I had built.
-     *
-     * The peak is at 2.36kHz — not the 4.6 and 5.4 I had — and it is a
-     * narrow one, 94Hz wide, which is a Q around 25. Twenty decibels of
-     * everything else. But the thing I had most wrong is the rate: the
-     * reference chirps 2.3 times a second, not twelve, and its envelope
-     * goes to actual zero in between. That is a chirp with a silence after
-     * it, which is what people picture. What I had was a continuous trill,
-     * which is a grasshopper at best and a buzzer at worst.
-     *
-     * So the chirps are written into the gain as real envelopes rather
-     * than modulated by an oscillator, scheduled a couple of seconds ahead
-     * the same way the music is — about two timers a second each, and
-     * sample-accurate where a timer per chirp would not be.
-     */
-    const cricketLives = [], cricketChirps = [];
-    for (const [hz, q, rate, pan] of [
-      [2360, 25, 2.30, -0.45], [2610, 22, 2.05, 0.4],
-    ]) {
-      const bp = ctx.createBiquadFilter();
-      bp.type = "bandpass"; bp.frequency.value = hz; bp.Q.value = q;
+    /* The air itself. Cold air carries the bottom end and loses the top,
+     * which is most of why somewhere sounds different at two in the
+     * morning than it does at two in the afternoon. */
+    {
+      const hp = ctx.createBiquadFilter();
+      hp.type = "highpass"; hp.frequency.value = 70;
+      const lp = ctx.createBiquadFilter();
+      lp.type = "lowpass"; lp.frequency.value = 330; lp.Q.value = 0.5;
+      const g = ctx.createGain(); g.gain.value = 0.035;
+      loop().connect(hp); hp.connect(lp); lp.connect(g); g.connect(night);
 
-      const chirp = ctx.createGain(); chirp.gain.value = 0.0001;
-      const life = ctx.createGain(); life.gain.value = 0;
-      const pn = ctx.createStereoPanner(); pn.pan.value = pan;
-
-      loop().connect(bp);
-      bp.connect(chirp); chirp.connect(life); life.connect(pn); pn.connect(crickets);
-      cricketLives.push(life);
-      cricketChirps.push(chirp);
-
-      // Two seconds of chirps at a time, re-armed before they run out.
-      let next = 0;
-      const fill = () => {
-        if (!ctx || ctx.state !== "running" || nightLevel < 0.2) {
-          setTimeout(fill, 1500);
-          return;
-        }
-        const now = ctx.currentTime;
-        if (next < now) next = now + 0.08;
-        while (next < now + 2) {
-          const len = 0.05 + Math.random() * 0.045;
-          chirp.gain.setValueAtTime(0.0001, next);
-          chirp.gain.exponentialRampToValueAtTime(1, next + 0.007);
-          chirp.gain.exponentialRampToValueAtTime(0.0001, next + len);
-          // No two insects keep time with each other.
-          next += (1 / rate) * (0.9 + Math.random() * 0.2);
-        }
-        setTimeout(fill, 900);
-      };
-      fill();
-    }
-
-    /** One patch: chirp for a while, fade, wait, go again. */
-    function cricketCycle(life) {
-      const go = () => {
-        if (!ctx || ctx.state !== "running" || nightLevel < 0.25) {
-          setTimeout(go, 3000 + Math.random() * 3000);
-          return;
-        }
-        const t = ctx.currentTime;
-        const rise = 0.5 + Math.random() * 0.7;
-        const hold = 2.4 + Math.random() * 4.0;
-        const fall = 0.8 + Math.random() * 1.2;
-        const gap = 2.2 + Math.random() * 6.5;
-        life.gain.cancelScheduledValues(t);
-        life.gain.setTargetAtTime(0.55 + Math.random() * 0.45, t, rise * 0.35);
-        life.gain.setTargetAtTime(0, t + rise + hold, fall * 0.35);
-        setTimeout(go, (rise + hold + fall + gap) * 1000);
-      };
-      setTimeout(go, Math.random() * 5000);
-    }
-    cricketLives.forEach(cricketCycle);
-
-    /* The owl.
-     *
-     * There was one before and nobody heard it: a single sine at 0.042,
-     * once every fifty seconds, under a field of crickets that never shut
-     * up. It is twice as loud, twice as often, and built properly now — a
-     * hollow tone is a strong fundamental with a weak second partial and
-     * almost nothing else, and the little waver on the end of the call is
-     * most of what makes it read as a bird rather than a test tone.
-     */
-    /* A pure sine carries far better through the ear than noise squeezed
-     * through a narrow filter, so this needs a fraction of the crickets'
-     * gain to sit level with them — but how small a fraction is not
-     * something a spectrum answers honestly. A sine puts all its energy
-     * in one bin and noise spreads it over thousands, so comparing their
-     * peaks overstates the sine by about thirty decibels. Hence a knob:
-     * `DD.sound.owlLevel(v)` sets it live, and ears settle it. */
-    let OWL_LEVEL = 0.15;
-    ambSet = { owlLevel: (v) => { if (v != null) OWL_LEVEL = v; return OWL_LEVEL; } };
-
-    function owl(force) {
-      if (force || (on && ctx && ctx.state === "running" && nightLevel > 0.4
-          && Math.random() < 0.55 + nightLevel * 0.45)) {
-        stats.owls = (stats.owls || 0) + 1;
-        const t0 = ctx.currentTime + 0.1;
-        const pn = ctx.createStereoPanner();
-        pn.pan.value = Math.random() * 1.5 - 0.75;
-        pn.connect(amb);
-
-        /* All three numbers here came off the reference recording.
-         *
-         * It sits at 290 to 342Hz — I had pushed it to 430 to 525 trying
-         * to make it audible, which moved it out of the range an owl
-         * occupies. Its second harmonic is 20 to 26dB down and the third
-         * is 33 to 40 down, so it is very nearly a sine; mine had the
-         * second at 13dB down, which is why it sounded like an organ.
-         *
-         * And the shape is not even notes. The five calls measured 0.078,
-         * 0.104, 0.479, 0.418 and 0.186 seconds — two clipped ones, then
-         * held ones — separated by gaps of 0.11 to 0.36. The short notes
-         * fall in pitch by a fifth as they go; the long ones hold steady.
-         */
-        const f = 292 + Math.random() * 50;
-        const shape = [
-          [0.085, 0.10, 0.46],
-          [0.44, 0.19],
-          [0.09, 0.42, 0.20],
-        ][Math.floor(Math.random() * 3)];
-
-        let at = t0;
-        for (const len of shape) {
-          const short = len < 0.2;
-          for (const [mult, amp] of [[1, 1], [2, 0.075], [3, 0.02]]) {
-            const o = ctx.createOscillator();
-            o.type = "sine";
-            const f1 = f * mult;
-            o.frequency.setValueAtTime(f1 * 1.04, at);
-            // A short call drops most of a fifth; a long one barely moves.
-            o.frequency.exponentialRampToValueAtTime(
-              f1 * (short ? 0.80 : 0.97), at + len * (short ? 0.9 : 0.6));
-            if (!short) {
-              const vib = ctx.createOscillator();
-              vib.type = "sine"; vib.frequency.value = 5.2;
-              const vibAmt = ctx.createGain(); vibAmt.gain.value = f1 * 0.009;
-              vib.connect(vibAmt); vibAmt.connect(o.frequency);
-              vib.start(at); vib.stop(at + len + 0.08);
-            }
-            const g = ctx.createGain();
-            g.gain.setValueAtTime(0.0001, at);
-            g.gain.exponentialRampToValueAtTime(
-              OWL_LEVEL * amp * Math.max(nightLevel, force ? 1 : 0), at + len * 0.22);
-            g.gain.exponentialRampToValueAtTime(0.0001, at + len);
-            o.connect(g); g.connect(pn);
-            o.start(at); o.stop(at + len + 0.05);
-          }
-          at += len + 0.12 + Math.random() * 0.2;
-        }
+      // Two swells at rates that do not divide into one another, so the
+      // bed never settles into a loop anybody can hear going round.
+      for (const [hz, amt] of [[0.037, 0.014], [0.083, 0.008]]) {
+        const o = ctx.createOscillator(); o.frequency.value = hz;
+        const a = ctx.createGain(); a.gain.value = amt;
+        o.connect(a); a.connect(g.gain); o.start();
       }
-      // Every nine to thirty seconds.
-      setTimeout(owl, 9000 + Math.random() * 21000);
     }
-    stats.owls = 0;
-    setTimeout(owl, 3000 + Math.random() * 6000);
-    ambCalls = { owl };
+
+    /* The hiss. Quiet is not silent: with the day's noise gone what is
+     * left is a wide, almost inaudible band up top, and leaving it out is
+     * what makes a quiet mix sound switched off rather than still. */
+    {
+      const bp = ctx.createBiquadFilter();
+      bp.type = "bandpass"; bp.frequency.value = 6800; bp.Q.value = 0.55;
+      const g = ctx.createGain(); g.gain.value = 0.0025;
+      loop().connect(bp); bp.connect(g); g.connect(night);
+      const o = ctx.createOscillator(); o.frequency.value = 0.051;
+      const a = ctx.createGain(); a.gain.value = 0.0009;
+      o.connect(a); a.connect(g.gain); o.start();
+    }
+
+    /* Lit signage. Every shopfront on this street comes on at dusk, and a
+     * transformer under a sign hums at twice the mains frequency — 120Hz
+     * here, with a little third harmonic and a slow wobble, because no two
+     * of them are ever quite in tune with each other. Almost inaudible on
+     * its own and immediately obvious by its absence. */
+    {
+      for (const [hz, amp, det] of [[120, 1, 0], [240, 0.22, 4], [360, 0.07, -6]]) {
+        const o = ctx.createOscillator();
+        o.type = "sine"; o.frequency.value = hz; o.detune.value = det;
+        const og = ctx.createGain(); og.gain.value = amp * 0.012;
+        o.connect(og); og.connect(night); o.start();
+        const w = ctx.createOscillator();
+        w.frequency.value = 0.07 + Math.random() * 0.11;
+        const wa = ctx.createGain(); wa.gain.value = hz * 0.0012;
+        w.connect(wa); wa.connect(o.frequency); w.start();
+      }
+    }
+
+    /* And a car, somewhere else.
+     *
+     * The only event in here, and the only thing that stops the rest
+     * being wallpaper. A swell of low noise with its filter opening as it
+     * comes and closing as it goes, panned across over eight seconds or
+     * so: near enough to hear, far enough that it is never something you
+     * would look up at.
+     */
+    function passBy(force) {
+      if (force || (on && ctx && ctx.state === "running" && nightLevel > 0.35)) {
+        const t0 = ctx.currentTime + 0.1;
+        const len = 7 + Math.random() * 5;
+        const dir = Math.random() > 0.5 ? 1 : -1;
+        const level = 0.09 * Math.max(nightLevel, force ? 1 : 0);
+
+        const src = loop();
+        const lp = ctx.createBiquadFilter();
+        lp.type = "lowpass"; lp.Q.value = 0.7;
+        lp.frequency.setValueAtTime(170, t0);
+        lp.frequency.linearRampToValueAtTime(680, t0 + len * 0.5);
+        lp.frequency.linearRampToValueAtTime(150, t0 + len);
+
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.linearRampToValueAtTime(level, t0 + len * 0.5);
+        g.gain.linearRampToValueAtTime(0.0001, t0 + len);
+
+        const pn = ctx.createStereoPanner();
+        pn.pan.setValueAtTime(-0.85 * dir, t0);
+        pn.pan.linearRampToValueAtTime(0.85 * dir, t0 + len);
+
+        src.connect(lp); lp.connect(g); g.connect(pn); pn.connect(night);
+        // Nothing here is scheduled to stop on its own, so it is stopped.
+        setTimeout(() => {
+          try { src.stop(); } catch (e) { /* already gone */ }
+          pn.disconnect();
+        }, (len + 0.5) * 1000);
+        stats.passes = (stats.passes || 0) + 1;
+      }
+      setTimeout(passBy, 22000 + Math.random() * 48000);
+    }
+    stats.passes = 0;
+    setTimeout(passBy, 6000 + Math.random() * 14000);
+    ambCalls = { passBy };
 
     // Birds, occasionally, from somewhere off to one side — by day.
     function bird() {
@@ -5976,8 +5908,7 @@ const sound = (() => {
     function schedule() { setTimeout(bird, 5000 + Math.random() * 14000); }
     schedule();
 
-    ambParts = { crickets, leaves: leavesGain, city: cityGain,
-                 lives: cricketLives, chirps: cricketChirps };
+    ambParts = { night, leaves: leavesGain, city: cityGain };
     applyNight();
     return amb;
   }
@@ -5993,13 +5924,16 @@ const sound = (() => {
     if (!ambParts || !ctx) return;
     const t = ctx.currentTime;
     const n = nightLevel;
-    /* 0.2, where the last version was 0.05 and inaudible.
-     * A Q of 25 passes about ninety hertz of a noise source that spans
-     * twenty thousand, so almost nothing comes through it — the narrower
-     * the filter the more gain it needs to arrive at the same loudness,
-     * and this one is four times narrower than the one it replaced. At
-     * 0.05 the chirps sat ten decibels under the wind and never showed. */
-    ambParts.crickets.gain.setTargetAtTime(0.2 * Math.pow(n, 1.4), t, 1.6);
+    /* 0.35, and slower than the rest of the crossfade.
+     *
+     * Slower because dusk takes its time and a bed that arrives in step
+     * with the sky reads as a switch being thrown. And 0.35 because at 1
+     * the night was three and a half decibels *louder* than the day, with
+     * five of those in the bottom two octaves — which is a rumble, not a
+     * quiet street. At this it measures level with the day overall, a
+     * couple of decibels darker above 4k, and with the wind already down
+     * it lands where night should: calmer rather than emptier. */
+    ambParts.night.gain.setTargetAtTime(0.35 * Math.pow(n, 1.3), t, 3.4);
     ambParts.leaves.gain.setTargetAtTime(0.0065 * (1 - 0.45 * n), t, 2.2);
     ambParts.city.gain.setTargetAtTime(0.10 * (1 - 0.28 * n), t, 2.2);
   }
@@ -6016,7 +5950,6 @@ const sound = (() => {
   let nightLevel = 0;
   let ambParts = null;
   let ambCalls = null;
-  let ambSet = null;
   const stats = { beatSeconds: 0, beatRMS: 0, beatPeak: 0 };
 
   /**
@@ -6542,16 +6475,11 @@ const sound = (() => {
      * distance, and a tilt is not something "it sounds right" can settle.
      * This reports what is actually coming out of it.
      */
-    /** Sets or reads how loud the owl calls. Ears only; see the note there. */
-    owlLevel(v) { return ambSet ? ambSet.owlLevel(v) : null; },
-
-    /** Sets or reads the cricket level, and reports the chain's state. */
-    crickets(v) {
+    /** Sets or reads the night bed's level. */
+    night(v) {
       if (!ambParts) return null;
-      if (v != null) ambParts.crickets.gain.setTargetAtTime(v, ctx.currentTime, 0.1);
-      return { master: +ambParts.crickets.gain.value.toFixed(4),
-               lives: ambParts.lives.map((g) => +g.gain.value.toFixed(3)),
-               chirps: ambParts.chirps.map((g) => +g.gain.value.toFixed(3)) };
+      if (v != null) ambParts.night.gain.setTargetAtTime(v, ctx.currentTime, 0.2);
+      return +ambParts.night.gain.value.toFixed(4);
     },
 
     /**
@@ -6571,16 +6499,16 @@ const sound = (() => {
     },
 
     /**
-     * Calls the owl now, whatever the time.
+     * Sends a car past now, whatever the time.
      *
      * Because "I cannot hear it" and "it is not firing" are different
-     * problems and waiting thirty seconds in the dark to tell them apart
-     * is no way to work. `DD.sound.owl()` from the console.
+     * problems, and waiting a minute in the dark to tell them apart is no
+     * way to work. `DD.sound.pass()` from the console.
      */
-    owl() {
+    pass() {
       if (!ambCalls) return "no ambience yet";
-      ambCalls.owl(true);
-      return "called";
+      ambCalls.passBy(true);
+      return "on its way";
     },
 
     /** The clock's night value, 0 by day and 1 in the dark. */
@@ -6766,7 +6694,14 @@ const sound = (() => {
     setTimeout(paint, 60);
   });
 
-  sound.boot().then((playing) => { if (!playing) arm(); paint(); });
+  // The catch is not defensive tidiness. `boot` is async and nothing was
+// reading its rejection, so a single thrown line anywhere inside the graph
+// builder — a stale variable name, in the case that prompted this — took
+// the entire soundtrack out with no console entry and no visible symptom
+// beyond a button that says it is on. Whatever else happens, it says so.
+sound.boot()
+  .then((playing) => { if (!playing) arm(); paint(); })
+  .catch((e) => { console.error("sound failed to start", e); arm(); paint(); });
 
   // Coming back to the tab is another chance: a browser that refused on a
   // cold load will often allow it once the page has been foregrounded.
