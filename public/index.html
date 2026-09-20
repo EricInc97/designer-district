@@ -349,6 +349,72 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
 }
 .index b[data-live="1"] { opacity: 1; }
 
+/* ---- sound: an invitation that folds into a control ------------------- */
+.sound {
+  position: fixed;
+  left: var(--shell);
+  bottom: calc(var(--shell) * 0.8);
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  height: 44px;
+  padding: 0 4px 0 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 6px 22px rgba(0,0,0,.4);
+  cursor: pointer;
+  pointer-events: auto;
+  font: inherit;
+  overflow: hidden;
+  transition: gap .35s ease, padding .35s ease, background .25s ease, color .25s ease;
+}
+.sound .ico { display: grid; place-items: center; width: 44px; height: 44px; flex: none; }
+.sound .lbl {
+  display: block;
+  max-width: 0;
+  opacity: 0;
+  white-space: nowrap;
+  font-size: .6875rem; font-weight: 600;
+  letter-spacing: .2em; text-transform: uppercase;
+  transition: max-width .4s ease, opacity .3s ease, padding .4s ease;
+  padding: 0;
+}
+
+/* Waiting to be used: the label is out and the ring pings. */
+.sound[data-state="prompt"] .lbl { max-width: 12rem; opacity: 1; padding-right: 1.1rem; }
+.sound[data-state="prompt"]::after {
+  content: "";
+  position: absolute;
+  left: 22px; top: 50%;
+  width: 34px; height: 34px;
+  translate: -50% -50%;
+  border-radius: 999px;
+  border: 2px solid var(--ink);
+  animation: ping 2.2s cubic-bezier(.2,.7,.4,1) infinite;
+  pointer-events: none;
+}
+@keyframes ping {
+  0%   { transform: scale(.55); opacity: .55 }
+  70%  { transform: scale(1.5); opacity: 0 }
+  100% { transform: scale(1.5); opacity: 0 }
+}
+
+.sound[data-state="on"] { background: var(--ink); color: var(--paper); }
+.sound .wave { opacity: 0; transition: opacity .25s ease; }
+.sound .cross { opacity: 1; transition: opacity .25s ease; }
+.sound[data-state="on"] .wave { opacity: 1; }
+.sound[data-state="on"] .cross { opacity: 0; }
+
+.sound:hover { box-shadow: 0 10px 28px rgba(0,0,0,.5); }
+
+@media (prefers-reduced-motion: reduce) {
+  .sound::after { animation: none; opacity: .3 }
+  .sound, .sound .lbl { transition: none }
+}
+
 /* --- finale --- */
 /* The finale used to be a white card pasted over the view. It is projected
    onto the building that closes the street now: no ground of its own, white
@@ -474,6 +540,28 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
 
   <nav class="index" id="index" aria-label="Districts on this street"></nav>
   <p class="hint halo" id="hint">Scroll</p>
+
+  <!--
+    Starts as an invitation, not a switch.
+
+    On a phone the audio cannot begin until something is tapped, and a bare
+    speaker glyph in a corner does not read as "this page has sound you are
+    currently missing". So it arrives as a pill that says so, pulses until it
+    is used, and then folds down to an icon and stays out of the way.
+  -->
+  <button class="sound" id="sound" type="button" data-state="prompt"
+          aria-pressed="false" aria-label="Turn sound on">
+    <span class="ico" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
+           stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M11 5 6 9H3v6h3l5 4z" />
+        <path class="wave" d="M15.5 8.5a5 5 0 0 1 0 7" />
+        <path class="wave" d="M18.5 5.5a9 9 0 0 1 0 13" />
+        <path class="cross" d="M17 9.5l5 5M22 9.5l-5 5" />
+      </svg>
+    </span>
+    <span class="lbl">Tap for sound</span>
+  </button>
 
 </div>
 
@@ -3427,204 +3515,6 @@ const sound = (() => {
    * Rendered as a fixed number of bars it simply repeats, and it costs one
    * burst of work at start-up instead of a permanent scheduling overhead.
    */
-  /**
-   * Track one: the slow one, unchanged.
-   *
-   * Rendered in mono, like everything else here. A panner wants a mono
-   * source — it is going to place the sound in space itself — and mono
-   * halves what the playlist costs in memory, which matters when there are
-   * four of them resident.
-   */
-  async function renderLofi(sampleRate) {
-    const BPM = 88, BARS = 8;
-    const beat = 60 / BPM, dur = BARS * 4 * beat;
-    const oc = new OfflineAudioContext(1, Math.ceil((dur + 0.6) * sampleRate), sampleRate);
-
-    const bus = oc.createGain();
-    // Headroom. The fills and the busier second half push the peak to 0.91
-    // at 0.85, which is closer to the ceiling than a render wants to be.
-    bus.gain.value = 0.76;
-    // Rolls the top off before it ever reaches the panner: this is a beat
-    // heard through a doorway, not a mastered track.
-    const warm = oc.createBiquadFilter();
-    warm.type = "lowpass"; warm.frequency.value = 5200;
-    bus.connect(warm); warm.connect(oc.destination);
-
-    const nb = noiseBuffer(oc, 0.4);
-    const rb = rng(31415);           // fixed, so the loop is the same every load
-
-    const HAT = fixedBus(oc, bus, "highpass", 8200, 0.9);
-    const SNR = fixedBus(oc, bus, "highpass", 1500, 0.7);
-    const DUST = fixedBus(oc, bus, "bandpass", 2600, 1.4);
-
-    const hit = (dest, t, len, gain) => {
-      const src = oc.createBufferSource(); src.buffer = nb;
-      const g = oc.createGain();
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(gain, t + 0.004);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + len);
-      src.connect(g); g.connect(dest);
-      src.start(t); src.stop(t + len + 0.03);
-    };
-
-    const kick = (t, gain = 0.95) => {
-      const o = oc.createOscillator(); o.type = "sine";
-      o.frequency.setValueAtTime(135, t);
-      o.frequency.exponentialRampToValueAtTime(43, t + 0.10);
-      const g = oc.createGain();
-      g.gain.setValueAtTime(gain, t);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.36);
-      o.connect(g); g.connect(bus);
-      o.start(t); o.stop(t + 0.38);
-    };
-
-    const snare = (t, gain = 1) => {
-      hit(SNR, t, 0.17, 0.34 * gain);
-      const o = oc.createOscillator(); o.type = "triangle";
-      o.frequency.setValueAtTime(190, t);
-      const g = oc.createGain();
-      g.gain.setValueAtTime(0.28 * gain, t);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.13);
-      o.connect(g); g.connect(bus);
-      o.start(t); o.stop(t + 0.14);
-    };
-
-    const hat = (t, gain, open = false) => hit(HAT, t, open ? 0.22 : 0.045, gain);
-
-    const voice = (t, note, len, gain, type = "triangle", detune = 0) => {
-      const o = oc.createOscillator();
-      o.type = type; o.frequency.value = midi(note); o.detune.value = detune;
-      const g = oc.createGain();
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(gain, t + 0.04);
-      g.gain.setValueAtTime(gain, t + len * 0.6);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + len);
-      o.connect(g); g.connect(bus);
-      o.start(t); o.stop(t + len + 0.02);
-    };
-
-    /*
-     * Eight bars, not four, and no two of them the same.
-     *
-     * A four-bar loop with one kick pattern announces itself the second time
-     * round. What stops a loop sounding like a loop is not length on its own
-     * — it is having events that arrive on a longer cycle than the bar: the
-     * kick pattern changing at the halfway point, hats doubling up, a fill
-     * that only lands on bars four and eight, a motif that appears twice in
-     * the whole phrase. By the time all of those line up again the listener
-     * has stopped counting.
-     */
-    const CHORDS = [
-      { root: 29, notes: [53, 56, 60, 63, 67] },   // Fm9
-      { root: 25, notes: [49, 53, 56, 60] },       // Dbmaj7
-      { root: 32, notes: [56, 60, 63, 67] },       // Abmaj7
-      { root: 27, notes: [51, 55, 58, 62] },       // Ebsus
-    ];
-    // Second time through the progression, the chords are voiced higher.
-    const LIFT = [0, 0, 0, 0, 12, 7, 12, 7];
-
-    // Kick patterns, in sixteenths of a bar. Dealt out per bar.
-    const KICKS = [
-      [0, 6, 11],           // the main one
-      [0, 6, 11],
-      [0, 3, 8, 11],        // busier
-      [0, 6],               // sparse, leaving room for the fill
-      [0, 7, 10],
-      [0, 6, 11],
-      [0, 3, 8, 14],
-      [0, 8],
-    ];
-
-    const MOTIF = [0, 3, 5, 7, 10];               // F minor pentatonic degrees
-
-    for (let bar = 0; bar < BARS; bar++) {
-      const t0 = bar * 4 * beat;
-      const sixteenth = beat / 4;
-      const ch = CHORDS[bar % CHORDS.length];
-      const lift = LIFT[bar];
-      const last = bar === 3 || bar === 7;        // the two fill bars
-
-      for (const step of KICKS[bar]) {
-        kick(t0 + step * sixteenth, step === 0 ? 0.95 : 0.62 + rb() * 0.16);
-      }
-
-      snare(t0 + beat);
-      if (!last) snare(t0 + beat * 3);
-      // Ghost notes, quiet, in the second half of the phrase.
-      if (bar >= 4 && bar !== 7) snare(t0 + beat * 2.75, 0.22);
-
-      // Hats: eighths for the first half of the phrase, sixteenths after,
-      // with the odd open one to break the grid.
-      const div = bar < 4 ? 8 : 16;
-      for (let e = 0; e < div; e++) {
-        if (last && e > div * 0.72) continue;     // clear out for the fill
-        const swing = e % 2 ? 0.05 * beat * (8 / div) : 0;
-        const t = t0 + e * (4 * beat / div) + swing;
-        const open = div === 16 && e % 8 === 6 && rb() > 0.45;
-        hat(t, open ? 0.075 : (e % 2 ? 0.05 : 0.095), open);
-      }
-
-      // The fill: a short snare roll into the turnaround.
-      if (last) {
-        const n = bar === 7 ? 6 : 4;
-        for (let i = 0; i < n; i++) {
-          const t = t0 + beat * 3 + i * (beat / n);
-          snare(t, 0.35 + (i / n) * 0.6);
-        }
-      }
-
-      // Bass, with a walk-up on the fill bars.
-      voice(t0, ch.root, beat * 1.4, 0.4, "sine");
-      voice(t0 + beat * 2.5, ch.root + 12, beat * 0.45, 0.22, "sine");
-      if (last) {
-        voice(t0 + beat * 3.0, ch.root + 3, beat * 0.4, 0.3, "sine");
-        voice(t0 + beat * 3.5, ch.root + 5, beat * 0.4, 0.3, "sine");
-      } else {
-        voice(t0 + beat * 3.5, ch.root, beat * 0.45, 0.3, "sine");
-      }
-
-      // Keys, detuned against themselves, and higher second time round.
-      ch.notes.forEach((n, i) => {
-        voice(t0 + 0.02 * i, n + lift, beat * 3.6, 0.082, "triangle", -6);
-        voice(t0 + 0.02 * i, n + lift, beat * 3.6, 0.062, "triangle", 7);
-      });
-
-      // A motif, twice in eight bars, so it is an event rather than a part.
-      if (bar === 2 || bar === 6) {
-        const base = bar === 2 ? 65 : 72;
-        for (let i = 0; i < 4; i++) {
-          const deg = MOTIF[Math.floor(rb() * MOTIF.length)];
-          voice(t0 + beat * (0.5 + i * 0.75), base + deg, beat * 0.62,
-                0.07, "triangle", i % 2 ? 5 : -5);
-        }
-      }
-    }
-
-    // Vinyl: the dust that makes the rest of it sit back.
-    for (let i = 0; i < 140; i++) hit(DUST, rb() * dur, 0.006, 0.03);
-
-    const rendered = await oc.startRendering();
-    return rendered;
-  }
-
-  /**
-   * A fixed filter that many hits share.
-   *
-   * The first version gave every drum hit its own BiquadFilter, which meant
-   * several hundred filters per track and twenty-one seconds to render the
-   * set — twenty-one seconds of silence on load. Biquads are the expensive
-   * part of an offline render and a hi-hat does not need its own: the
-   * timbre is identical every time, only the envelope differs. Five shared
-   * buses and two nodes per hit renders the same music in a fraction of the
-   * time.
-   */
-  function fixedBus(oc, dest, type, freq, q) {
-    const f = oc.createBiquadFilter();
-    f.type = type; f.frequency.value = freq; f.Q.value = q;
-    f.connect(dest);
-    return f;
-  }
-
   /** Soft clip, so the 808 has edge instead of just being loud. */
   function satCurve(amount) {
     const n = 1024, c = new Float32Array(n);
@@ -3636,149 +3526,304 @@ const sound = (() => {
   }
 
   /**
-   * The fast ones: 808, rolling hats, claps, a minor hook.
+   * ═══ WHY THIS IS PLAYED RATHER THAN RENDERED ═══
    *
-   * Everything that makes this style what it is happens in two places. The
-   * 808 is a sine that *glides* into its note and rings for most of a bar,
-   * pushed through a soft clip so it has a harmonic edge and survives being
-   * low-passed to nothing at a distance. And the hats are not a grid: they
-   * are sixteenths with rolls thrown in at 32nds and triplets, at varying
-   * velocity, which is the whole difference between a drum machine and a
-   * beat.
+   * The brief was five to seven hours of music that never repeats. Rendered
+   * into buffers the way the last version worked, that is 3.2 GB of RAM at
+   * five hours — even twenty three-minute tracks comes to 659 MB. There is
+   * no arrangement of pre-rendered audio that reaches those numbers in a
+   * browser tab.
+   *
+   * So nothing is rendered. The music is *performed*: a scheduler looks a
+   * second and a half ahead of the audio clock and builds the next bar out
+   * of oscillators, bar by bar, for as long as the page is open. That costs
+   * one small noise buffer and a few dozen short-lived nodes per bar, and it
+   * runs indefinitely — five hours, fifty, it makes no difference.
+   *
+   * It is also the only way to get "different every time" honestly. The
+   * seed comes from the clock, so the fills, the hat rolls, the hook notes
+   * and the running order are all new on every visit. Eighteen arrangements
+   * below set the tempo, key, feel and harmony; everything inside a bar is
+   * decided as it is scheduled. The same song never plays the same way
+   * twice, so the set does not have a length at all.
    */
-  async function renderTrap(sampleRate, spec) {
-    const { bpm, root, seed } = spec;
-    const BARS = 8;
-    const beat = 60 / bpm, bar = 4 * beat, dur = BARS * bar;
-    const oc = new OfflineAudioContext(1, Math.ceil((dur + 0.8) * sampleRate), sampleRate);
 
-    const bus = oc.createGain();
-    bus.gain.value = 0.62;
-    const warm = oc.createBiquadFilter();
-    warm.type = "lowpass"; warm.frequency.value = 6000;
-    bus.connect(warm); warm.connect(oc.destination);
+  const MINOR    = [0, 2, 3, 5, 7, 8, 10];
+  const DORIAN   = [0, 2, 3, 5, 7, 9, 10];
+  const PHRYGIAN = [0, 1, 3, 5, 7, 8, 10];
 
-    const nb = noiseBuffer(oc, 0.4);
-    const rb = rng(seed);
+  // bpm, root (midi), feel, scale, chord roots as scale degrees, hat density.
+  const SONGS = [
+    { n: "Palm Court",   bpm:  84, root: 29, feel: "lofi",  sc: MINOR,    prog: [0, 0, 5, 4], hats: 0.5, swing: 0.055 },
+    { n: "Second Avenue",bpm:  90, root: 32, feel: "lofi",  sc: DORIAN,   prog: [0, 3, 4, 2], hats: 0.5, swing: 0.05 },
+    { n: "Late Paseo",   bpm:  78, root: 27, feel: "lofi",  sc: MINOR,    prog: [0, 5, 3, 4], hats: 0.45, swing: 0.06 },
+    { n: "Terrazzo",     bpm:  94, root: 34, feel: "lofi",  sc: DORIAN,   prog: [0, 2, 4, 3], hats: 0.55, swing: 0.045 },
+    { n: "Shade Line",   bpm:  86, root: 25, feel: "lofi",  sc: MINOR,    prog: [0, 4, 5, 3], hats: 0.5, swing: 0.055 },
 
-    const HAT = fixedBus(oc, bus, "highpass", 9000, 1.0);
-    const OPEN = fixedBus(oc, bus, "highpass", 7200, 1.0);
-    const CLAP = fixedBus(oc, bus, "bandpass", 1700, 0.9);
-    const AIR = fixedBus(oc, bus, "highpass", 2600, 0.7);
-    const THUMP = fixedBus(oc, bus, "lowpass", 90, 0.7);
+    { n: "Fly's Eye",    bpm: 146, root: 29, feel: "trap",  sc: MINOR,    prog: [0, 0, 5, 3], hats: 0.85, swing: 0 },
+    { n: "Chrome",       bpm: 152, root: 25, feel: "trap",  sc: PHRYGIAN, prog: [0, 5, 0, 4], hats: 0.9, swing: 0 },
+    { n: "Nine Panels",  bpm: 138, root: 31, feel: "trap",  sc: MINOR,    prog: [0, 3, 4, 0], hats: 0.8, swing: 0 },
+    { n: "Reflecting",   bpm: 150, root: 33, feel: "trap",  sc: PHRYGIAN, prog: [0, 0, 4, 5], hats: 0.92, swing: 0 },
+    { n: "Northeast",    bpm: 142, root: 28, feel: "trap",  sc: MINOR,    prog: [0, 6, 5, 3], hats: 0.82, swing: 0 },
+    { n: "Sun Screen",   bpm: 156, root: 26, feel: "trap",  sc: MINOR,    prog: [0, 4, 0, 5], hats: 0.88, swing: 0 },
+    { n: "Board Formed", bpm: 140, root: 30, feel: "trap",  sc: DORIAN,   prog: [0, 2, 5, 4], hats: 0.86, swing: 0 },
+    { n: "Oculus",       bpm: 148, root: 24, feel: "trap",  sc: PHRYGIAN, prog: [0, 5, 3, 0], hats: 0.9, swing: 0 },
 
-    const shaper = oc.createWaveShaper();
-    shaper.curve = satCurve(2.2);
-    shaper.oversample = "2x";
-    const subBus = oc.createGain();
-    subBus.gain.value = 0.9;
-    subBus.connect(shaper); shaper.connect(bus);
+    { n: "Causeway",     bpm: 124, root: 29, feel: "club",  sc: MINOR,    prog: [0, 0, 5, 4], hats: 0.7, swing: 0 },
+    { n: "Biscayne",     bpm: 128, root: 32, feel: "club",  sc: DORIAN,   prog: [0, 4, 5, 2], hats: 0.75, swing: 0 },
+    { n: "Vitrine",      bpm: 122, root: 27, feel: "club",  sc: MINOR,    prog: [0, 3, 0, 5], hats: 0.68, swing: 0 },
+    { n: "Pool Deck",    bpm: 130, root: 34, feel: "club",  sc: DORIAN,   prog: [0, 5, 4, 3], hats: 0.78, swing: 0 },
+    { n: "Night Garage", bpm: 126, root: 23, feel: "club",  sc: PHRYGIAN, prog: [0, 2, 5, 0], hats: 0.72, swing: 0 },
+  ];
 
-    const hit = (dest, t, len, gain) => {
-      const src = oc.createBufferSource(); src.buffer = nb;
-      const g = oc.createGain();
+  /**
+   * The voices, built once against the live context.
+   *
+   * Five shared filter buses rather than one filter per hit: a hi-hat's
+   * timbre is identical every time and only its envelope differs, and
+   * filters are far and away the expensive node to create. Two nodes per
+   * drum hit is what makes generating this live affordable at all.
+   */
+  function buildVoices(dest) {
+    const nb = noiseBuffer(ctx, 0.4);
+
+    const fb = (type, freq, q) => {
+      const f = ctx.createBiquadFilter();
+      f.type = type; f.frequency.value = freq; f.Q.value = q;
+      f.connect(dest);
+      return f;
+    };
+    const HAT = fb("highpass", 9000, 1.0);
+    const OPEN = fb("highpass", 7200, 1.0);
+    const CLAP = fb("bandpass", 1700, 0.9);
+    const AIR = fb("highpass", 2600, 0.7);
+    const THUMP = fb("lowpass", 90, 0.7);
+    const SNR = fb("highpass", 1500, 0.7);
+    const DUST = fb("bandpass", 2600, 1.4);
+
+    const sat = ctx.createWaveShaper();
+    sat.curve = satCurve(2.2); sat.oversample = "2x";
+    const subBus = ctx.createGain(); subBus.gain.value = 0.85;
+    subBus.connect(sat); sat.connect(dest);
+
+    const hit = (busNode, t, len, gain) => {
+      const src = ctx.createBufferSource(); src.buffer = nb;
+      const g = ctx.createGain();
       g.gain.setValueAtTime(0.0001, t);
       g.gain.exponentialRampToValueAtTime(gain, t + 0.003);
       g.gain.exponentialRampToValueAtTime(0.0001, t + len);
-      src.connect(g); g.connect(dest);
+      src.connect(g); g.connect(busNode);
       src.start(t); src.stop(t + len + 0.03);
     };
 
-    /** The 808: glides in from the note before, rings, and bites. */
-    const sub = (t, note, len, from) => {
-      const o = oc.createOscillator(); o.type = "sine";
-      if (from != null) {
-        o.frequency.setValueAtTime(midi(from), t);
-        o.frequency.exponentialRampToValueAtTime(midi(note), t + 0.075);
-      } else {
-        o.frequency.setValueAtTime(midi(note) * 2.2, t);      // the click of the hit
-        o.frequency.exponentialRampToValueAtTime(midi(note), t + 0.035);
-      }
-      const g = oc.createGain();
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(0.85, t + 0.006);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + len);
-      o.connect(g); g.connect(subBus);
-      o.start(t); o.stop(t + len + 0.02);
+    return {
+      hat:  (t, gain, open) => hit(open ? OPEN : HAT, t, open ? 0.19 : 0.034, gain),
+      dust: (t) => hit(DUST, t, 0.006, 0.03),
+
+      clap: (t, gain = 1) => {
+        for (const d of [0, 0.011, 0.023]) hit(CLAP, t + d, 0.09, 0.3 * gain);
+        hit(AIR, t, 0.16, 0.16 * gain);
+      },
+
+      snare: (t, gain = 1) => {
+        hit(SNR, t, 0.17, 0.34 * gain);
+        const o = ctx.createOscillator(); o.type = "triangle";
+        o.frequency.setValueAtTime(190, t);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.28 * gain, t);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.13);
+        o.connect(g); g.connect(dest);
+        o.start(t); o.stop(t + 0.14);
+      },
+
+      kick: (t, gain = 0.95) => {
+        const o = ctx.createOscillator(); o.type = "sine";
+        o.frequency.setValueAtTime(135, t);
+        o.frequency.exponentialRampToValueAtTime(43, t + 0.10);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(gain, t);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.34);
+        o.connect(g); g.connect(dest);
+        o.start(t); o.stop(t + 0.36);
+      },
+
+      thump: (t) => hit(THUMP, t, 0.012, 0.5),
+
+      /** The 808: glides in from the note before, rings, and bites. */
+      sub: (t, note, len, from) => {
+        const o = ctx.createOscillator(); o.type = "sine";
+        if (from != null) {
+          o.frequency.setValueAtTime(midi(from), t);
+          o.frequency.exponentialRampToValueAtTime(midi(note), t + 0.075);
+        } else {
+          o.frequency.setValueAtTime(midi(note) * 2.2, t);
+          o.frequency.exponentialRampToValueAtTime(midi(note), t + 0.035);
+        }
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.8, t + 0.006);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+        o.connect(g); g.connect(subBus);
+        o.start(t); o.stop(t + len + 0.02);
+      },
+
+      bass: (t, note, len, gain = 0.34) => {
+        const o = ctx.createOscillator(); o.type = "sine";
+        o.frequency.value = midi(note);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(gain, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+        o.connect(g); g.connect(dest);
+        o.start(t); o.stop(t + len + 0.02);
+      },
+
+      keys: (t, note, len, gain, detune) => {
+        const o = ctx.createOscillator();
+        o.type = "triangle"; o.frequency.value = midi(note); o.detune.value = detune;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(gain, t + 0.04);
+        g.gain.setValueAtTime(gain, t + len * 0.6);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+        o.connect(g); g.connect(dest);
+        o.start(t); o.stop(t + len + 0.02);
+      },
+
+      lead: (t, note, len, gain) => {
+        const o = ctx.createOscillator(); o.type = "sawtooth";
+        o.frequency.value = midi(note);
+        const f = ctx.createBiquadFilter();
+        f.type = "lowpass"; f.Q.value = 6;
+        f.frequency.setValueAtTime(2600, t);
+        f.frequency.exponentialRampToValueAtTime(700, t + len);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(gain, t + 0.012);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+        o.connect(f); f.connect(g); g.connect(dest);
+        o.start(t); o.stop(t + len + 0.02);
+      },
     };
+  }
 
-    const clap = (t, gain = 1) => {
-      // Three noise bursts a few ms apart is what makes a clap a clap.
-      for (const d of [0, 0.011, 0.023]) hit(CLAP, t + d, 0.09, 0.3 * gain);
-      hit(AIR, t, 0.16, 0.16 * gain);
-    };
+  // ── the performance ───────────────────────────────────────────────────
+  let V = null;                       // the voices
+  let song = null, songIdx = -1, barsLeft = 0, barNo = 0;
+  let nextBarAt = 0, schedTimer = 0;
+  let mrand = rng((Date.now() ^ 0x5f3759df) >>> 0);   // new on every visit
 
-    const hat = (t, gain, open = false) =>
-      hit(open ? OPEN : HAT, t, open ? 0.19 : 0.032, gain);
+  const LOOKAHEAD = 1.6;              // seconds of music kept queued
+  const TICK = 250;                   // ms between scheduler passes
 
-    const lead = (t, note, len, gain) => {
-      const o = oc.createOscillator(); o.type = "sawtooth";
-      o.frequency.value = midi(note);
-      const f = oc.createBiquadFilter();
-      f.type = "lowpass"; f.Q.value = 6;
-      f.frequency.setValueAtTime(2600, t);
-      f.frequency.exponentialRampToValueAtTime(700, t + len);
-      const g = oc.createGain();
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(gain, t + 0.012);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + len);
-      o.connect(f); f.connect(g); g.connect(bus);
-      o.start(t); o.stop(t + len + 0.02);
-    };
+  function pickSong() {
+    let i = songIdx;
+    while (i === songIdx) i = Math.floor(mrand() * SONGS.length);
+    songIdx = i;
+    song = SONGS[i];
+    // Two to three minutes each, on the bar.
+    barsLeft = Math.round((110 + mrand() * 65) / (4 * 60 / song.bpm));
+    barNo = 0;
+    stats.song = song.n;
+    stats.songBpm = song.bpm;
+  }
 
-    // Natural minor, for the bass line and the hook.
-    const SCALE = [0, 2, 3, 5, 7, 8, 10];
-    const BASSLINE = [0, 0, 5, 3, 0, 7, 3, 5];       // one root per bar
+  /** Builds one bar. Everything inside it is decided here, now. */
+  function scheduleBar(t) {
+    const { bpm, root, feel, sc, prog, hats, swing } = song;
+    const beat = 60 / bpm, bar = 4 * beat, s16 = beat / 4;
+    const deg = prog[barNo % prog.length];
+    const note = root + sc[deg % sc.length] + (deg >= sc.length ? 12 : 0);
+    const prevDeg = prog[(barNo - 1 + prog.length) % prog.length];
+    const prev = root + sc[prevDeg % sc.length];
+    const fill = barNo % 8 === 7;
+    const half = barNo % 8 < 4;        // first half of the phrase is sparser
 
-    for (let b = 0; b < BARS; b++) {
-      const t0 = b * bar;
-      const s16 = beat / 4;
-      const deg = BASSLINE[b];
-      const note = root + deg;
-      const prev = b > 0 ? root + BASSLINE[b - 1] : null;
+    if (feel === "trap") {
+      V.thump(t);
+      V.sub(t, note, bar * 0.78, barNo > 0 && mrand() > 0.45 ? prev : null);
+      if (mrand() > 0.4) V.sub(t + beat * 2.5, note + 12, beat * 0.55);
+      V.clap(t + beat * 2);
+      if (fill) V.clap(t + beat * 3.5, 0.7);
 
-      // Kick on the one and around the three, half-time feel.
-      hit(THUMP, t0, 0.012, 0.5);
-      sub(t0, note, bar * 0.78, b > 0 && rb() > 0.45 ? prev : null);
-      if (rb() > 0.4) sub(t0 + beat * 2.5, note + 12, beat * 0.55);
-
-      // Clap on three. That is the backbeat in this tempo, not two and four.
-      clap(t0 + beat * 2);
-      if (b % 4 === 3) clap(t0 + beat * 3.5, 0.7);
-
-      // Hats: sixteenths, with rolls.
       let e = 0;
       while (e < 16) {
-        const t = t0 + e * s16;
-        const roll = rb();
-        if (roll > 0.92 && e < 15) {
-          // A 32nd roll across this step and the next.
-          for (let k = 0; k < 4; k++) hat(t + k * (s16 / 2), 0.05 + k * 0.012);
-          e += 2;
-          continue;
-        }
-        if (roll > 0.84) {
-          // Triplet.
-          for (let k = 0; k < 3; k++) hat(t + k * (s16 / 3), 0.055);
-          e += 1;
-          continue;
-        }
-        const accent = e % 4 === 0;
-        hat(t, accent ? 0.1 : 0.055, e % 8 === 6 && rb() > 0.7);
+        const at = t + e * s16, r = mrand();
+        if (r > 0.94 && e < 15) { for (let k = 0; k < 4; k++) V.hat(at + k * (s16 / 2), 0.05 + k * 0.012); e += 2; continue; }
+        if (r > 1 - hats * 0.2) { for (let k = 0; k < 3; k++) V.hat(at + k * (s16 / 3), 0.055); e += 1; continue; }
+        V.hat(at, e % 4 === 0 ? 0.1 : 0.055, e % 8 === 6 && mrand() > 0.7);
         e += 1;
       }
-
-      // The hook: two bars in four, up an octave in the second half.
-      if (b % 4 === 1 || b % 4 === 2) {
-        const oct = b > 3 ? 12 : 0;
-        for (let i = 0; i < 4; i++) {
-          const d = SCALE[Math.floor(rb() * SCALE.length)];
-          lead(t0 + i * beat, root + 24 + oct + d, beat * 0.72, 0.075);
-        }
+      if (!half) for (let i = 0; i < 4; i++) {
+        V.lead(t + i * beat, root + 24 + sc[Math.floor(mrand() * sc.length)], beat * 0.72, 0.075);
       }
+
+    } else if (feel === "club") {
+      for (let q = 0; q < 4; q++) V.kick(t + q * beat, q === 0 ? 0.95 : 0.8);
+      V.clap(t + beat); V.clap(t + beat * 3);
+      for (let e = 0; e < 8; e++) {
+        const at = t + e * (beat / 2);
+        V.hat(at, e % 2 ? 0.085 : 0.045, e % 2 === 1 && mrand() < hats * 0.5);
+      }
+      for (let e = 0; e < 8; e++) {
+        if (e % 2 === 0) continue;
+        V.bass(t + e * (beat / 2), note - 12, beat * 0.42, 0.3);
+      }
+      if (fill) for (let k = 0; k < 6; k++) V.snare(t + beat * 3 + k * (beat / 6), 0.25 + k * 0.1);
+
+    } else {   // lofi
+      V.kick(t);
+      V.kick(t + beat * 1.5, 0.7);
+      if (mrand() > 0.5) V.kick(t + beat * 2.75, 0.6);
+      V.snare(t + beat);
+      if (!fill) V.snare(t + beat * 3);
+      for (let e = 0; e < 8; e++) {
+        const sw = e % 2 ? swing * beat : 0;
+        V.hat(t + e * (beat / 2) + sw, e % 2 ? 0.05 : 0.095);
+      }
+      if (fill) for (let k = 0; k < 4; k++) V.snare(t + beat * 3 + k * (beat / 4), 0.35 + k * 0.15);
+      V.bass(t, note - 12, beat * 1.4, 0.4);
+      V.bass(t + beat * 3.5, note - 12, beat * 0.45, 0.3);
+      for (let k = 0; k < 4; k++) V.dust(t + mrand() * bar);
     }
 
-    return oc.startRendering();
+    // Chords, for everything that is not the trap feel's hook.
+    if (feel !== "trap") {
+      const chord = [0, 2, 4, 6].map((step) => root + 12 + sc[(deg + step) % sc.length] + (deg + step >= sc.length ? 12 : 0));
+      chord.forEach((n, i) => {
+        V.keys(t + 0.02 * i, n, bar * 0.9, 0.075, i % 2 ? 6 : -6);
+      });
+    }
+
+    barNo++;
+    if (--barsLeft <= 0) pickSong();
+    return bar;
+  }
+
+  /**
+   * Keeps roughly a second and a half of music queued ahead of the clock.
+   *
+   * Scheduling against ctx.currentTime rather than against setTimeout is
+   * what keeps the timing exact: the timer only has to be roughly punctual,
+   * because every note inside the bar is already pinned to an audio-clock
+   * value before it is needed.
+   */
+  function tick() {
+    schedTimer = setTimeout(tick, TICK);
+    if (!ctx || ctx.state !== "running" || !V) return;
+    if (nextBarAt < ctx.currentTime) nextBarAt = ctx.currentTime + 0.08;
+    let guard = 0;
+    while (nextBarAt < ctx.currentTime + LOOKAHEAD && guard++ < 8) {
+      nextBarAt += scheduleBar(nextBarAt);
+    }
+  }
+
+  function startMusic(dest) {
+    V = buildVoices(dest);
+    pickSong();
+    nextBarAt = ctx.currentTime + 0.12;
+    clearTimeout(schedTimer);
+    tick();
   }
 
   /** Wind, water, city, birds — the layer that is simply everywhere. */
@@ -3903,33 +3948,6 @@ const sound = (() => {
   }
 
   let clickNoise = null;
-  let tracks = [], queueTimer = 0;
-
-  /**
-   * Plays the set back to back, for ever.
-   *
-   * Each track schedules the *next* one at an exact time two seconds before
-   * it finishes, rather than waiting for an ended event and starting then.
-   * An ended event arrives late by however long the main thread is busy, and
-   * on a page that is also running a render loop that is audible as a stutter
-   * between tracks. Scheduling against the audio clock is sample-accurate and
-   * completely independent of what the renderer is doing.
-   */
-  function startPlaylist(i = 0, when = 0) {
-    if (!tracks.length) return;
-    const at = Math.max(when, ctx.currentTime + 0.05);
-    const src = ctx.createBufferSource();
-    src.buffer = tracks[i];
-    src.connect(musicGain);
-    src.start(at);
-
-    const ends = at + tracks[i].duration;
-    const lead = Math.max(0, (ends - ctx.currentTime - 2) * 1000);
-    clearTimeout(queueTimer);
-    queueTimer = setTimeout(() => startPlaylist((i + 1) % tracks.length, ends), lead);
-    stats.track = i;
-  }
-
   async function start() {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return false;
@@ -3969,42 +3987,10 @@ const sound = (() => {
     muffle.connect(panner);
     panner.connect(master);
 
-    // Four tracks, all out through the same speaker down the street, so the
-    // distance filtering applies to the whole set.
-    //
-    // The first is rendered and playing before the rest are even started.
-    // Waiting for all four meant the page stood in silence until the slowest
-    // one finished; the scheduler takes its length from `tracks` each time
-    // it queues, so the set simply grows underneath it.
-    const t0 = performance.now();
-    const measure = (b) => {
-      const d = b.getChannelData(0);
-      let sum = 0, peak = 0, n = 0;
-      for (let i = 0; i < d.length; i += 31) { sum += d[i] * d[i]; peak = Math.max(peak, Math.abs(d[i])); n++; }
-      stats.beatRMS = +Math.sqrt(sum / n).toFixed(4);
-      stats.beatPeak = Math.max(stats.beatPeak, +peak.toFixed(3));
-      stats.trackCount = tracks.length;
-      stats.totalSeconds = +tracks.reduce((a, x) => a + x.duration, 0).toFixed(1);
-      stats.beatSeconds = stats.totalSeconds;
-    };
-
-    tracks = [await renderLofi(ctx.sampleRate)];
-    stats.firstTrackMs = Math.round(performance.now() - t0);
-    measure(tracks[0]);
-    startPlaylist();
-
-    (async () => {
-      for (const spec of [
-        { bpm: 146, root: 29, seed: 8081 },   // F minor
-        { bpm: 152, root: 25, seed: 1213 },   // Db minor
-        { bpm: 138, root: 31, seed: 4455 },   // G minor
-      ]) {
-        const b = await renderTrap(ctx.sampleRate, spec);
-        tracks.push(b);
-        measure(b);
-      }
-      stats.renderMs = Math.round(performance.now() - t0);
-    })();
+    // The music is performed from here on, not played back. Starts on the
+    // next bar boundary, which is immediately.
+    startMusic(musicGain);
+    stats.mode = "live";
 
     ready = true;
     return true;
@@ -4122,7 +4108,19 @@ const sound = (() => {
  * the loop already rendered, so whenever permission arrives it is instant.
  */
 {
+  const btn = document.getElementById("sound");
   let armed = false;
+
+  /** Three states: asking to be used, on, or muted. */
+  function paint() {
+    const playing = sound.on && !sound.blocked;
+    const state = playing ? "on" : (sound.on ? "prompt" : "off");
+    btn.dataset.state = state;
+    btn.setAttribute("aria-pressed", playing ? "true" : "false");
+    btn.setAttribute("aria-label", playing ? "Turn sound off" : "Turn sound on");
+    btn.querySelector(".lbl").textContent =
+      state === "prompt" ? "Tap for sound" : (playing ? "Sound on" : "Sound off");
+  }
 
   // Every event the platforms count as an activation. pointerdown covers
   // most of it, but older iOS wants touchstart and some browsers only
@@ -4136,6 +4134,7 @@ const sound = (() => {
     armed = false;
     for (const ev of GESTURES) window.removeEventListener(ev, begin);
     sound.enable();
+    setTimeout(paint, 60);
   };
 
   const arm = () => {
@@ -4144,16 +4143,24 @@ const sound = (() => {
     for (const ev of GESTURES) window.addEventListener(ev, begin, { passive: true });
   };
 
-  sound.boot().then((playing) => { if (!playing) arm(); });
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    // A press here is unambiguous consent, so it both starts a blocked
+    // context and mutes a running one.
+    if (sound.blocked || !sound.on) sound.enable(); else sound.toggle();
+    setTimeout(paint, 60);
+  });
+
+  sound.boot().then((playing) => { if (!playing) arm(); paint(); });
 
   // Coming back to the tab is another chance: a browser that refused on a
   // cold load will often allow it once the page has been foregrounded.
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden && sound.blocked) { sound.enable(); arm(); }
+    if (!document.hidden && sound.blocked) { sound.enable(); arm(); setTimeout(paint, 60); }
   });
 
   addEventListener("keydown", (e) => {
-    if (e.key === "m" || e.key === "M") sound.toggle();
+    if (e.key === "m" || e.key === "M") { sound.toggle(); setTimeout(paint, 60); }
   });
 }
 
