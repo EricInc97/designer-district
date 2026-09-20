@@ -603,10 +603,31 @@ const QUALITY = (() => {
   return {
     light,
     still,
-    dpr:       light ? 1.35 : 2,
+    dpr:       light ? 1.2  : 2,
     shadowMap: light ? 1024 : 2048,
-    leaves:    light ? 46  : 110,
-    motes:     light ? 180 : 520,
+    leaves:    light ? 36  : 110,
+    motes:     light ? 140 : 520,
+
+    /**
+     * Whether glass is allowed to be real glass.
+     *
+     * This is the single most expensive thing in the scene on a phone and it
+     * does not look like it. A MeshPhysicalMaterial with any transmission at
+     * all makes three render the entire opaque scene a second time, into a
+     * transmission buffer, every frame — and there were five such materials:
+     * the dome's panes, every shopfront, the fountain, the end block and the
+     * bridge. One is enough to pay for the pass; five just share it. Turning
+     * transmission off and leaning on plain opacity costs a little realism
+     * in the refractions and halves the frame.
+     */
+    transmission: !light,
+
+    // The shell is the single heaviest object in the opening shot, and
+    // alpha-tested geometry is what tiled mobile GPUs like least.
+    domeSeg:   light ? [96, 64] : [176, 120],
+    lampsDome: light ? 2 : 4,
+    lampsStreet: light ? 2 : 4,
+    spray:     light ? 130 : 420,
     // Palms are the most expensive thing in the scene: every frond is
     // alpha-tested, and every one of them is drawn a second time into the
     // shadow map. The street is lined with buildings now, so it does not need
@@ -649,7 +670,9 @@ const C = {
   domeHoles:  27,
   holeAngle:  0.263,     // angular radius of one opening, radians
   rimTube:    0.30,      // thickness of the lip around it
-  plinthTop:  0.85,
+  // Low. The reference is a broad circular step barely clear of the water
+  // with the sphere overhanging it on every side, not a pedestal.
+  plinthTop:  0.42,
 
   poolY:      -0.28,
   plazaY:     0,
@@ -1462,16 +1485,21 @@ const POOL = { w: 25, d: 18, lip: 2.4, y: C.poolY };
     const midZ = inner + len / 2 - 0.6;
     const parts = [];
 
-    const deck = new THREE.BoxGeometry(4.6, 0.62, len);
+    const deck = new THREE.BoxGeometry(6.4, 0.62, len);
     deck.translate(0, C.plazaY - 0.31 + 0.02, midZ);
     parts.push(deck);
 
+    // A landing where it meets the step, so you arrive somewhere.
+    const landing = new THREE.BoxGeometry(10.5, 0.5, 3.4);
+    landing.translate(0, C.plazaY - 0.25, inner + 1.1);
+    parts.push(landing);
+
     for (const sx of [-1, 1]) {
-      const wall = new THREE.BoxGeometry(0.42, 0.62, len);
-      wall.translate(sx * 2.3, C.plazaY + 0.31, midZ);
+      const wall = new THREE.BoxGeometry(0.46, 0.56, len);
+      wall.translate(sx * 3.2, C.plazaY + 0.28, midZ);
       parts.push(wall);
-      const cap = new THREE.BoxGeometry(0.62, 0.12, len);
-      cap.translate(sx * 2.3, C.plazaY + 0.66, midZ);
+      const cap = new THREE.BoxGeometry(0.66, 0.11, len);
+      cap.translate(sx * 3.2, C.plazaY + 0.6, midZ);
       parts.push(cap);
     }
 
@@ -1685,7 +1713,8 @@ function texDomeAlpha() {
 }
 
 {
-  const shellGeo = new THREE.SphereGeometry(C.domeRadius, 200, 140, 0, Math.PI * 2, 0, CUT);
+  const shellGeo = new THREE.SphereGeometry(
+    C.domeRadius, QUALITY.domeSeg[0], QUALITY.domeSeg[1], 0, Math.PI * 2, 0, CUT);
   const shell = new THREE.Mesh(
     shellGeo,
     new THREE.MeshPhysicalMaterial({
@@ -1750,13 +1779,13 @@ function texDomeAlpha() {
       color: 0xa9dfe6,
       roughness: 0.04,
       metalness: 0,
-      transmission: 0.95,
+      transmission: QUALITY.transmission ? 0.95 : 0,
       thickness: 0.35,
       ior: 1.42,
       iridescence: 0.7,
       iridescenceIOR: 1.25,
       transparent: true,
-      opacity: 0.6,
+      opacity: QUALITY.transmission ? 0.6 : 0.42,
       side: THREE.DoubleSide,
       envMapIntensity: 1.4,
     })
@@ -1768,10 +1797,13 @@ function texDomeAlpha() {
 
   // The plinth it stands on, rising out of the water.
   const plinth = new THREE.Mesh(
-    new THREE.CylinderGeometry(C.domeRadius * Math.sin(CUT) * 1.06, C.domeRadius * Math.sin(CUT) * 1.14, C.plinthTop - POOL.y + 0.55, 64),
+    new THREE.CylinderGeometry(
+      C.domeRadius * Math.sin(CUT) * 1.18,
+      C.domeRadius * Math.sin(CUT) * 1.24,
+      C.plinthTop - POOL.y + 0.7, 56),
     new THREE.MeshStandardMaterial({ color: 0xf1ece0, roughness: 0.75 })
   );
-  plinth.position.y = (C.plinthTop + POOL.y - 0.55) / 2;
+  plinth.position.y = (C.plinthTop + POOL.y - 0.7) / 2;
   plinth.castShadow = true; plinth.receiveShadow = true;
   scene.add(plinth);
 }
@@ -1802,11 +1834,11 @@ const fountain = (() => {
     color: 0xcfeaf2,
     roughness: 0.08,
     metalness: 0,
-    transmission: 0.85,
+    transmission: QUALITY.transmission ? 0.85 : 0,
     thickness: 0.4,
     ior: 1.33,
     transparent: true,
-    opacity: 0.55,
+    opacity: QUALITY.transmission ? 0.55 : 0.38,
     side: THREE.DoubleSide,
     envMapIntensity: 1.4,
   });
@@ -1837,7 +1869,7 @@ const fountain = (() => {
   }
 
   // Spray: a cloud that falls under gravity and goes back to its nozzle.
-  const N = QUALITY.light ? 220 : 520;
+  const N = QUALITY.spray;
   const pos = new Float32Array(N * 3);
   const vel = new Float32Array(N * 3);
   const life = new Float32Array(N);
@@ -1871,7 +1903,7 @@ const fountain = (() => {
 
   // Uplighters in the basin, and their fittings.
   const lights = [];
-  const LAMPS = QUALITY.light ? 3 : 6;
+  const LAMPS = QUALITY.lampsDome;
   for (let i = 0; i < LAMPS; i++) {
     const a = (i / LAMPS) * Math.PI * 2 + 0.4;
     const r = ring * 0.82;
@@ -2333,6 +2365,7 @@ const monoliths = [];   // kept under the old name: sections 19 and 21 read it
 // because they are created inside the street block and the clock runs long
 // after it.
 let interiorMat = null, canopyStripMat = null, lampHeadMat = null, glassMat = null;
+let endBandMat = null;
 const signMats = [];
 const streetLamps = [];
 
@@ -2919,7 +2952,7 @@ const streetLamps = [];
     color: 0x22323a,
     roughness: 0.05,
     metalness: 0.1,
-    transmission: 0.55,
+    transmission: QUALITY.transmission ? 0.55 : 0,
     thickness: 0.2,
     ior: 1.5,
     transparent: true,
@@ -2960,7 +2993,7 @@ const streetLamps = [];
     const stripMesh = new THREE.Mesh(mergeGeometries(strips), canopyStripMat);
     scene.add(stripMesh);
 
-    const LAMPS = QUALITY.light ? 3 : 6;
+    const LAMPS = QUALITY.lampsStreet;
     const span = Math.abs(BRANDS.length * STREET.step);
     for (let i = 0; i < LAMPS; i++) {
       const z = STREET.from - 8 - (i + 0.5) * (span / LAMPS);
@@ -3130,11 +3163,34 @@ const streetLamps = [];
       scene.add(m);
     }
 
+    // The end of the street was a black wall after dark. It gets a lit band
+    // across its ground floor and a pair of washers on the facade, so the
+    // view down the alley lands on something rather than nothing.
+    {
+      const bands = [];
+      for (let k = -2; k <= 2; k++) {
+        const g = new THREE.BoxGeometry(8.6, 0.2, 0.4);
+        g.translate(k * 9.4, 6.9, endZ + 0.35);
+        bands.push(g);
+      }
+      endBandMat = new THREE.MeshStandardMaterial({
+        color: 0xfff0d8, emissive: 0xffd9a6, emissiveIntensity: 0, roughness: 0.55,
+      });
+      scene.add(new THREE.Mesh(mergeGeometries(bands), endBandMat));
+
+      for (const dx of [-13, 13]) {
+        const l = new THREE.PointLight(0xffd2a0, 0, 44, 1.5);
+        l.position.set(dx, 7.5, endZ + 5);
+        scene.add(l);
+        streetLamps.push(l);
+      }
+    }
+
     const endGlass = new THREE.Mesh(
       mergeGeometries(capGlass),
       new THREE.MeshPhysicalMaterial({
         color: 0x223038, roughness: 0.06, metalness: 0.1,
-        transmission: 0.5, thickness: 0.2, ior: 1.5,
+        transmission: QUALITY.transmission ? 0.5 : 0, thickness: 0.2, ior: 1.5,
         transparent: true, opacity: 0.86, envMapIntensity: 1.6,
         side: THREE.DoubleSide,
       })
@@ -3176,7 +3232,7 @@ const streetLamps = [];
       mergeGeometries(rails),
       new THREE.MeshPhysicalMaterial({
         color: 0x2a3a42, roughness: 0.05, metalness: 0.1,
-        transmission: 0.6, thickness: 0.15, ior: 1.5,
+        transmission: QUALITY.transmission ? 0.6 : 0, thickness: 0.15, ior: 1.5,
         transparent: true, opacity: 0.8, side: THREE.DoubleSide, envMapIntensity: 1.5,
       })
     );
@@ -4499,11 +4555,11 @@ window.DD = { THREE, scene, camera, renderer, composer, C, BRANDS, PATH, LOOK,
 const TIMELINE = [
   // h    elev  sunCol    sunI  hemiSky   hemiGnd   hemiI  zenith    horizon   under     fog       fogD    exp   inner sign bloom night
   { h: 0.0,  el: -32, sc: 0x9fb4e8, si: 0.16, hs: 0x3a5a94, hg: 0x4a3a28, hi: 1.25,
-    zen: 0x030714, hor: 0x0d1930, und: 0x060b16, fog: 0x0e1a2f, fd: 0.0098, ex: 1.45, inn: 3.6, sg: 0.95, bl: 0.80, ni: 1.0 },
+    zen: 0x030714, hor: 0x0d1930, und: 0x060b16, fog: 0x0e1a2f, fd: 0.0098, ex: 1.45, inn: 3.6, sg: 0.95, bl: 0.46, ni: 1.0 },
   { h: 4.6,  el: -14, sc: 0xa8b6e0, si: 0.22, hs: 0x3f5f96, hg: 0x4a3c2c, hi: 1.20,
-    zen: 0x061027, hor: 0x1d2a49, und: 0x0c1220, fog: 0x18253c, fd: 0.0092, ex: 1.40, inn: 3.4, sg: 0.88, bl: 0.78, ni: 0.92 },
+    zen: 0x061027, hor: 0x1d2a49, und: 0x0c1220, fog: 0x18253c, fd: 0.0092, ex: 1.40, inn: 3.4, sg: 0.88, bl: 0.46, ni: 0.92 },
   { h: 6.2,  el: 2,   sc: 0xff9358, si: 1.05, hs: 0x5b6a96, hg: 0x35302f, hi: 0.62,
-    zen: 0x123059, hor: 0xd08a63, und: 0x3a3238, fog: 0x8e7a73, fd: 0.0078, ex: 1.12, inn: 1.5, sg: 0.45, bl: 0.62, ni: 0.35 },
+    zen: 0x123059, hor: 0xd08a63, und: 0x3a3238, fog: 0x8e7a73, fd: 0.0078, ex: 1.12, inn: 1.5, sg: 0.45, bl: 0.50, ni: 0.35 },
   { h: 8.0,  el: 24,  sc: 0xffd6a8, si: 2.10, hs: 0x9dc2e6, hg: 0xa79a82, hi: 0.82,
     zen: 0x1a5cb4, hor: 0xcfdcea, und: 0x9fb0be, fog: 0xc2d2e2, fd: 0.0060, ex: 1.02, inn: 0.75, sg: 0.10, bl: 0.48, ni: 0.0 },
   { h: 12.0, el: 66,  sc: 0xfff2da, si: 2.70, hs: 0xbdddf5, hg: 0xc6b79a, hi: 0.98,
@@ -4511,13 +4567,13 @@ const TIMELINE = [
   { h: 16.0, el: 30,  sc: 0xffe0b4, si: 2.25, hs: 0xb2d2ee, hg: 0xc4b195, hi: 0.88,
     zen: 0x1050b2, hor: 0xbcd6ec, und: 0x9db2c2, fog: 0xbdd2e4, fd: 0.0056, ex: 1.00, inn: 0.62, sg: 0.05, bl: 0.46, ni: 0.0 },
   { h: 18.6, el: 5,   sc: 0xff8446, si: 1.25, hs: 0x6b6a94, hg: 0x3d3430, hi: 0.66,
-    zen: 0x17356b, hor: 0xe08a52, und: 0x46383a, fog: 0xa07863, fd: 0.0074, ex: 1.10, inn: 1.4, sg: 0.40, bl: 0.66, ni: 0.28 },
+    zen: 0x17356b, hor: 0xe08a52, und: 0x46383a, fog: 0xa07863, fd: 0.0074, ex: 1.10, inn: 1.4, sg: 0.40, bl: 0.50, ni: 0.28 },
   { h: 19.8, el: -7,  sc: 0xc06a7a, si: 0.45, hs: 0x50609a, hg: 0x4e3e2e, hi: 1.00,
-    zen: 0x0a1736, hor: 0x5e3f57, und: 0x1e1c2a, fog: 0x3c3350, fd: 0.0086, ex: 1.32, inn: 3.0, sg: 0.72, bl: 0.74, ni: 0.72 },
+    zen: 0x0a1736, hor: 0x5e3f57, und: 0x1e1c2a, fog: 0x3c3350, fd: 0.0086, ex: 1.32, inn: 3.0, sg: 0.72, bl: 0.48, ni: 0.72 },
   { h: 21.5, el: -22, sc: 0x9fb4e8, si: 0.17, hs: 0x3c5c95, hg: 0x4a3a2a, hi: 1.22,
-    zen: 0x040917, hor: 0x101d36, und: 0x080d1a, fog: 0x111d33, fd: 0.0095, ex: 1.43, inn: 3.5, sg: 0.92, bl: 0.79, ni: 0.96 },
+    zen: 0x040917, hor: 0x101d36, und: 0x080d1a, fog: 0x111d33, fd: 0.0095, ex: 1.43, inn: 3.5, sg: 0.92, bl: 0.46, ni: 0.96 },
   { h: 24.0, el: -32, sc: 0x9fb4e8, si: 0.16, hs: 0x3a5a94, hg: 0x4a3a28, hi: 1.25,
-    zen: 0x030714, hor: 0x0d1930, und: 0x060b16, fog: 0x0e1a2f, fd: 0.0098, ex: 1.45, inn: 3.6, sg: 0.95, bl: 0.80, ni: 1.0 },
+    zen: 0x030714, hor: 0x0d1930, und: 0x060b16, fog: 0x0e1a2f, fd: 0.0098, ex: 1.45, inn: 3.6, sg: 0.95, bl: 0.46, ni: 1.0 },
 ];
 
 // Declared above applyTimeOfDay, which writes to it and is called during
@@ -4599,13 +4655,18 @@ function applyTimeOfDay(hour) {
   // within rather than merely illuminated.
   for (const l of fountain.lights) l.intensity = mixNum(0, 14, night);
   for (const l of streetLamps) l.intensity = mixNum(0, 16, night);
-  if (canopyStripMat) canopyStripMat.emissiveIntensity = mixNum(0, 1.9, night);
-  if (lampHeadMat) lampHeadMat.emissiveIntensity = mixNum(0, 3.2, night);
+  // Well down from where this started. The strips were blowing out into
+  // solid white bars — an emissive of 1.9 with bloom on top is far past what
+  // a light fitting should read as, and it swamped the shopfronts they were
+  // supposed to be lighting.
+  if (canopyStripMat) canopyStripMat.emissiveIntensity = mixNum(0, 0.75, night);
+  if (lampHeadMat) lampHeadMat.emissiveIntensity = mixNum(0, 1.5, night);
+  if (endBandMat) endBandMat.emissiveIntensity = mixNum(0, 1.3, night);
   // Tinted glass swallows a lit interior. After dark it opens up, which is
   // also what a real shopfront does once the inside is brighter than the out.
   if (glassMat) {
     glassMat.opacity = mixNum(0.85, 0.42, night);
-    glassMat.transmission = mixNum(0.55, 0.9, night);
+    if (QUALITY.transmission) glassMat.transmission = mixNum(0.55, 0.9, night);
   }
   if (domeShellMat) domeShellMat.emissiveIntensity = mixNum(0, 0.34, night);
   if (domeRimMat) domeRimMat.emissiveIntensity = mixNum(0, 0.26, night);
