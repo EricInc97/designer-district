@@ -19,6 +19,9 @@ import { supabaseConfigured } from "@/lib/supabase/config";
 
 export const revalidate = 300;
 
+type Rel<T> = T | T[] | null;
+const one = <T,>(r: Rel<T>): T | null => (Array.isArray(r) ? r[0] ?? null : r);
+
 type Row = {
   id: string;
   name: string;
@@ -26,7 +29,8 @@ type Row = {
   image_url: string | null;
   sizes: string[] | null;
   stock_count: number | null;
-  brands: { slug: string } | { slug: string }[] | null;
+  brands: Rel<{ slug: string }>;
+  categories: Rel<{ name: string; slug: string }>;
 };
 
 export async function GET() {
@@ -37,7 +41,9 @@ export async function GET() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("products")
-    .select("id, name, price, image_url, sizes, stock_count, brands!inner(slug)")
+    .select(
+      "id, name, price, image_url, sizes, stock_count, brands!inner(slug), categories(name, slug)",
+    )
     .eq("is_published", true)
     .not("image_url", "is", null)
     .order("is_featured", { ascending: false })
@@ -50,10 +56,10 @@ export async function GET() {
   const brands: Record<string, unknown[]> = {};
   for (const row of (data ?? []) as Row[]) {
     // PostgREST hands an embedded one-to-one back as an object on some
-    // versions and a single-element array on others. Both mean one brand.
-    const rel = Array.isArray(row.brands) ? row.brands[0] : row.brands;
-    const slug = rel?.slug;
+    // versions and a single-element array on others. Both mean one row.
+    const slug = one(row.brands)?.slug;
     if (!slug) continue;
+    const cat = one(row.categories);
     (brands[slug] ??= []).push({
       id: row.id,
       name: row.name,
@@ -61,6 +67,11 @@ export async function GET() {
       image: row.image_url,
       sizes: row.sizes ?? [],
       stock: row.stock_count ?? 0,
+      // Every published product has one today, but the column is nullable,
+      // so anything without falls into a bucket rather than disappearing
+      // from a filtered shop floor.
+      cat: cat?.slug ?? "other",
+      catName: cat?.name ?? "Other",
     });
   }
 
