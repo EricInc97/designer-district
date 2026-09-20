@@ -5530,43 +5530,57 @@ const sound = (() => {
      * on independent schedules overlap into something that ebbs, and every
      * so often all three are down at once and the street is just quiet.
      */
-    /* High, because that is what a cricket is.
+    /* Measured off the reference, and it was not what I had built.
      *
-     * I moved these down to 3.4kHz on the theory that 5k is where the ear
-     * is most sensitive and therefore where the irritation was. Wrong
-     * diagnosis: dropping the pitch lost the sound people actually
-     * recognise as night, and what made the first version grating was that
-     * it never stopped, which is fixed separately below. So they are back
-     * at 4.6 and 5.4 where they belong, with a wider band than the first
-     * attempt so they are a chorus rather than a test tone, and two
-     * patches rather than three so there are real holes between them. */
-    const cricketLives = [];
-    for (const [hz, rate, pan, q] of [
-      [4600, 10.5, -0.6, 10], [5400, 12.8, 0.5, 12],
+     * The peak is at 2.36kHz — not the 4.6 and 5.4 I had — and it is a
+     * narrow one, 94Hz wide, which is a Q around 25. Twenty decibels of
+     * everything else. But the thing I had most wrong is the rate: the
+     * reference chirps 2.3 times a second, not twelve, and its envelope
+     * goes to actual zero in between. That is a chirp with a silence after
+     * it, which is what people picture. What I had was a continuous trill,
+     * which is a grasshopper at best and a buzzer at worst.
+     *
+     * So the chirps are written into the gain as real envelopes rather
+     * than modulated by an oscillator, scheduled a couple of seconds ahead
+     * the same way the music is — about two timers a second each, and
+     * sample-accurate where a timer per chirp would not be.
+     */
+    const cricketLives = [], cricketChirps = [];
+    for (const [hz, q, rate, pan] of [
+      [2360, 25, 2.30, -0.45], [2610, 22, 2.05, 0.4],
     ]) {
       const bp = ctx.createBiquadFilter();
       bp.type = "bandpass"; bp.frequency.value = hz; bp.Q.value = q;
 
-      /* Triangle, not square. A square wave chopping a tone at a dozen
-       * hertz is a buzzer; a triangle is a trill, which is what an insect
-       * actually sounds like from across a plaza. */
-      const puls = ctx.createGain(); puls.gain.value = 0.5;
-      const chirp = ctx.createOscillator();
-      chirp.type = "triangle"; chirp.frequency.value = rate;
-      const chirpAmt = ctx.createGain(); chirpAmt.gain.value = 0.5;
-      chirp.connect(chirpAmt); chirpAmt.connect(puls.gain); chirp.start();
-
-      // The rate wanders, so it never settles into a pulse you can count.
-      const drift = ctx.createOscillator();
-      drift.type = "sine"; drift.frequency.value = 0.05 + Math.random() * 0.06;
-      const driftAmt = ctx.createGain(); driftAmt.gain.value = 1.4;
-      drift.connect(driftAmt); driftAmt.connect(chirp.frequency); drift.start();
-
+      const chirp = ctx.createGain(); chirp.gain.value = 0.0001;
       const life = ctx.createGain(); life.gain.value = 0;
       const pn = ctx.createStereoPanner(); pn.pan.value = pan;
+
       loop().connect(bp);
-      bp.connect(puls); puls.connect(life); life.connect(pn); pn.connect(crickets);
+      bp.connect(chirp); chirp.connect(life); life.connect(pn); pn.connect(crickets);
       cricketLives.push(life);
+      cricketChirps.push(chirp);
+
+      // Two seconds of chirps at a time, re-armed before they run out.
+      let next = 0;
+      const fill = () => {
+        if (!ctx || ctx.state !== "running" || nightLevel < 0.2) {
+          setTimeout(fill, 1500);
+          return;
+        }
+        const now = ctx.currentTime;
+        if (next < now) next = now + 0.08;
+        while (next < now + 2) {
+          const len = 0.05 + Math.random() * 0.045;
+          chirp.gain.setValueAtTime(0.0001, next);
+          chirp.gain.exponentialRampToValueAtTime(1, next + 0.007);
+          chirp.gain.exponentialRampToValueAtTime(0.0001, next + len);
+          // No two insects keep time with each other.
+          next += (1 / rate) * (0.9 + Math.random() * 0.2);
+        }
+        setTimeout(fill, 900);
+      };
+      fill();
     }
 
     /** One patch: chirp for a while, fade, wait, go again. */
@@ -5577,14 +5591,12 @@ const sound = (() => {
           return;
         }
         const t = ctx.currentTime;
-        const rise = 0.6 + Math.random() * 0.9;
-        const hold = 1.6 + Math.random() * 3.0;
-        const fall = 0.9 + Math.random() * 1.4;
-        // Long enough that the street is properly silent a good part of
-        // the time, which is the half of this that was missing.
-        const gap = 2.6 + Math.random() * 7.5;
+        const rise = 0.5 + Math.random() * 0.7;
+        const hold = 2.4 + Math.random() * 4.0;
+        const fall = 0.8 + Math.random() * 1.2;
+        const gap = 2.2 + Math.random() * 6.5;
         life.gain.cancelScheduledValues(t);
-        life.gain.setTargetAtTime(0.5 + Math.random() * 0.5, t, rise * 0.35);
+        life.gain.setTargetAtTime(0.55 + Math.random() * 0.45, t, rise * 0.35);
         life.gain.setTargetAtTime(0, t + rise + hold, fall * 0.35);
         setTimeout(go, (rise + hold + fall + gap) * 1000);
       };
@@ -5601,49 +5613,75 @@ const sound = (() => {
      * almost nothing else, and the little waver on the end of the call is
      * most of what makes it read as a bird rather than a test tone.
      */
+    /* A pure sine carries far better through the ear than noise squeezed
+     * through a narrow filter, so this needs a fraction of the crickets'
+     * gain to sit level with them — but how small a fraction is not
+     * something a spectrum answers honestly. A sine puts all its energy
+     * in one bin and noise spreads it over thousands, so comparing their
+     * peaks overstates the sine by about thirty decibels. Hence a knob:
+     * `DD.sound.owlLevel(v)` sets it live, and ears settle it. */
+    let OWL_LEVEL = 0.15;
+    ambSet = { owlLevel: (v) => { if (v != null) OWL_LEVEL = v; return OWL_LEVEL; } };
+
     function owl(force) {
       if (force || (on && ctx && ctx.state === "running" && nightLevel > 0.4
           && Math.random() < 0.55 + nightLevel * 0.45)) {
+        stats.owls = (stats.owls || 0) + 1;
         const t0 = ctx.currentTime + 0.1;
         const pn = ctx.createStereoPanner();
         pn.pan.value = Math.random() * 1.5 - 0.75;
         pn.connect(amb);
 
-        stats.owls = (stats.owls || 0) + 1;
-        // Two short, then a long one held: the shape of a tawny call.
-        const shape = Math.random() > 0.45 ? [0.26, 0.24, 0.62] : [0.3, 0.55];
+        /* All three numbers here came off the reference recording.
+         *
+         * It sits at 290 to 342Hz — I had pushed it to 430 to 525 trying
+         * to make it audible, which moved it out of the range an owl
+         * occupies. Its second harmonic is 20 to 26dB down and the third
+         * is 33 to 40 down, so it is very nearly a sine; mine had the
+         * second at 13dB down, which is why it sounded like an organ.
+         *
+         * And the shape is not even notes. The five calls measured 0.078,
+         * 0.104, 0.479, 0.418 and 0.186 seconds — two clipped ones, then
+         * held ones — separated by gaps of 0.11 to 0.36. The short notes
+         * fall in pitch by a fifth as they go; the long ones hold steady.
+         */
+        const f = 292 + Math.random() * 50;
+        const shape = [
+          [0.085, 0.10, 0.46],
+          [0.44, 0.19],
+          [0.09, 0.42, 0.20],
+        ][Math.floor(Math.random() * 3)];
+
         let at = t0;
-        // Up a little from 355. A tawny runs 300 to 600 and the top of
-        // that range carries through a mix; the bottom of it was sitting
-        // underneath the city hum and the music's low mids.
-        const f = 430 + Math.random() * 95;
-        shape.forEach((len, i) => {
-          const last = i === shape.length - 1;
-          for (const [mult, amp] of [[1, 1], [2, 0.22]]) {
+        for (const len of shape) {
+          const short = len < 0.2;
+          for (const [mult, amp] of [[1, 1], [2, 0.075], [3, 0.02]]) {
             const o = ctx.createOscillator();
             o.type = "sine";
-            o.frequency.setValueAtTime(f * mult * 1.05, at);
-            o.frequency.exponentialRampToValueAtTime(f * mult, at + len * 0.45);
-            if (last) {
-              // the waver
+            const f1 = f * mult;
+            o.frequency.setValueAtTime(f1 * 1.04, at);
+            // A short call drops most of a fifth; a long one barely moves.
+            o.frequency.exponentialRampToValueAtTime(
+              f1 * (short ? 0.80 : 0.97), at + len * (short ? 0.9 : 0.6));
+            if (!short) {
               const vib = ctx.createOscillator();
-              vib.type = "sine"; vib.frequency.value = 5.5;
-              const vibAmt = ctx.createGain(); vibAmt.gain.value = f * mult * 0.012;
+              vib.type = "sine"; vib.frequency.value = 5.2;
+              const vibAmt = ctx.createGain(); vibAmt.gain.value = f1 * 0.009;
               vib.connect(vibAmt); vibAmt.connect(o.frequency);
-              vib.start(at); vib.stop(at + len + 0.1);
+              vib.start(at); vib.stop(at + len + 0.08);
             }
             const g = ctx.createGain();
             g.gain.setValueAtTime(0.0001, at);
-            g.gain.exponentialRampToValueAtTime(0.16 * amp * Math.max(nightLevel, force ? 1 : 0), at + len * 0.3);
+            g.gain.exponentialRampToValueAtTime(
+              OWL_LEVEL * amp * Math.max(nightLevel, force ? 1 : 0), at + len * 0.22);
             g.gain.exponentialRampToValueAtTime(0.0001, at + len);
             o.connect(g); g.connect(pn);
             o.start(at); o.stop(at + len + 0.05);
           }
-          at += len + 0.1 + Math.random() * 0.06;
-        });
+          at += len + 0.12 + Math.random() * 0.2;
+        }
       }
-      // Every nine to thirty seconds. It was every fifty at half the
-      // volume, which is indistinguishable from not being there.
+      // Every nine to thirty seconds.
       setTimeout(owl, 9000 + Math.random() * 21000);
     }
     stats.owls = 0;
@@ -5678,7 +5716,8 @@ const sound = (() => {
     function schedule() { setTimeout(bird, 5000 + Math.random() * 14000); }
     schedule();
 
-    ambParts = { crickets, leaves: leavesGain, city: cityGain };
+    ambParts = { crickets, leaves: leavesGain, city: cityGain,
+                 lives: cricketLives, chirps: cricketChirps };
     applyNight();
     return amb;
   }
@@ -5694,7 +5733,13 @@ const sound = (() => {
     if (!ambParts || !ctx) return;
     const t = ctx.currentTime;
     const n = nightLevel;
-    ambParts.crickets.gain.setTargetAtTime(0.034 * Math.pow(n, 1.4), t, 1.6);
+    /* 0.2, where the last version was 0.05 and inaudible.
+     * A Q of 25 passes about ninety hertz of a noise source that spans
+     * twenty thousand, so almost nothing comes through it — the narrower
+     * the filter the more gain it needs to arrive at the same loudness,
+     * and this one is four times narrower than the one it replaced. At
+     * 0.05 the chirps sat ten decibels under the wind and never showed. */
+    ambParts.crickets.gain.setTargetAtTime(0.2 * Math.pow(n, 1.4), t, 1.6);
     ambParts.leaves.gain.setTargetAtTime(0.0065 * (1 - 0.45 * n), t, 2.2);
     ambParts.city.gain.setTargetAtTime(0.10 * (1 - 0.28 * n), t, 2.2);
   }
@@ -5711,6 +5756,7 @@ const sound = (() => {
   let nightLevel = 0;
   let ambParts = null;
   let ambCalls = null;
+  let ambSet = null;
   const stats = { beatSeconds: 0, beatRMS: 0, beatPeak: 0 };
 
   /**
@@ -6166,6 +6212,34 @@ const sound = (() => {
      * distance, and a tilt is not something "it sounds right" can settle.
      * This reports what is actually coming out of it.
      */
+    /** Sets or reads how loud the owl calls. Ears only; see the note there. */
+    owlLevel(v) { return ambSet ? ambSet.owlLevel(v) : null; },
+
+    /** Sets or reads the cricket level, and reports the chain's state. */
+    crickets(v) {
+      if (!ambParts) return null;
+      if (v != null) ambParts.crickets.gain.setTargetAtTime(v, ctx.currentTime, 0.1);
+      return { master: +ambParts.crickets.gain.value.toFixed(4),
+               lives: ambParts.lives.map((g) => +g.gain.value.toFixed(3)),
+               chirps: ambParts.chirps.map((g) => +g.gain.value.toFixed(3)) };
+    },
+
+    /**
+     * A live analyser on one of the buses, for measuring this the same way
+     * the reference recordings were measured. Disconnect it when done.
+     */
+    analyser(where = "amb", fftSize = 16384) {
+      const tap = where === "in" ? musicGain : (where === "amb" ? ambGain : sysOut);
+      if (!ctx || !tap) return null;
+      const an = ctx.createAnalyser();
+      an.fftSize = fftSize;
+      an.smoothingTimeConstant = 0;
+      tap.connect(an);
+      an.binHz = ctx.sampleRate / fftSize;
+      an.release = () => tap.disconnect(an);
+      return an;
+    },
+
     /**
      * Calls the owl now, whatever the time.
      *
