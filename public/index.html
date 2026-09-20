@@ -3427,10 +3427,18 @@ const sound = (() => {
    * Rendered as a fixed number of bars it simply repeats, and it costs one
    * burst of work at start-up instead of a permanent scheduling overhead.
    */
-  async function renderBeat(sampleRate) {
+  /**
+   * Track one: the slow one, unchanged.
+   *
+   * Rendered in mono, like everything else here. A panner wants a mono
+   * source — it is going to place the sound in space itself — and mono
+   * halves what the playlist costs in memory, which matters when there are
+   * four of them resident.
+   */
+  async function renderLofi(sampleRate) {
     const BPM = 88, BARS = 8;
     const beat = 60 / BPM, dur = BARS * 4 * beat;
-    const oc = new OfflineAudioContext(2, Math.ceil((dur + 0.6) * sampleRate), sampleRate);
+    const oc = new OfflineAudioContext(1, Math.ceil((dur + 0.6) * sampleRate), sampleRate);
 
     const bus = oc.createGain();
     // Headroom. The fills and the busier second half push the peak to 0.91
@@ -3442,18 +3450,21 @@ const sound = (() => {
     warm.type = "lowpass"; warm.frequency.value = 5200;
     bus.connect(warm); warm.connect(oc.destination);
 
-    const nb = noiseBuffer(oc, 2);
+    const nb = noiseBuffer(oc, 0.4);
     const rb = rng(31415);           // fixed, so the loop is the same every load
 
-    const burst = (t, len, type, freq, q, gain) => {
-      const src = oc.createBufferSource(); src.buffer = nb; src.loop = true;
-      const f = oc.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+    const HAT = fixedBus(oc, bus, "highpass", 8200, 0.9);
+    const SNR = fixedBus(oc, bus, "highpass", 1500, 0.7);
+    const DUST = fixedBus(oc, bus, "bandpass", 2600, 1.4);
+
+    const hit = (dest, t, len, gain) => {
+      const src = oc.createBufferSource(); src.buffer = nb;
       const g = oc.createGain();
       g.gain.setValueAtTime(0.0001, t);
       g.gain.exponentialRampToValueAtTime(gain, t + 0.004);
       g.gain.exponentialRampToValueAtTime(0.0001, t + len);
-      src.connect(f); f.connect(g); g.connect(bus);
-      src.start(t); src.stop(t + len + 0.05);
+      src.connect(g); g.connect(dest);
+      src.start(t); src.stop(t + len + 0.03);
     };
 
     const kick = (t, gain = 0.95) => {
@@ -3468,7 +3479,7 @@ const sound = (() => {
     };
 
     const snare = (t, gain = 1) => {
-      burst(t, 0.17, "highpass", 1500, 0.7, 0.34 * gain);
+      hit(SNR, t, 0.17, 0.34 * gain);
       const o = oc.createOscillator(); o.type = "triangle";
       o.frequency.setValueAtTime(190, t);
       const g = oc.createGain();
@@ -3478,8 +3489,7 @@ const sound = (() => {
       o.start(t); o.stop(t + 0.14);
     };
 
-    const hat = (t, gain, open = false) =>
-      burst(t, open ? 0.22 : 0.045, "highpass", open ? 7000 : 8200, 0.9, gain);
+    const hat = (t, gain, open = false) => hit(HAT, t, open ? 0.22 : 0.045, gain);
 
     const voice = (t, note, len, gain, type = "triangle", detune = 0) => {
       const o = oc.createOscillator();
@@ -3591,12 +3601,184 @@ const sound = (() => {
     }
 
     // Vinyl: the dust that makes the rest of it sit back.
-    for (let i = 0; i < 260; i++) {
-      burst(rb() * dur, 0.006, "bandpass", 1800 + rb() * 4000, 1.4, 0.03);
-    }
+    for (let i = 0; i < 140; i++) hit(DUST, rb() * dur, 0.006, 0.03);
 
     const rendered = await oc.startRendering();
     return rendered;
+  }
+
+  /**
+   * A fixed filter that many hits share.
+   *
+   * The first version gave every drum hit its own BiquadFilter, which meant
+   * several hundred filters per track and twenty-one seconds to render the
+   * set — twenty-one seconds of silence on load. Biquads are the expensive
+   * part of an offline render and a hi-hat does not need its own: the
+   * timbre is identical every time, only the envelope differs. Five shared
+   * buses and two nodes per hit renders the same music in a fraction of the
+   * time.
+   */
+  function fixedBus(oc, dest, type, freq, q) {
+    const f = oc.createBiquadFilter();
+    f.type = type; f.frequency.value = freq; f.Q.value = q;
+    f.connect(dest);
+    return f;
+  }
+
+  /** Soft clip, so the 808 has edge instead of just being loud. */
+  function satCurve(amount) {
+    const n = 1024, c = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const x = (i / (n - 1)) * 2 - 1;
+      c[i] = Math.tanh(x * amount) / Math.tanh(amount);
+    }
+    return c;
+  }
+
+  /**
+   * The fast ones: 808, rolling hats, claps, a minor hook.
+   *
+   * Everything that makes this style what it is happens in two places. The
+   * 808 is a sine that *glides* into its note and rings for most of a bar,
+   * pushed through a soft clip so it has a harmonic edge and survives being
+   * low-passed to nothing at a distance. And the hats are not a grid: they
+   * are sixteenths with rolls thrown in at 32nds and triplets, at varying
+   * velocity, which is the whole difference between a drum machine and a
+   * beat.
+   */
+  async function renderTrap(sampleRate, spec) {
+    const { bpm, root, seed } = spec;
+    const BARS = 8;
+    const beat = 60 / bpm, bar = 4 * beat, dur = BARS * bar;
+    const oc = new OfflineAudioContext(1, Math.ceil((dur + 0.8) * sampleRate), sampleRate);
+
+    const bus = oc.createGain();
+    bus.gain.value = 0.62;
+    const warm = oc.createBiquadFilter();
+    warm.type = "lowpass"; warm.frequency.value = 6000;
+    bus.connect(warm); warm.connect(oc.destination);
+
+    const nb = noiseBuffer(oc, 0.4);
+    const rb = rng(seed);
+
+    const HAT = fixedBus(oc, bus, "highpass", 9000, 1.0);
+    const OPEN = fixedBus(oc, bus, "highpass", 7200, 1.0);
+    const CLAP = fixedBus(oc, bus, "bandpass", 1700, 0.9);
+    const AIR = fixedBus(oc, bus, "highpass", 2600, 0.7);
+    const THUMP = fixedBus(oc, bus, "lowpass", 90, 0.7);
+
+    const shaper = oc.createWaveShaper();
+    shaper.curve = satCurve(2.2);
+    shaper.oversample = "2x";
+    const subBus = oc.createGain();
+    subBus.gain.value = 0.9;
+    subBus.connect(shaper); shaper.connect(bus);
+
+    const hit = (dest, t, len, gain) => {
+      const src = oc.createBufferSource(); src.buffer = nb;
+      const g = oc.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(gain, t + 0.003);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+      src.connect(g); g.connect(dest);
+      src.start(t); src.stop(t + len + 0.03);
+    };
+
+    /** The 808: glides in from the note before, rings, and bites. */
+    const sub = (t, note, len, from) => {
+      const o = oc.createOscillator(); o.type = "sine";
+      if (from != null) {
+        o.frequency.setValueAtTime(midi(from), t);
+        o.frequency.exponentialRampToValueAtTime(midi(note), t + 0.075);
+      } else {
+        o.frequency.setValueAtTime(midi(note) * 2.2, t);      // the click of the hit
+        o.frequency.exponentialRampToValueAtTime(midi(note), t + 0.035);
+      }
+      const g = oc.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.85, t + 0.006);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+      o.connect(g); g.connect(subBus);
+      o.start(t); o.stop(t + len + 0.02);
+    };
+
+    const clap = (t, gain = 1) => {
+      // Three noise bursts a few ms apart is what makes a clap a clap.
+      for (const d of [0, 0.011, 0.023]) hit(CLAP, t + d, 0.09, 0.3 * gain);
+      hit(AIR, t, 0.16, 0.16 * gain);
+    };
+
+    const hat = (t, gain, open = false) =>
+      hit(open ? OPEN : HAT, t, open ? 0.19 : 0.032, gain);
+
+    const lead = (t, note, len, gain) => {
+      const o = oc.createOscillator(); o.type = "sawtooth";
+      o.frequency.value = midi(note);
+      const f = oc.createBiquadFilter();
+      f.type = "lowpass"; f.Q.value = 6;
+      f.frequency.setValueAtTime(2600, t);
+      f.frequency.exponentialRampToValueAtTime(700, t + len);
+      const g = oc.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(gain, t + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+      o.connect(f); f.connect(g); g.connect(bus);
+      o.start(t); o.stop(t + len + 0.02);
+    };
+
+    // Natural minor, for the bass line and the hook.
+    const SCALE = [0, 2, 3, 5, 7, 8, 10];
+    const BASSLINE = [0, 0, 5, 3, 0, 7, 3, 5];       // one root per bar
+
+    for (let b = 0; b < BARS; b++) {
+      const t0 = b * bar;
+      const s16 = beat / 4;
+      const deg = BASSLINE[b];
+      const note = root + deg;
+      const prev = b > 0 ? root + BASSLINE[b - 1] : null;
+
+      // Kick on the one and around the three, half-time feel.
+      hit(THUMP, t0, 0.012, 0.5);
+      sub(t0, note, bar * 0.78, b > 0 && rb() > 0.45 ? prev : null);
+      if (rb() > 0.4) sub(t0 + beat * 2.5, note + 12, beat * 0.55);
+
+      // Clap on three. That is the backbeat in this tempo, not two and four.
+      clap(t0 + beat * 2);
+      if (b % 4 === 3) clap(t0 + beat * 3.5, 0.7);
+
+      // Hats: sixteenths, with rolls.
+      let e = 0;
+      while (e < 16) {
+        const t = t0 + e * s16;
+        const roll = rb();
+        if (roll > 0.92 && e < 15) {
+          // A 32nd roll across this step and the next.
+          for (let k = 0; k < 4; k++) hat(t + k * (s16 / 2), 0.05 + k * 0.012);
+          e += 2;
+          continue;
+        }
+        if (roll > 0.84) {
+          // Triplet.
+          for (let k = 0; k < 3; k++) hat(t + k * (s16 / 3), 0.055);
+          e += 1;
+          continue;
+        }
+        const accent = e % 4 === 0;
+        hat(t, accent ? 0.1 : 0.055, e % 8 === 6 && rb() > 0.7);
+        e += 1;
+      }
+
+      // The hook: two bars in four, up an octave in the second half.
+      if (b % 4 === 1 || b % 4 === 2) {
+        const oct = b > 3 ? 12 : 0;
+        for (let i = 0; i < 4; i++) {
+          const d = SCALE[Math.floor(rb() * SCALE.length)];
+          lead(t0 + i * beat, root + 24 + oct + d, beat * 0.72, 0.075);
+        }
+      }
+    }
+
+    return oc.startRendering();
   }
 
   /** Wind, water, city, birds — the layer that is simply everywhere. */
@@ -3721,6 +3903,32 @@ const sound = (() => {
   }
 
   let clickNoise = null;
+  let tracks = [], queueTimer = 0;
+
+  /**
+   * Plays the set back to back, for ever.
+   *
+   * Each track schedules the *next* one at an exact time two seconds before
+   * it finishes, rather than waiting for an ended event and starting then.
+   * An ended event arrives late by however long the main thread is busy, and
+   * on a page that is also running a render loop that is audible as a stutter
+   * between tracks. Scheduling against the audio clock is sample-accurate and
+   * completely independent of what the renderer is doing.
+   */
+  function startPlaylist(i = 0, when = 0) {
+    if (!tracks.length) return;
+    const at = Math.max(when, ctx.currentTime + 0.05);
+    const src = ctx.createBufferSource();
+    src.buffer = tracks[i];
+    src.connect(musicGain);
+    src.start(at);
+
+    const ends = at + tracks[i].duration;
+    const lead = Math.max(0, (ends - ctx.currentTime - 2) * 1000);
+    clearTimeout(queueTimer);
+    queueTimer = setTimeout(() => startPlaylist((i + 1) % tracks.length, ends), lead);
+    stats.track = i;
+  }
 
   async function start() {
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -3757,25 +3965,46 @@ const sound = (() => {
     musicGain = ctx.createGain();
     musicGain.gain.value = 0.9;
 
-    const buf = await renderBeat(ctx.sampleRate);
-    // Keep a measure of the render, so "is it on?" and "is it silent?" are
-    // separable questions later.
-    {
-      const d = buf.getChannelData(0);
-      let sum = 0, peak = 0;
-      for (let i = 0; i < d.length; i += 17) { sum += d[i] * d[i]; peak = Math.max(peak, Math.abs(d[i])); }
-      stats.beatSeconds = +buf.duration.toFixed(2);
-      stats.beatRMS = +Math.sqrt(sum / (d.length / 17)).toFixed(4);
-      stats.beatPeak = +peak.toFixed(3);
-    }
-    const src = ctx.createBufferSource();
-    src.buffer = buf; src.loop = true;
-    src.loopEnd = buf.duration - 0.5;      // trim the tail the last hits ring into
-    src.connect(musicGain);
     musicGain.connect(muffle);
     muffle.connect(panner);
     panner.connect(master);
-    src.start();
+
+    // Four tracks, all out through the same speaker down the street, so the
+    // distance filtering applies to the whole set.
+    //
+    // The first is rendered and playing before the rest are even started.
+    // Waiting for all four meant the page stood in silence until the slowest
+    // one finished; the scheduler takes its length from `tracks` each time
+    // it queues, so the set simply grows underneath it.
+    const t0 = performance.now();
+    const measure = (b) => {
+      const d = b.getChannelData(0);
+      let sum = 0, peak = 0, n = 0;
+      for (let i = 0; i < d.length; i += 31) { sum += d[i] * d[i]; peak = Math.max(peak, Math.abs(d[i])); n++; }
+      stats.beatRMS = +Math.sqrt(sum / n).toFixed(4);
+      stats.beatPeak = Math.max(stats.beatPeak, +peak.toFixed(3));
+      stats.trackCount = tracks.length;
+      stats.totalSeconds = +tracks.reduce((a, x) => a + x.duration, 0).toFixed(1);
+      stats.beatSeconds = stats.totalSeconds;
+    };
+
+    tracks = [await renderLofi(ctx.sampleRate)];
+    stats.firstTrackMs = Math.round(performance.now() - t0);
+    measure(tracks[0]);
+    startPlaylist();
+
+    (async () => {
+      for (const spec of [
+        { bpm: 146, root: 29, seed: 8081 },   // F minor
+        { bpm: 152, root: 25, seed: 1213 },   // Db minor
+        { bpm: 138, root: 31, seed: 4455 },   // G minor
+      ]) {
+        const b = await renderTrap(ctx.sampleRate, spec);
+        tracks.push(b);
+        measure(b);
+      }
+      stats.renderMs = Math.round(performance.now() - t0);
+    })();
 
     ready = true;
     return true;
@@ -3827,11 +4056,19 @@ const sound = (() => {
       return on;
     },
 
-    /** Turns it on without flipping, for whatever gesture arrives first. */
-    async enable() {
-      if (!ctx && !(await start())) return false;
-      if (ctx.state === "suspended") { try { await ctx.resume(); } catch {} }
+    /**
+     * Turns it on for whatever gesture arrives first.
+     *
+     * Deliberately not async at the point it matters: iOS treats a resume as
+     * user-initiated only if it is called in the same synchronous run as the
+     * gesture, and an await before it can lose that. The context was built at
+     * load, so there is nothing to wait for anyway.
+     */
+    enable() {
+      if (!ctx) { start().then(() => this.enable()); return false; }
       on = true;
+      const r = ctx.resume();
+      if (r && r.catch) r.catch(() => {});
       ramp();
       return ctx.state === "running";
     },
@@ -3887,23 +4124,33 @@ const sound = (() => {
 {
   let armed = false;
 
-  const begin = async () => {
+  // Every event the platforms count as an activation. pointerdown covers
+  // most of it, but older iOS wants touchstart and some browsers only
+  // credit the click or the keyup — and missing the first one means waiting
+  // for a second interaction that may never come.
+  const GESTURES = ["pointerdown", "pointerup", "touchstart", "touchend",
+                    "click", "keydown", "keyup"];
+
+  const begin = () => {
     if (!armed) return;
     armed = false;
-    for (const ev of ["pointerdown", "touchstart", "keydown"]) {
-      window.removeEventListener(ev, begin);
-    }
-    await sound.enable();
+    for (const ev of GESTURES) window.removeEventListener(ev, begin);
+    sound.enable();
   };
 
   const arm = () => {
+    if (armed) return;
     armed = true;
-    for (const ev of ["pointerdown", "touchstart", "keydown"]) {
-      window.addEventListener(ev, begin, { passive: true });
-    }
+    for (const ev of GESTURES) window.addEventListener(ev, begin, { passive: true });
   };
 
   sound.boot().then((playing) => { if (!playing) arm(); });
+
+  // Coming back to the tab is another chance: a browser that refused on a
+  // cold load will often allow it once the page has been foregrounded.
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && sound.blocked) { sound.enable(); arm(); }
+  });
 
   addEventListener("keydown", (e) => {
     if (e.key === "m" || e.key === "M") sound.toggle();
