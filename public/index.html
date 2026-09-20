@@ -654,17 +654,6 @@ body[data-busy="1"] .pill, body[data-busy="1"] .pin { opacity: .55; }
   #shop .out .short { display: none; }
 }
 
-/* The cut between outside and in. A brand-coloured wipe, long enough to
-   hide the camera being put somewhere else entirely and short enough that
-   it reads as a cut rather than a load. */
-#wipe {
-  position: fixed; inset: 0; z-index: 7;
-  background: #101010;
-  opacity: 0; visibility: hidden;
-  transition: opacity .3s ease;
-  pointer-events: none;
-}
-#wipe[data-on="1"] { opacity: 1; visibility: visible; }
 
 /* The running order down the street. */
 .index {
@@ -827,7 +816,7 @@ body[data-shopping="1"] .sound[data-state="prompt"]::after { animation: none; op
   .panel { transition: none; }
   #shop .skel { animation: none; opacity: .7; }
   #boot .bar i { animation: none; width: 100%; }
-  #shop, #wipe, .index, #shop .cat, .sound .lbl, .index b { transition: none; }
+  #shop, .index, #shop .cat, .sound .lbl, .index b { transition: none; }
 }
 </style>
 </head>
@@ -996,7 +985,6 @@ body[data-shopping="1"] .sound[data-state="prompt"]::after { animation: none; op
   </aside>
 </div>
 
-<div id="wipe"></div>
 
 <!-- ## 05  IMPORT MAP -->
 <script type="importmap">
@@ -8267,17 +8255,18 @@ scene.add(storeRoom.group);
 
 // ── the mode ────────────────────────────────────────────────────────────
 //
-// Entering is a cut, not a walk. The shopfront is glazing, piers and a
-// canopy; flying a camera through it looks like a camera going through a
-// wall, and holding the visitor on a three-second approach to a shop they
-// have already chosen is worse. A brand-coloured wipe covers 300ms, the
-// room is dressed and the camera put in it behind that, and it reads as
-// stepping in. It also gives three.js somewhere to hide the shader
-// recompile the room's lights would otherwise stutter on.
+// Entering is a walk, and so is leaving.
+//
+// It was a cut both ways once, hidden under a 300ms wash of the house's
+// colour, on the reasoning that flying a camera through a shopfront looks
+// like a camera going through a wall. Which it did — until the shopfront
+// got a door that opens and the room behind it got built to be seen
+// through that door. Now the camera squares up, the doors swing, and it
+// walks in; and on the way out it backs through them onto the pavement
+// while they close. There is no wipe left in the file.
 
 storeMode = (() => {
   const shopEl   = document.getElementById("shop");
-  const wipeEl   = document.getElementById("wipe");
   const markEl   = document.getElementById("shop-mark");
   const nameEl   = document.getElementById("shop-name");
   const gridEl   = document.getElementById("shop-grid");
@@ -8446,6 +8435,24 @@ storeMode = (() => {
     walk: [1.05, 2.35],     // through it, and on into the room
     end: 2.35,
   };
+
+  /* And out again.
+   *
+   * Leaving used to be a 330ms wash of the house's colour and a cut — which
+   * was the honest thing to do while there was nothing behind the door, and
+   * stopped being honest the moment the room was built to be walked into.
+   * You arrive on foot and left by teleport.
+   *
+   * Quicker than going in, and deliberately: an arrival is worth two and a
+   * third seconds because there is something to look at on the way, and a
+   * departure is a thing you have already decided on.
+   */
+  const SEQ_OUT = {
+    back: [0.00, 0.95],     // out of the room to the threshold
+    street: [0.75, 1.95],   // through the doorway and onto the pavement
+    doors: [1.10, 1.85],    // the leaves swing shut behind
+    end: 1.95,
+  };
   let seq = null;
 
   /**
@@ -8490,6 +8497,40 @@ storeMode = (() => {
     });
   }
 
+  /**
+   * Starts the walk out of house `i`. Resolves back on the pavement.
+   *
+   * The target is not "outside the door" but the exact point the scroll
+   * path will put the camera at once it takes over again — otherwise the
+   * last frame of the walk and the first frame of the street are two
+   * different places and the handover is a jump.
+   */
+  function walkOut(i, instant) {
+    const m = monoliths[i];
+    m.group.updateMatrixWorld(true);
+    const at = (x, y, z) => new THREE.Vector3(x, y, z).applyMatrix4(m.group.matrixWorld);
+
+    const max = document.documentElement.scrollHeight - innerHeight;
+    const p = max > 0 ? clamp(savedScroll / max, 0, 1) : 0;
+    const street = new THREE.Vector3(), streetLook = new THREE.Vector3();
+    PATH.getPointAt(p, street);
+    LOOK.getPointAt(p, streetLook);
+
+    return new Promise((resolve) => {
+      seq = {
+        out: true, house: i, resolve, creaked: false, landed: false,
+        start: performance.now() - (instant || QUALITY.still ? SEQ_OUT.end * 1000 : 0),
+        from: camera.position.clone(),
+        fromLook: camLook.clone(),
+        thresh: at(0, 1.9, -0.45),
+        // Ahead and out, so the turn happens while still moving rather
+        // than as a pivot on the pavement.
+        door: at(0, 2.05, 6.0),
+        street, streetLook,
+      };
+    });
+  }
+
   /** One frame of it. True while the walk still owns the camera. */
   function stepSeq(dt, outPos, outLook) {
     if (!seq) return false;
@@ -8498,6 +8539,29 @@ storeMode = (() => {
       const x = clamp((T - a) / (b - a), 0, 1);
       return x * x * (3 - 2 * x);
     };
+
+    if (seq.out) {
+      if (T < SEQ_OUT.street[0]) {
+        outPos.lerpVectors(seq.from, seq.thresh, ramp(SEQ_OUT.back[0], SEQ_OUT.back[1]));
+      } else {
+        outPos.lerpVectors(seq.thresh, seq.street, ramp(SEQ_OUT.street[0], SEQ_OUT.street[1]));
+      }
+      outLook.lerpVectors(seq.fromLook, seq.door, ramp(SEQ_OUT.back[0], SEQ_OUT.back[1]));
+      outLook.lerp(seq.streetLook, ramp(SEQ_OUT.street[0], SEQ_OUT.street[1]));
+
+      doors.set(seq.house, 1 - ramp(SEQ_OUT.doors[0], SEQ_OUT.doors[1]));
+      // And the street's own light comes back up as the room's falls away.
+      indoor = 1 - ramp(SEQ_OUT.back[1] - 0.3, SEQ_OUT.street[1] - 0.15);
+      if (!seq.creaked && T >= SEQ_OUT.doors[0]) {
+        seq.creaked = true;
+        sound.door();
+      }
+
+      curPos.copy(outPos);
+      curLook.copy(outLook);
+      if (T >= SEQ_OUT.end && !seq.landed) { seq.landed = true; seq.resolve(); }
+      return true;
+    }
 
     if (T < SEQ.walk[0]) outPos.lerpVectors(seq.from, seq.stand, ramp(SEQ.turn[0], SEQ.turn[1]));
     else outPos.lerpVectors(seq.stand, seq.into, ramp(SEQ.walk[0], SEQ.walk[1]));
@@ -9267,19 +9331,31 @@ storeMode = (() => {
     if (busy || !active) return;
     busy = true;
     if (!opts.quiet) urlLeave();
-    wipeEl.dataset.on = "1";
-    await wait(330);
 
+    const i = house;
+
+    /* The overlay goes first, and `active` with it.
+     *
+     * Dropping `active` here is what hands the camera to the sequence
+     * branch in `aim`; `walkOut` sets `seq` synchronously in the same task,
+     * so `controlling` never goes false in between and the scroll path
+     * never gets a frame to snap the camera back with.
+     */
     active = false;
-    seq = null;
     hover = null;
     clearFocus();
-    outsideInert(false);
-    canvasEl.setAttribute("aria-label", "A street of fifteen shopfronts, seen in 3D");
-    doors.set(house, 0);
-    doorBacks.show(house);
     shopEl.dataset.on = "0";
     shopEl.setAttribute("aria-hidden", "true");
+    outsideInert(false);
+    canvasEl.setAttribute("aria-label", "A street of fifteen shopfronts, seen in 3D");
+
+    await walkOut(i);
+
+    // Only now: the doors are shut, so putting the lit panel back behind
+    // them and taking the room away is not something anybody can see.
+    seq = null;
+    doors.set(i, 0);
+    doorBacks.show(i);
     storeRoom.group.visible = false;
     lightsOff();
     house = -1;
@@ -9308,9 +9384,6 @@ storeMode = (() => {
     }
     readScroll();
     scrollEased = scrollTarget;
-
-    await wait(120);
-    wipeEl.dataset.on = "0";
     busy = false;
   }
 
