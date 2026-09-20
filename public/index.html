@@ -6919,28 +6919,46 @@ window.DD = { THREE, scene, camera, renderer, composer, C, BRANDS, PATH, LOOK,
 // interpolated, so the transition through dawn and dusk is continuous
 // rather than a set of four presets.
 
+/* The `inn` column is half what it was after dark.
+ *
+ * Measured, because it was not obvious from looking at the street: eight
+ * metres from a shopfront at half past ten, a 96-pixel patch at the centre
+ * of the frame averaged 156 of 255. The same spot at one in the afternoon
+ * averaged 22. Night was seven times brighter than noon.
+ *
+ * Turning the shopfront interiors off entirely took that 156 to 2.3, so
+ * essentially every photon in the frame was coming from them; bloom was
+ * responsible for a third of what was left. At 3.5 the emissive saturates
+ * through the tone mapping and the picture desaturates with it — measured
+ * mean saturation went from 0.33 at 3.54 to 0.44 at 1.8, which is the
+ * milky cream wash over the whole street, the umbrellas, the paving and
+ * the flowers.
+ *
+ * Halved, a lit shop at night still reads as the brightest thing in a dark
+ * street, and everything around it keeps its colour.
+ */
 const TIMELINE = [
   // h    elev  sunCol    sunI  hemiSky   hemiGnd   hemiI  zenith    horizon   under     fog       fogD    exp   inner sign bloom night
   { h: 0.0,  el: -32, sc: 0x9fb4e8, si: 0.16, hs: 0x3a5a94, hg: 0x4a3a28, hi: 1.25,
-    zen: 0x030714, hor: 0x0d1930, und: 0x060b16, fog: 0x0e1a2f, fd: 0.0098, ex: 1.45, inn: 3.6, sg: 0.95, bl: 0.46, ni: 1.0 },
+    zen: 0x030714, hor: 0x0d1930, und: 0x060b16, fog: 0x0e1a2f, fd: 0.0098, ex: 1.45, inn: 1.85, sg: 0.95, bl: 0.46, ni: 1.0 },
   { h: 4.6,  el: -14, sc: 0xa8b6e0, si: 0.22, hs: 0x3f5f96, hg: 0x4a3c2c, hi: 1.20,
-    zen: 0x061027, hor: 0x1d2a49, und: 0x0c1220, fog: 0x18253c, fd: 0.0092, ex: 1.40, inn: 3.4, sg: 0.88, bl: 0.46, ni: 0.92 },
+    zen: 0x061027, hor: 0x1d2a49, und: 0x0c1220, fog: 0x18253c, fd: 0.0092, ex: 1.40, inn: 1.75, sg: 0.88, bl: 0.46, ni: 0.92 },
   { h: 6.2,  el: 2,   sc: 0xff9358, si: 1.05, hs: 0x5b6a96, hg: 0x35302f, hi: 0.62,
-    zen: 0x123059, hor: 0xd08a63, und: 0x3a3238, fog: 0x8e7a73, fd: 0.0078, ex: 1.12, inn: 1.5, sg: 0.45, bl: 0.50, ni: 0.35 },
+    zen: 0x123059, hor: 0xd08a63, und: 0x3a3238, fog: 0x8e7a73, fd: 0.0078, ex: 1.12, inn: 1.05, sg: 0.45, bl: 0.50, ni: 0.35 },
   { h: 8.0,  el: 24,  sc: 0xffd6a8, si: 2.10, hs: 0x9dc2e6, hg: 0xa79a82, hi: 0.82,
-    zen: 0x1a5cb4, hor: 0xcfdcea, und: 0x9fb0be, fog: 0xc2d2e2, fd: 0.0060, ex: 1.02, inn: 0.75, sg: 0.10, bl: 0.48, ni: 0.0 },
+    zen: 0x1a5cb4, hor: 0xcfdcea, und: 0x9fb0be, fog: 0xc2d2e2, fd: 0.0060, ex: 1.02, inn: 0.68, sg: 0.10, bl: 0.48, ni: 0.0 },
   { h: 12.0, el: 66,  sc: 0xfff2da, si: 2.70, hs: 0xbdddf5, hg: 0xc6b79a, hi: 0.98,
     zen: 0x0b4fbe, hor: 0xa8d2ee, und: 0x9fb9c9, fog: 0xb7d6ea, fd: 0.0052, ex: 0.98, inn: 0.50, sg: 0.0, bl: 0.42, ni: 0.0 },
   { h: 16.0, el: 30,  sc: 0xffe0b4, si: 2.25, hs: 0xb2d2ee, hg: 0xc4b195, hi: 0.88,
     zen: 0x1050b2, hor: 0xbcd6ec, und: 0x9db2c2, fog: 0xbdd2e4, fd: 0.0056, ex: 1.00, inn: 0.62, sg: 0.05, bl: 0.46, ni: 0.0 },
   { h: 18.6, el: 5,   sc: 0xff8446, si: 1.25, hs: 0x6b6a94, hg: 0x3d3430, hi: 0.66,
-    zen: 0x17356b, hor: 0xe08a52, und: 0x46383a, fog: 0xa07863, fd: 0.0074, ex: 1.10, inn: 1.4, sg: 0.40, bl: 0.50, ni: 0.28 },
+    zen: 0x17356b, hor: 0xe08a52, und: 0x46383a, fog: 0xa07863, fd: 0.0074, ex: 1.10, inn: 1.00, sg: 0.40, bl: 0.50, ni: 0.28 },
   { h: 19.8, el: -7,  sc: 0xc06a7a, si: 0.45, hs: 0x50609a, hg: 0x4e3e2e, hi: 1.00,
-    zen: 0x0a1736, hor: 0x5e3f57, und: 0x1e1c2a, fog: 0x3c3350, fd: 0.0086, ex: 1.32, inn: 3.0, sg: 0.72, bl: 0.48, ni: 0.72 },
+    zen: 0x0a1736, hor: 0x5e3f57, und: 0x1e1c2a, fog: 0x3c3350, fd: 0.0086, ex: 1.32, inn: 1.55, sg: 0.72, bl: 0.48, ni: 0.72 },
   { h: 21.5, el: -22, sc: 0x9fb4e8, si: 0.17, hs: 0x3c5c95, hg: 0x4a3a2a, hi: 1.22,
-    zen: 0x040917, hor: 0x101d36, und: 0x080d1a, fog: 0x111d33, fd: 0.0095, ex: 1.43, inn: 3.5, sg: 0.92, bl: 0.46, ni: 0.96 },
+    zen: 0x040917, hor: 0x101d36, und: 0x080d1a, fog: 0x111d33, fd: 0.0095, ex: 1.43, inn: 1.80, sg: 0.92, bl: 0.46, ni: 0.96 },
   { h: 24.0, el: -32, sc: 0x9fb4e8, si: 0.16, hs: 0x3a5a94, hg: 0x4a3a28, hi: 1.25,
-    zen: 0x030714, hor: 0x0d1930, und: 0x060b16, fog: 0x0e1a2f, fd: 0.0098, ex: 1.45, inn: 3.6, sg: 0.95, bl: 0.46, ni: 1.0 },
+    zen: 0x030714, hor: 0x0d1930, und: 0x060b16, fog: 0x0e1a2f, fd: 0.0098, ex: 1.45, inn: 1.85, sg: 0.95, bl: 0.46, ni: 1.0 },
 ];
 
 // Declared above applyTimeOfDay, which writes to it and is called during
