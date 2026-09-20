@@ -507,14 +507,17 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
      grid below is always taller than the space it has, so a shrinkable
      chip row was being crushed to half a line of type. */
   flex: 0 0 auto;
-  display: flex; align-items: center; gap: .35rem; margin: 0;
+  /* Wrapping, not scrolling sideways. This was a horizontal scroller with
+     its scrollbar hidden and no fade at the edge, so a house with four
+     sections showed three and a half of them and nothing said the rest
+     were there. Two lines of chips cost twenty pixels of shelf and hide
+     nothing. */
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: .35rem; margin: 0;
   padding: .6rem .7rem;
   border-bottom: 1px solid var(--rule);
-  overflow-x: auto; scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
   background: var(--paper);
 }
-#shop .cats::-webkit-scrollbar { display: none; }
 #shop .cat {
   flex: none; border: 1px solid var(--rule-strong);
   background: var(--paper); color: var(--ink-dim);
@@ -7089,10 +7092,12 @@ const storeRoom = (() => {
   kit("vault", (g) => {
     const metal = [], glass = [], glow = [];
     for (const sx of [-1, 1]) {
-      metal.push(box(2.9, 0.82, 1.15, sx * 3.7, 0.41, -6.4));
-      metal.push(box(3.0, 0.07, 1.25, sx * 3.7, 0.86, -6.4));
-      glass.push(box(2.9, 0.85, 1.15, sx * 3.7, 1.32, -6.4));
-      glow.push(box(2.5, 0.04, 0.9, sx * 3.7, 1.72, -6.4));
+      // Ten centimetres lower than they were, which is what it takes to
+      // clear the side walls' row of stock at 1.72.
+      metal.push(box(2.9, 0.82, 1.15, sx * 3.7, 0.35, -6.4));
+      metal.push(box(3.0, 0.07, 1.25, sx * 3.7, 0.80, -6.4));
+      glass.push(box(2.9, 0.85, 1.15, sx * 3.7, 1.22, -6.4));
+      glow.push(box(2.5, 0.04, 0.9, sx * 3.7, 1.62, -6.4));
     }
     for (let i = 0; i < 17; i++) {
       const x = -ROOM.w / 2 + 0.8 + i * ((ROOM.w - 1.6) / 16);
@@ -7110,12 +7115,15 @@ const storeRoom = (() => {
     }
     wood.push(box(ROOM.w * 0.56, 0.05, 4.4, 0, 0.04, midZ + 0.6));
     for (const sx of [-1, 1]) {
-      const x = sx * 3.9;
-      steel.push(tube(0.045, 2.05, x - 1.6, 1.02, -8.4, "y"));
-      steel.push(tube(0.045, 2.05, x + 1.6, 1.02, -8.4, "y"));
-      steel.push(tube(0.035, 3.2, x, 2.0, -8.4, "x"));
+      // Two metres of hanging rail in the middle of the room is two metres
+      // of hanging rail in front of both side walls. It stands by the door
+      // instead, which is where a shop puts its new season anyway.
+      const x = sx * 3.9, rz = -4.3;
+      steel.push(tube(0.045, 2.05, x - 1.6, 1.02, rz, "y"));
+      steel.push(tube(0.045, 2.05, x + 1.6, 1.02, rz, "y"));
+      steel.push(tube(0.035, 3.2, x, 2.0, rz, "x"));
       for (let k = 0; k < 7; k++) {
-        wood.push(box(0.5, 1.1, 0.13, x - 1.35 + k * 0.45, 1.35, -8.4));
+        wood.push(box(0.5, 1.1, 0.13, x - 1.35 + k * 0.45, 1.35, rz));
       }
     }
     glow.push(box(ROOM.w - 2.4, 0.07, 0.3, 0, ROOM.h - 0.34, ROOM.front - 1.3));
@@ -7159,17 +7167,30 @@ const storeRoom = (() => {
   // Raw: scaffold rails, painted floor markings, clamp lamps.
   kit("works", (g) => {
     const pipe = [], paint = [], glow = [];
+    /* This kit was the one that broke the side bays.
+     *
+     * Two full-height uprights at z -5.6 and -10.6, two rails at eye
+     * height running the whole length between them, and six boards at 1.6
+     * — all of it standing in the middle of the room, which is exactly
+     * where you have to look through to see a side wall. Godspeed's
+     * trousers had a pipe down the middle of them.
+     *
+     * The uprights are by the door now, behind where the camera stands for
+     * the back wall and in front of where it stands for the sides. The
+     * rails run up at the ceiling where scaffold rails belong anyway. And
+     * the boards sit low, under the 1.7 that the side rows start at.
+     */
     for (const sx of [-1, 1]) {
       const x = sx * 4.3;
-      pipe.push(tube(0.06, ROOM.h, x, ROOM.h / 2, -5.6, "y"));
-      pipe.push(tube(0.06, ROOM.h, x, ROOM.h / 2, -10.6, "y"));
-      pipe.push(tube(0.055, 5.0, x, 2.25, -8.1, "z"));
-      pipe.push(tube(0.055, 5.0, x, 3.7, -8.1, "z"));
+      pipe.push(tube(0.06, ROOM.h, x, ROOM.h / 2, -4.2, "y"));
+      pipe.push(tube(0.06, ROOM.h, x, ROOM.h / 2, -3.4, "y"));
+      pipe.push(tube(0.055, 8.4, x, 5.05, -8.1, "z"));
+      pipe.push(tube(0.055, 8.4, x, 5.30, -8.1, "z"));
       for (let k = 0; k < 6; k++) {
-        paint.push(box(0.46, 1.05, 0.12, x - sx * 0.3, 1.62, -6.2 - k * 0.8));
+        paint.push(box(0.46, 1.05, 0.12, x - sx * 0.3, 0.85, -6.2 - k * 0.8));
       }
-      pipe.push(tube(0.05, 0.5, x, 4.5, -7.2, "y"));
-      glow.push(box(0.3, 0.16, 0.3, x, 4.2, -7.2));
+      pipe.push(tube(0.05, 0.5, x, 4.5, -4.2, "y"));
+      glow.push(box(0.3, 0.16, 0.3, x, 4.2, -4.2));
     }
     for (let i = 0; i < 4; i++) {
       paint.push(box(ROOM.w - 2.2, 0.02, 0.16, 0, 0.02, -4.6 - i * 2.4));
@@ -7243,7 +7264,7 @@ const storeRoom = (() => {
   // It sat across the stock, and every shop opened on its own name half
   // hidden behind a T-shirt — and then again above the section sign, which
   // it was hiding entirely, being a tenth of a metre in front of it.
-  markMesh.position.set(0, 4.98, ROOM_BACK + 0.40);
+  markMesh.position.set(0, 5.04, ROOM_BACK + 0.40);
   group.add(markMesh);
 
   // ── the stock on the walls ─────────────────────────────────────────────
@@ -7275,19 +7296,31 @@ const storeRoom = (() => {
   // Dropped twice now. The back wall has to carry two rows of stock, a
   // section sign and the house's own mark between the floor and a cove at
   // 5.41, and the sign is the piece that arrived last.
-  const ROWS = [2.86, 1.06];
+  const ROWS = [2.92, 1.20];
   // The shelf takes a third of a landscape window, so the back wall no
   // longer has the width for four across unless the window is genuinely
   // wide.
   const BACK_COLS = ROOM_PORTRAIT ? [-2.05, 2.05]
                   : innerWidth >= 1240 ? [-3.5, 0, 3.5]
                   : [-2.4, 2.4];
-  // A phone gets one row on the side bays. Two would be four pieces seen
-  // through a thirty-four degree wedge, which is two pieces and two edges.
-  const SIDE_ROWS = ROOM_PORTRAIT ? [2.42] : ROWS;
-  const SIDE_COLS = [-1.09, 1.09];
-  const SIDE_AT = [-6.15, -10.45];
-  const SIGN_Y = 4.21;
+  /* One row on the side walls, at eye height, and one bay per wall.
+   *
+   * Both of those are the same lesson. A side bay is looked at from right
+   * across the room — there is no other way to get far enough back from
+   * four metres of wall — so anything standing in the middle of the room
+   * is between you and the stock. Godspeed's scaffold pipes went straight
+   * through its trousers.
+   *
+   * A single row starting at 1.7 clears every counter, plinth, vitrine and
+   * table in all five kits, which is most of what was in the way. And one
+   * bay per wall rather than two leaves a band of floor the fixtures can
+   * stand in without crossing anybody's view of anything. What was left
+   * after that was four pipes and a rack, and those moved.
+   */
+  const SIDE_ROWS = [2.62];
+  const SIDE_COLS = ROOM_PORTRAIT ? [-1.06, 1.06] : [-2.12, 0, 2.12];
+  const SIDE_AT = -8.4;
+  const SIGN_Y = 4.30;
 
   /* The icons.
    *
@@ -7408,6 +7441,15 @@ const storeRoom = (() => {
     }
   }
 
+  /* The lit surface itself. Deliberately not tinted with the house: these
+   * are photographs on white, and a white case is what makes them sit on
+   * the wall instead of in a frame. */
+  let signInk = "#111111", signPaper = "#ffffff";
+
+  const caseMat = new THREE.MeshStandardMaterial({
+    color: 0xf7f6f3, emissive: 0xffffff, emissiveIntensity: 0.30, roughness: 0.86,
+  });
+
   const SIGN_W = 512, SIGN_H = 128;
 
   /**
@@ -7420,16 +7462,13 @@ const storeRoom = (() => {
    */
   function makeBay(kind, sx, zc) {
     const back = kind === "back";
+    const cols = back ? BACK_COLS : SIDE_COLS;
+    const rows = back ? ROWS : SIDE_ROWS;
     const slots = [];
-    if (back) {
-      for (const y of ROWS) {
-        for (const x of BACK_COLS) slots.push({ x, y, z: ROOM_BACK + OFF, ry: 0 });
-      }
-    } else {
-      for (const y of SIDE_ROWS) {
-        for (const d of SIDE_COLS) {
-          slots.push({ x: sx * WALL_X, y, z: zc + d, ry: sx > 0 ? -Math.PI / 2 : Math.PI / 2 });
-        }
+    for (const y of rows) {
+      for (const c of cols) {
+        if (back) slots.push({ x: c, y, z: ROOM_BACK + OFF, ry: 0 });
+        else slots.push({ x: sx * WALL_X, y, z: zc + c, ry: sx > 0 ? -Math.PI / 2 : Math.PI / 2 });
       }
     }
 
@@ -7445,7 +7484,7 @@ const storeRoom = (() => {
       map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.45,
       transparent: true, side: THREE.DoubleSide, roughness: 0.6,
     });
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.65), signMat);
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.55), signMat);
     /* Flat on the wall, over its own section.
      *
      * These were blades first — standing off the wall facing the door, so
@@ -7456,9 +7495,9 @@ const storeRoom = (() => {
      * naming. The lit band on the floor is what carries a section across
      * the room.
      */
-    if (back) sign.position.set(0, SIGN_Y, ROOM_BACK + OFF + 0.02);
+    if (back) sign.position.set(0, SIGN_Y, ROOM_BACK + OFF + 0.03);
     else {
-      sign.position.set(sx * (WALL_X - 0.03), SIGN_Y, zc);
+      sign.position.set(sx * (WALL_X - 0.04), SIGN_Y - 0.26, zc);
       sign.rotation.y = sx > 0 ? -Math.PI / 2 : Math.PI / 2;
     }
     group.add(sign);
@@ -7474,37 +7513,86 @@ const storeRoom = (() => {
     const glowMat = new THREE.MeshStandardMaterial({
       color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 1.5, roughness: 0.5,
     });
-    /* On the plinth, not on the floor.
+    /* One lit case per section, not a row of separate screens.
+     *
+     * Each piece used to hang in its own framed box, which made a wall of
+     * television sets: twelve hard rectangles with a garment cropped to
+     * fill each one. A shop does the opposite — one lit surface with the
+     * stock spaced out on it — and it happens that these photographs are
+     * shot on white, so laid whole on a white lightbox they read as
+     * garments on a wall rather than as pictures of garments.
+     *
+     * Which is also why the art is scaled to its own picture now instead
+     * of being cropped to a fixed box. Nothing is cut off and nothing has
+     * an edge.
+     */
+    const spanX = (cols[cols.length - 1] - cols[0]) + PANEL.w;
+    const spanY = (rows[0] - rows[rows.length - 1]) + PANEL.h;
+    const midY = (rows[0] + rows[rows.length - 1]) / 2;
+    const PAD = 0.20;
+    const caseW = spanX + PAD * 2, caseH = spanY + PAD * 2;
+
+    const surround = new THREE.Mesh(
+      back ? new THREE.BoxGeometry(caseW + 0.26, caseH + 0.26, 0.16)
+           : new THREE.BoxGeometry(0.16, caseH + 0.26, caseW + 0.26), matTrim);
+    const lit = new THREE.Mesh(
+      back ? new THREE.BoxGeometry(caseW, caseH, 0.06)
+           : new THREE.BoxGeometry(0.06, caseH, caseW), caseMat);
+
+    // The dividers, one between each pair, so the run still reads as slots.
+    const splits = [];
+    for (let i = 1; i < cols.length; i++) {
+      const at = (cols[i] + cols[i - 1]) / 2;
+      const d = new THREE.Mesh(
+        back ? new THREE.BoxGeometry(0.05, caseH - 0.1, 0.07)
+             : new THREE.BoxGeometry(0.07, caseH - 0.1, 0.05), matTrim);
+      if (back) d.position.set(at, midY, ROOM_BACK + OFF - 0.02);
+      else d.position.set(sx * (WALL_X + 0.02), midY, zc + at);
+      splits.push(d);
+    }
+
+    if (back) {
+      surround.position.set(0, midY, ROOM_BACK + OFF - 0.14);
+      lit.position.set(0, midY, ROOM_BACK + OFF - 0.05);
+    } else {
+      surround.position.set(sx * (WALL_X + 0.14), midY, zc);
+      lit.position.set(sx * (WALL_X + 0.05), midY, zc);
+    }
+    const disp = new THREE.Group();
+    disp.add(surround, lit, ...splits);
+    group.add(disp);
+
+    /* And the section light, on the plinth under it.
      *
      * A lit band laid on the floor in front of each bay is the obvious
      * place for it and it cannot be seen: the room has a shading plane
      * across its whole floor, and a strip fifteen millimetres above the
      * slab disappears into it whatever its brightness — six times the
-     * emissive made no difference at all. Up on the wall under the stock
-     * it reads immediately, and it is what a shop would have anyway.
+     * emissive made no difference at all. Under the stock it reads
+     * immediately, and it is where a shop would put it anyway.
      */
     const glow = new THREE.Group();
-    const L = 4.7, W = 6.8;
+    const runL = caseW + 0.26;
     const housing = new THREE.Mesh(
-      back ? new THREE.BoxGeometry(W, 0.15, 0.13)
-           : new THREE.BoxGeometry(0.13, 0.15, L), matTrim);
+      back ? new THREE.BoxGeometry(runL, 0.15, 0.13)
+           : new THREE.BoxGeometry(0.13, 0.15, runL), matTrim);
     const strip = new THREE.Mesh(
-      back ? new THREE.BoxGeometry(W - 0.22, 0.09, 0.10)
-           : new THREE.BoxGeometry(0.10, 0.09, L - 0.22), glowMat);
+      back ? new THREE.BoxGeometry(runL - 0.22, 0.09, 0.10)
+           : new THREE.BoxGeometry(0.10, 0.09, runL - 0.22), glowMat);
     if (back) strip.position.z = 0.07;
     else strip.position.x = -sx * 0.07;
     glow.add(housing, strip);
-    glow.position.set(back ? 0 : sx * (ROOM.w / 2 - 0.09), 0.42,
+    glow.position.set(back ? 0 : sx * (ROOM.w / 2 - 0.09),
+                      midY - caseH / 2 - 0.22,
                       back ? ROOM_BACK + 0.09 : zc);
     group.add(glow);
 
     return {
-      kind, slots, sign, signMat, glow, glowMat, canvas, tex,
+      kind, slots, sign, signMat, glow, glowMat, canvas, tex, disp,
       panels: [],
-      half: back ? Math.abs(BACK_COLS[0]) + PANEL.w / 2
-                 : Math.abs(SIDE_COLS[0]) + PANEL.w / 2,
-      maxBack: back ? ROOM.d - 2.2 : ROOM.w - 2.6,
-      at: new THREE.Vector3(back ? 0 : sx * WALL_X, 2.25, back ? ROOM_BACK : zc),
+      half: caseW / 2,
+      maxBack: back ? ROOM.d - 1.6 : ROOM.w - 2.6,
+      at: new THREE.Vector3(back ? 0 : sx * WALL_X, midY + 0.05, back ? ROOM_BACK : zc),
       normal: new THREE.Vector3(back ? 0 : -sx, 0, back ? 1 : 0),
       tangent: new THREE.Vector3(back ? 1 : 0, 0, back ? 0 : (sx > 0 ? 1 : -1)),
       cat: null,
@@ -7513,10 +7601,8 @@ const storeRoom = (() => {
 
   const bays = [
     makeBay("back", 0, 0),
-    makeBay("side", -1, SIDE_AT[0]),
-    makeBay("side",  1, SIDE_AT[0]),
-    makeBay("side", -1, SIDE_AT[1]),
-    makeBay("side",  1, SIDE_AT[1]),
+    makeBay("side", -1, SIDE_AT),
+    makeBay("side",  1, SIDE_AT),
   ];
 
   /** Paints a bay's sign: icon, section name, and how many are in it. */
@@ -7575,7 +7661,6 @@ const storeRoom = (() => {
     loader.load(it.image, (tex) => {
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.anisotropy = 8;
-      cover(tex, tex.image.width, tex.image.height);
       if (texCache.size >= CACHE_MAX) {
         const oldest = texCache.keys().next().value;
         texCache.get(oldest).dispose();
@@ -7606,12 +7691,6 @@ const storeRoom = (() => {
       ring.visible = false;
       g.add(ring);
 
-      const frame = new THREE.Mesh(
-        new THREE.BoxGeometry(PANEL.w + 0.22, PANEL.h + 0.22, 0.1), matTrim);
-      frame.position.z = -0.05;
-      frame.castShadow = true;
-      g.add(frame);
-
       // Lit mostly by itself.
       //
       // A photograph of a garment hanging in a room lit by a warm gold lamp
@@ -7624,7 +7703,7 @@ const storeRoom = (() => {
         emissive: 0xffffff, emissiveIntensity: 0.82,
       });
       const art = new THREE.Mesh(new THREE.PlaneGeometry(PANEL.w, PANEL.h), mat);
-      art.position.z = 0.012;
+      art.position.z = 0.03;
       g.add(art);
 
       group.add(g);
@@ -7640,11 +7719,20 @@ const storeRoom = (() => {
     }
   }
 
-  /** Fits a loaded image into a panel the way `object-fit: cover` would. */
-  function cover(tex, iw, ih) {
-    const ia = iw / ih, pa = PANEL.w / PANEL.h;
-    if (ia > pa) { tex.repeat.set(pa / ia, 1); tex.offset.set((1 - pa / ia) / 2, 0); }
-    else { tex.repeat.set(1, ia / pa); tex.offset.set(0, (1 - ia / pa) / 2); }
+  /**
+   * Sizes a panel to its own picture, the way `object-fit: contain` would.
+   *
+   * The texture is left alone — it is shared between panels and cropping it
+   * there would crop it everywhere. The mesh is scaled instead, so the
+   * picture is shown whole at its own proportions and there is no letterbox
+   * around it to give the thing an edge.
+   */
+  function fitArt(pn, tex) {
+    const im = tex && tex.image;
+    if (!im || !im.width) { pn.art.scale.set(1, 1, 1); return; }
+    const ia = im.width / im.height, pa = PANEL.w / PANEL.h;
+    if (ia > pa) pn.art.scale.set(1, pa / ia, 1);
+    else pn.art.scale.set(ia / pa, 1, 1);
   }
 
   /* The label on the open piece.
@@ -7763,22 +7851,24 @@ const storeRoom = (() => {
      * twenty-three says so rather than pretending.
      */
     layout(sections, brand) {
-      const ink = brand.ink || "#111111";
-      const paper = brand.bg[1] || "#ffffff";
+      signInk = brand.ink || "#111111";
+      signPaper = brand.bg[1] || "#ffffff";
       bays.forEach((bay, i) => {
-        const sec = sections[i] || null;
-        bay.cat = sec ? sec.key : null;
-        bay.spare = sec ? sec.spare : null;
-        bay.items = sec ? sec.items : [];
-        bay.total = sec ? sec.items.length : 0;
-        bay.page = 0;
-        const live = !!sec;
-        bay.sign.visible = live;
-        bay.glow.visible = live;
-        if (live) paintSign(bay, sec.label, sec.key, sec.items.length, ink, paper);
-        hangBay(bay);
+        bay.base = sections[i] || null;
+        dressBay(bay, bay.base);
       });
     },
+
+    /**
+     * Points a bay at a section it is only standing in for.
+     *
+     * With three bays and four sections one of them holds the tail, and
+     * asking for Hoodies used to walk you to a case marked "More" with
+     * hoodies and trousers mixed on it. It takes the name and the icon of
+     * whatever you asked for while you are there, and goes back to being
+     * "More" when you step away.
+     */
+    borrow(bay, sec) { dressBay(bay, sec || bay.base); },
 
     /** Puts a bay's current page on its wall. */
     show(bay, page) {
@@ -7830,6 +7920,20 @@ const storeRoom = (() => {
     },
   };
 
+  /** Sets a bay to a section: its sign, its light and its stock. */
+  function dressBay(bay, sec) {
+    bay.cat = sec ? sec.key : null;
+    bay.spare = sec ? sec.spare : null;
+    bay.items = sec ? sec.items : [];
+    bay.total = sec ? sec.items.length : 0;
+    bay.page = 0;
+    bay.sign.visible = !!sec;
+    bay.glow.visible = !!sec;
+    bay.disp.visible = !!sec;
+    if (sec) paintSign(bay, sec.label, sec.key, sec.items.length, signInk, signPaper);
+    hangBay(bay);
+  }
+
   /** Hangs one bay's page, keeping each panel's picture until the next decodes. */
   function hangBay(bay) {
     const n = bay.panels.length;
@@ -7845,11 +7949,13 @@ const storeRoom = (() => {
           pn.mat.map = pn.mat.emissiveMap = null;
           pn.mat.color.set(0x8f8f8f);
           pn.mat.emissiveIntensity = 0;
+          pn.art.scale.set(1, 1, 1);
         } else {
           pn.mat.map = tex;
           pn.mat.emissiveMap = tex;
           pn.mat.color.set(0x5e5e5e);
           pn.mat.emissiveIntensity = 0.82;
+          fitArt(pn, tex);
         }
         pn.mat.needsUpdate = true;
       });
@@ -8064,10 +8170,11 @@ storeMode = (() => {
 
     const vHalf = camera.fov * Math.PI / 360;
     const hHalf = Math.atan(Math.tan(vHalf) * camera.aspect);
-    // Half a metre of margin was not enough: on a window where the shelf
-    // takes a third, a two-panel bay came right up to the edge of the gap
-    // and the outer frame was cut off by it.
-    const want = (bay.half + 0.95) / (Math.tan(hHalf) * availW);
+    // `half` is the case, surround and all, and the margin is what keeps
+    // its outer edge off the edge of the gap the shelf leaves. On a narrow
+    // landscape window there is not enough room to hold all of it, and
+    // what gives is the surround rather than the stock.
+    const want = (bay.half + 0.6) / (Math.tan(hHalf) * availW);
     const dist = clamp(want, 4.2, bay.maxBack);
 
     const visibleW = 2 * dist * Math.tan(hHalf);
@@ -8229,12 +8336,16 @@ storeMode = (() => {
   /**
    * Cuts the house into sections and gives each one a bay.
    *
-   * Biggest first, because the back wall is what you are looking at when
-   * you walk in and it should have the thing the house is known for on it.
-   * After that they run in the canonical order so every shop reads the
-   * same way round. There are five bays; a house with more categories than
-   * that folds the tail into one marked "More", which is rare and is still
-   * better than a section with nowhere to be.
+   * Shirts on the back wall wherever a house has them, because that is
+   * what you are facing when you walk in and it is what people came for.
+   * Chrome Hearts has thirty-two accessories against twenty shirts, so
+   * ranking by count opened it on a wall of socks. Without shirts the
+   * biggest section takes the wall instead.
+   *
+   * After the hero they run in the canonical order, so every shop reads
+   * the same way round. There are three bays; a house with more sections
+   * than that folds the tail into one marked "More", which is one house in
+   * fifteen and is still better than a section with nowhere to be.
    */
   function sectionsOf() {
     const counts = new Map();
@@ -8246,20 +8357,20 @@ storeMode = (() => {
     const label = (c) => (stock.find((it) => it.cat === c) || {}).catName || c;
     const of = (c) => stock.filter((it) => it.cat === c);
 
+    const ranked = present.slice().sort((a, b) => counts.get(b) - counts.get(a));
+    const hero = present.includes("shirts") ? "shirts" : ranked[0];
+
     if (present.length <= BAYS) {
-      const hero = present.slice().sort((a, b) => counts.get(b) - counts.get(a))[0];
-      const rest = present.filter((c) => c !== hero);
+      const rest = CAT_ORDER.filter((c) => present.includes(c) && c !== hero);
       return [hero, ...rest].map((c) => ({ key: c, label: label(c), items: of(c) }));
     }
 
-    const ranked = present.slice().sort((a, b) => counts.get(b) - counts.get(a));
-    const keep = ranked.slice(0, BAYS - 1);
+    const keep = [hero, ...ranked.filter((c) => c !== hero)].slice(0, BAYS - 1);
     const spare = present.filter((c) => !keep.includes(c));
-    const ordered = CAT_ORDER.filter((c) => keep.includes(c));
-    const hero = ranked[0];
+    const ordered = CAT_ORDER.filter((c) => keep.includes(c) && c !== hero);
     return [
       { key: hero, label: label(hero), items: of(hero) },
-      ...ordered.filter((c) => c !== hero).map((c) => ({ key: c, label: label(c), items: of(c) })),
+      ...ordered.map((c) => ({ key: c, label: label(c), items: of(c) })),
       { key: "other", label: "More", items: stock.filter((it) => spare.includes(it.cat)), spare },
     ];
   }
@@ -8341,12 +8452,24 @@ storeMode = (() => {
     clearFocus();
     gridEl.scrollTop = 0;
 
-    const bay = cat === "all"
-      ? storeRoom.bays[0]
-      : (storeRoom.bayFor(cat)
-         || storeRoom.bays.find((b) => b.spare && b.spare.includes(cat))
-         || storeRoom.bays[0]);
-    goToBay(bay);
+    if (cat === "all") {
+      // Every bay back to the section it was given at the door.
+      for (const b of storeRoom.bays) storeRoom.borrow(b, null);
+      goToBay(storeRoom.bays[0]);
+      return;
+    }
+
+    let bay = storeRoom.bayFor(cat);
+    if (!bay) {
+      const stand = storeRoom.bays.find(
+        (b) => (b.base && b.base.spare && b.base.spare.includes(cat)));
+      if (stand) {
+        const label = (stock.find((it) => it.cat === cat) || {}).catName || cat;
+        storeRoom.borrow(stand, { key: cat, label, items: items.slice() });
+        bay = stand;
+      }
+    }
+    goToBay(bay || storeRoom.bays[0]);
   }
 
   /**
