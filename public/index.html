@@ -100,7 +100,15 @@ body {
   line-height: 0.9;
   font-weight: 600;
 }
-:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+/* The ring has its own token rather than borrowing --ink.
+   It borrowed it once, and redefining --ink for the shop's near-black top
+   bar turned every product name in the shelf white on white paper, because
+   the shelf is on the same element and reads --ink for its type. The ring
+   is a different concern from the text and now says so. */
+:root { --focus: var(--ink); }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* The only dark ground inside the overlay. */
+#shop .top { --focus: #ffffff; }
 .vh {
   position: absolute; width: 1px; height: 1px; margin: -1px;
   padding: 0; border: 0; overflow: hidden; clip-path: inset(50%);
@@ -446,10 +454,6 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
   transition: opacity .32s ease, visibility 0s linear .32s;
   --shop-ink: #ffffff;
   --shop-bg: #101010;
-  /* The global :focus-visible ring is `2px solid var(--ink)`, and --ink is
-     #0b0b0b. On the shop's near-black top bar that is a black ring on a
-     black ground — which is to say no ring at all. */
-  --ink: #ffffff;
 }
 #shop[data-on="1"] {
   opacity: 1; visibility: visible;
@@ -616,11 +620,6 @@ body[data-busy="1"] .pill, body[data-busy="1"] .pin { opacity: .55; }
   padding: .5rem .6rem; font-size: .625rem;
 }
 
-
-@media (max-height: 720px) {
-    /* A fixed height, not a ratio: the card is a third of the screen wide, so
-     any ratio still gives a picture taller than the room left for it. */
-        }
 
 /* A phone is not a small laptop.
    The shelf goes to the bottom of the screen and takes a little under half
@@ -4705,7 +4704,12 @@ const PIN_LIFT = 1.7;
 // constant rather than the element, because asking fifteen buttons for
 // their offsetWidth every frame is fifteen forced reflows every frame.
 let PIN_W = innerWidth <= 720 ? 92 : 104;
-addEventListener("resize", () => { PIN_W = innerWidth <= 720 ? 92 : 104; });
+const refits = [];
+addEventListener("resize", () => {
+  const was = PIN_W;
+  PIN_W = innerWidth <= 720 ? 92 : 104;
+  if (was !== PIN_W) for (const f of refits) f();
+});
 
 const pins = monoliths.map((m, i) => {
   const b = m.brand;
@@ -4723,9 +4727,17 @@ const pins = monoliths.map((m, i) => {
     el.appendChild(im);
   } else {
     const tag = document.createElement("b");
-    const fit = fitWordmark(b.name);
-    tag.style.fontSize = `${fit.size}px`;
-    tag.textContent = fit.text;
+    const refit = () => {
+      const fit = fitWordmark(b.name);
+      tag.style.fontSize = `${fit.size}px`;
+      tag.textContent = fit.text;
+    };
+    refit();
+    // `fitWordmark` measures against a budget that depends on the pin's
+    // width, and the pin narrows at 720. This ran once at build, so crossing
+    // that line left every label fitted to the other size — saved from
+    // looking broken only by the pill's `overflow: hidden`.
+    refits.push(refit);
     el.appendChild(tag);
   }
   el.addEventListener("click", () => {
@@ -7082,7 +7094,8 @@ const ROOM_BACK = ROOM.front - ROOM.d;
 // stock cannot serve both: four across is two and a half across in portrait,
 // cropped at both jambs. Portrait gets a squarer grid of fewer, larger
 // pieces, which is also what a phone wants to look at.
-const ROOM_PORTRAIT = innerWidth / innerHeight < 1;
+const roomNarrow = () => innerWidth <= 720;
+let ROOM_PORTRAIT = roomNarrow();
 
 /**
  * A room per house.
@@ -7428,7 +7441,15 @@ const storeRoom = (() => {
   // lit band on the floor in front of it, and keeps all three for as long
   // as you are in the shop. Scrolling changes nothing. Choosing a section
   // walks you to it.
-  const PANEL = ROOM_PORTRAIT ? { w: 1.86, h: 1.76 } : { w: 1.9, h: 1.8 };
+  /* Recomputed, not fixed.
+   *
+   * All of this used to be decided once, at load. Rotate a phone and the
+   * room kept the grid it was built with: three columns squeezed into a
+   * thirty-four degree wedge, or two columns rattling around a landscape
+   * wall. The camera adapted — `frameBay` has always run off a fresh
+   * measurement — and the thing it was framing did not.
+   */
+  let PANEL = { w: 1.9, h: 1.8 };
 
   // Standing proud of the wall by 0.4, not flush with it.
   //
@@ -7442,13 +7463,11 @@ const storeRoom = (() => {
   // Dropped twice now. The back wall has to carry two rows of stock, a
   // section sign and the house's own mark between the floor and a cove at
   // 5.41, and the sign is the piece that arrived last.
-  const ROWS = [2.92, 1.20];
+  let ROWS = [2.92, 1.20];
   // The shelf takes a third of a landscape window, so the back wall no
   // longer has the width for four across unless the window is genuinely
   // wide.
-  const BACK_COLS = ROOM_PORTRAIT ? [-2.05, 2.05]
-                  : innerWidth >= 1240 ? [-3.5, 0, 3.5]
-                  : [-2.4, 2.4];
+  let BACK_COLS = [-2.4, 2.4];
   /* One row on the side walls, at eye height, and one bay per wall.
    *
    * Both of those are the same lesson. A side bay is looked at from right
@@ -7464,9 +7483,31 @@ const storeRoom = (() => {
    * after that was four pipes and a rack, and those moved.
    */
   const SIDE_ROWS = [2.62];
-  const SIDE_COLS = ROOM_PORTRAIT ? [-1.06, 1.06] : [-2.12, 0, 2.12];
+  let SIDE_COLS_V = [-1.06, 1.06];
   const SIDE_AT = -8.4;
   const SIGN_Y = 4.30;
+
+  /**
+   * The grid, for the viewport as it is now.
+   *
+   * Returns true when anything changed, so a window being dragged costs a
+   * comparison and nothing else — only crossing a breakpoint rebuilds.
+   */
+  function metrics() {
+    const narrow = roomNarrow();
+    const wide = innerWidth >= 1240;
+    const was = [PANEL.w, BACK_COLS.length, SIDE_COLS_V.length, BACK_COLS[0]].join();
+
+    ROOM_PORTRAIT = narrow;
+    PANEL = narrow ? { w: 1.86, h: 1.76 } : { w: 1.9, h: 1.8 };
+    // The shelf takes a third of a landscape window, so the back wall has
+    // the width for three across only when the window is genuinely wide.
+    BACK_COLS = narrow ? [-2.05, 2.05] : wide ? [-3.5, 0, 3.5] : [-2.4, 2.4];
+    SIDE_COLS_V = narrow ? [-1.06, 1.06] : [-2.12, 0, 2.12];
+
+    return was !== [PANEL.w, BACK_COLS.length, SIDE_COLS_V.length, BACK_COLS[0]].join();
+  }
+  metrics();
 
   /* The icons.
    *
@@ -7608,15 +7649,6 @@ const storeRoom = (() => {
    */
   function makeBay(kind, sx, zc) {
     const back = kind === "back";
-    const cols = back ? BACK_COLS : SIDE_COLS;
-    const rows = back ? ROWS : SIDE_ROWS;
-    const slots = [];
-    for (const y of rows) {
-      for (const c of cols) {
-        if (back) slots.push({ x: c, y, z: ROOM_BACK + OFF, ry: 0 });
-        else slots.push({ x: sx * WALL_X, y, z: zc + c, ry: sx > 0 ? -Math.PI / 2 : Math.PI / 2 });
-      }
-    }
 
     const canvas = document.createElement("canvas");
     canvas.width = SIGN_W; canvas.height = SIGN_H;
@@ -7641,11 +7673,8 @@ const storeRoom = (() => {
      * naming. The lit band on the floor is what carries a section across
      * the room.
      */
-    if (back) sign.position.set(0, SIGN_Y, ROOM_BACK + OFF + 0.03);
-    else {
-      sign.position.set(sx * (WALL_X - 0.04), SIGN_Y - 0.26, zc);
-      sign.rotation.y = sx > 0 ? -Math.PI / 2 : Math.PI / 2;
-    }
+    // Placed by `layBay`; only the facing is fixed for the life of the bay.
+    if (!back) sign.rotation.y = sx > 0 ? -Math.PI / 2 : Math.PI / 2;
     group.add(sign);
 
     /* A light in a housing, not a stripe of paint.
@@ -7659,6 +7688,45 @@ const storeRoom = (() => {
     const glowMat = new THREE.MeshStandardMaterial({
       color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 1.5, roughness: 0.5,
     });
+    return {
+      kind, sx, zc, sign, signMat, glowMat, canvas, tex,
+      disp: null, glow: null, slots: [], panels: [],
+      half: 1, maxBack: back ? ROOM.d - 1.6 : ROOM.w - 2.6,
+      at: new THREE.Vector3(),
+      normal: new THREE.Vector3(),
+      tangent: new THREE.Vector3(),
+      cat: null, base: null,
+    };
+  }
+
+  /** Takes a group out of the room and gives its geometry back. */
+  function dropGroup(g) {
+    if (!g) return;
+    g.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
+    group.remove(g);
+  }
+
+  /**
+   * Builds — or rebuilds — one bay's case, its light and its slots.
+   *
+   * Split out of `makeBay` so it can run again when the viewport changes.
+   * The canvas, the texture and the two materials survive that; only boxes
+   * are thrown away here, nothing that took a paint or a fetch.
+   */
+  function layBay(bay) {
+    const back = bay.kind === "back";
+    const sx = bay.sx, zc = bay.zc;
+    const cols = back ? BACK_COLS : SIDE_COLS_V;
+    const rows = back ? ROWS : SIDE_ROWS;
+
+    bay.slots = [];
+    for (const y of rows) {
+      for (const c of cols) {
+        if (back) bay.slots.push({ x: c, y, z: ROOM_BACK + OFF, ry: 0 });
+        else bay.slots.push({ x: sx * WALL_X, y, z: zc + c, ry: sx > 0 ? -Math.PI / 2 : Math.PI / 2 });
+      }
+    }
+
     /* One lit case per section, not a row of separate screens.
      *
      * Each piece used to hang in its own framed box, which made a wall of
@@ -7668,9 +7736,9 @@ const storeRoom = (() => {
      * shot on white, so laid whole on a white lightbox they read as
      * garments on a wall rather than as pictures of garments.
      *
-     * Which is also why the art is scaled to its own picture now instead
-     * of being cropped to a fixed box. Nothing is cut off and nothing has
-     * an edge.
+     * Which is also why the art is scaled to its own picture instead of
+     * being cropped to a fixed box. Nothing is cut off and nothing has an
+     * edge.
      */
     const spanX = (cols[cols.length - 1] - cols[0]) + PANEL.w;
     const spanY = (rows[0] - rows[rows.length - 1]) + PANEL.h;
@@ -7706,7 +7774,6 @@ const storeRoom = (() => {
     }
     const disp = new THREE.Group();
     disp.add(surround, lit, ...splits);
-    group.add(disp);
 
     /* And the section light, on the plinth under it.
      *
@@ -7724,25 +7791,30 @@ const storeRoom = (() => {
            : new THREE.BoxGeometry(0.13, 0.15, runL), matTrim);
     const strip = new THREE.Mesh(
       back ? new THREE.BoxGeometry(runL - 0.22, 0.09, 0.10)
-           : new THREE.BoxGeometry(0.10, 0.09, runL - 0.22), glowMat);
+           : new THREE.BoxGeometry(0.10, 0.09, runL - 0.22), bay.glowMat);
     if (back) strip.position.z = 0.07;
     else strip.position.x = -sx * 0.07;
     glow.add(housing, strip);
     glow.position.set(back ? 0 : sx * (ROOM.w / 2 - 0.09),
                       midY - caseH / 2 - 0.22,
                       back ? ROOM_BACK + 0.09 : zc);
-    group.add(glow);
 
-    return {
-      kind, slots, sign, signMat, glow, glowMat, canvas, tex, disp,
-      panels: [],
-      half: caseW / 2,
-      maxBack: back ? ROOM.d - 1.6 : ROOM.w - 2.6,
-      at: new THREE.Vector3(back ? 0 : sx * WALL_X, midY + 0.05, back ? ROOM_BACK : zc),
-      normal: new THREE.Vector3(back ? 0 : -sx, 0, back ? 1 : 0),
-      tangent: new THREE.Vector3(back ? 1 : 0, 0, back ? 0 : (sx > 0 ? 1 : -1)),
-      cat: null,
-    };
+    const wasLive = bay.disp ? bay.disp.visible : false;
+    dropGroup(bay.disp);
+    dropGroup(bay.glow);
+    bay.disp = disp;
+    bay.glow = glow;
+    disp.visible = glow.visible = wasLive;
+    group.add(disp, glow);
+
+    bay.half = caseW / 2;
+    bay.at.set(back ? 0 : sx * WALL_X, midY + 0.05, back ? ROOM_BACK : zc);
+    bay.normal.set(back ? 0 : -sx, 0, back ? 1 : 0);
+    bay.tangent.set(back ? 1 : 0, 0, back ? 0 : (sx > 0 ? 1 : -1));
+
+    // The sign belongs to the case, so it moves when the case does.
+    if (back) bay.sign.position.set(0, SIGN_Y, ROOM_BACK + OFF + 0.03);
+    else bay.sign.position.set(sx * (WALL_X - 0.04), SIGN_Y - 0.26, zc);
   }
 
   const bays = [
@@ -7750,6 +7822,7 @@ const storeRoom = (() => {
     makeBay("side", -1, SIDE_AT),
     makeBay("side",  1, SIDE_AT),
   ];
+  for (const bay of bays) layBay(bay);
 
   /** Paints a bay's sign: icon, section name, and how many are in it. */
   function paintSign(bay, label, key, n, ink, paper) {
@@ -7825,8 +7898,25 @@ const storeRoom = (() => {
   });
 
   const panels = [];
-  for (const bay of bays) {
-    for (const slot of bay.slots) {
+
+  /**
+   * Builds the panel meshes for whatever slots the bays have right now.
+   *
+   * The array is emptied in place rather than replaced, because the room's
+   * public `panels` is that same array and half the shop holds a reference
+   * to it.
+   */
+  function layPanels() {
+    for (const pn of panels) {
+      pn.group.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
+      pn.mat.dispose();          // its map came from the cache; that stays
+      group.remove(pn.group);
+    }
+    panels.length = 0;
+
+    for (const bay of bays) {
+      bay.panels.length = 0;
+      for (const slot of bay.slots) {
       const g = new THREE.Group();
       g.position.set(slot.x, slot.y, slot.z);
       g.rotation.y = slot.ry;
@@ -7847,6 +7937,9 @@ const storeRoom = (() => {
       const mat = new THREE.MeshStandardMaterial({
         color: 0x5e5e5e, roughness: 0.9, metalness: 0,
         emissive: 0xffffff, emissiveIntensity: 0.82,
+        // Explicit, because the sweep that turns fog off for the room runs
+        // once at build and these can be made again later.
+        fog: false,
       });
       const art = new THREE.Mesh(new THREE.PlaneGeometry(PANEL.w, PANEL.h), mat);
       art.position.z = 0.03;
@@ -7862,8 +7955,10 @@ const storeRoom = (() => {
                    base: g.position.clone(), dir, lift: 0, at: 0 };
       bay.panels.push(pn);
       panels.push(pn);
+      }
     }
   }
+  layPanels();
 
   /**
    * Sizes a panel to its own picture, the way `object-fit: contain` would.
@@ -7954,7 +8049,10 @@ const storeRoom = (() => {
     group, panels, bays, fixtures, PANEL,
     mark: markMesh,
     markTop: () => markMesh.position.y + markMesh.geometry.parameters.height / 2,
-    arts: panels.map((pn) => pn.art),
+    // A getter, not a snapshot: the panel meshes are rebuilt when the
+    // viewport changes and a list captured at build would raycast against
+    // meshes that are no longer in the room.
+    get arts() { return panels.map((pn) => pn.art); },
 
     /** Puts the room behind a monolith and paints it in that house's colours. */
     dress(m) {
@@ -8057,6 +8155,23 @@ const storeRoom = (() => {
         pn.at += (pn.lift - pn.at) * k;
         pn.group.position.copy(pn.base).addScaledVector(pn.dir, pn.at);
       }
+    },
+
+    /**
+     * Rebuilds the grid for the viewport as it is now.
+     *
+     * Returns false and does nothing when the numbers have not moved, so a
+     * window being dragged across the screen costs one string comparison.
+     * Only the boxes are rebuilt — the shell, the fixtures, the signs'
+     * canvases and every loaded texture are left alone.
+     */
+    relayout() {
+      if (!metrics()) return false;
+      for (const bay of bays) layBay(bay);
+      layPanels();
+      // The slots are new, so whatever was hanging has to be hung again.
+      for (const bay of bays) dressBay(bay, bay.base);
+      return true;
     },
 
     /** Resolves once a set of pictures is in hand, or gives up trying. */
@@ -9189,6 +9304,16 @@ storeMode = (() => {
     get house() { return house; },
     /** True whenever the camera belongs to this — the walk in included. */
     get controlling() { return active || seq !== null; },
+
+    /** After the room has been rebuilt under us. */
+    reframe() {
+      if (!active) return;
+      hereBay = storeRoom.bayFor(cat) || storeRoom.bays[0];
+      picked = -1;
+      clearFocus();
+      buildGrid();
+      standBack();
+    },
     enter,
     leave,
     enterBySlug(slug, opts) {
@@ -9332,6 +9457,25 @@ openFromHash(true);
  * cannot get to by editing its own address. The URL is the only thing that
  * knows where you are meant to be; both events just mean "check it".
  */
+/* The room follows the window.
+ *
+ * Debounced, and gated on the numbers actually having moved: dragging a
+ * desktop window fires this continuously and almost none of those pixels
+ * change anything. Rotating a phone changes all of it.
+ */
+{
+  let t = 0;
+  const check = () => {
+    clearTimeout(t);
+    t = setTimeout(() => {
+      if (storeRoom.relayout() && storeMode) storeMode.reframe();
+    }, 250);
+  };
+  addEventListener("resize", check);
+  // Some browsers report the old size for a beat after the rotation.
+  addEventListener("orientationchange", () => setTimeout(check, 320));
+}
+
 addEventListener("popstate", () => settleRoute());
 addEventListener("hashchange", () => settleRoute());
 
