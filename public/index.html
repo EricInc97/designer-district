@@ -33,6 +33,7 @@
     ## 23  RESIZE + VISIBILITY
     ## 24  STARTUP
     ## 25  SOUND — ambience, and a beat coming from somewhere
+    ## 26  TIME OF DAY — the scene follows the visitor's clock
   ═══════════════════════════════════════════════════════════════════════════
 -->
 
@@ -334,7 +335,7 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
 
 /* The running order down the street. */
 .index {
-  position: fixed; right: var(--shell); top: 50%; translate: 0 -50%;
+  position: fixed; right: var(--shell); top: 56%; translate: 0 -50%;
   display: grid; gap: .38rem; text-align: right;
   font-size: .6875rem; font-weight: 500;
   letter-spacing: .22em; text-transform: uppercase;
@@ -351,15 +352,20 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
 
 /* ---- sound: an invitation that folds into a control ------------------- */
 .sound {
+  /* Top right, under the header. Bottom left put it straight on top of the
+     card's Shop button on a phone, where the card is full width and bottom
+     aligned — the two controls were literally overlapping. Nothing else
+     lives up here. */
   position: fixed;
-  left: var(--shell);
-  bottom: calc(var(--shell) * 0.8);
+  right: var(--shell);
+  top: calc(var(--bar) + 14px);
   z-index: 6;
   display: flex;
+  flex-direction: row-reverse;      /* icon stays at the right edge */
   align-items: center;
   gap: 0;
   height: 44px;
-  padding: 0 4px 0 0;
+  padding: 0 0 0 4px;
   border: 0;
   border-radius: 999px;
   background: var(--paper);
@@ -384,13 +390,13 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
 }
 
 /* Waiting to be used: the label is out and the ring pings. */
-.sound[data-state="prompt"] .lbl { max-width: 12rem; opacity: 1; padding-right: 1.1rem; }
+.sound[data-state="prompt"] .lbl { max-width: 12rem; opacity: 1; padding-left: 1.1rem; }
 .sound[data-state="prompt"]::after {
   content: "";
   position: absolute;
-  left: 22px; top: 50%;
+  right: 22px; top: 50%;
   width: 34px; height: 34px;
-  translate: -50% -50%;
+  translate: 50% -50%;
   border-radius: 999px;
   border: 2px solid var(--ink);
   animation: ping 2.2s cubic-bezier(.2,.7,.4,1) infinite;
@@ -1255,6 +1261,16 @@ const SKY_GLSL = /* glsl */`
     for (int i = 0; i < 5; i++) { s += a * vnoise(p); p *= 2.03; a *= 0.5; }
     return s;
   }
+  /** A sparse field of them, only in the cells the hash picks out. */
+  float starField(vec3 d){
+    vec3 p = d * 190.0;
+    vec3 i = floor(p);
+    float h = hash31(i);
+    if (h < 0.9955) return 0.0;
+    vec3 f = fract(p) - 0.5;
+    return smoothstep(0.34, 0.0, length(f)) * (0.35 + fract(h * 91.7) * 0.65);
+  }
+
   vec3 skyColor(vec3 d, vec3 sunDir, vec3 zenith, vec3 horizon, vec3 under, float t){
     d = normalize(d);
     float up = clamp(d.y, -1.0, 1.0);
@@ -1279,6 +1295,17 @@ const SKY_GLSL = /* glsl */`
     }
     return col;
   }
+
+  /** The same sky, plus stars — only the dome draws these, not the water. */
+  vec3 skyWithStars(vec3 d, vec3 sunDir, vec3 zenith, vec3 horizon, vec3 under, float t, float night){
+    vec3 col = skyColor(d, sunDir, zenith, horizon, under, t);
+    if (night > 0.01) {
+      vec3 n = normalize(d);
+      float up = smoothstep(-0.02, 0.22, n.y);
+      col += vec3(0.85, 0.9, 1.0) * starField(n) * night * up;
+    }
+    return col;
+  }
 `;
 
 const skyUniforms = {
@@ -1287,6 +1314,7 @@ const skyUniforms = {
   uHorizon: { value: C.horizon.clone() },
   uUnder:   { value: C.underside.clone() },
   uTime:    { value: 0 },
+  uNight:   { value: 0 },
 };
 
 const sky = new THREE.Mesh(
@@ -1305,10 +1333,10 @@ const sky = new THREE.Mesh(
     fragmentShader: /* glsl */`
       varying vec3 vDir;
       uniform vec3 uSun, uZenith, uHorizon, uUnder;
-      uniform float uTime;
+      uniform float uTime, uNight;
       ${SKY_GLSL}
       void main(){
-        gl_FragColor = vec4(skyColor(vDir, uSun, uZenith, uHorizon, uUnder, uTime), 1.0);
+        gl_FragColor = vec4(skyWithStars(vDir, uSun, uZenith, uHorizon, uUnder, uTime, uNight), 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
       }`,
@@ -1318,14 +1346,19 @@ sky.renderOrder = -1;
 scene.add(sky);
 
 // Light the physical materials off that same sky rather than a studio probe.
-{
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  const probe = new THREE.Scene();
-  probe.add(sky.clone());
-  scene.environment = pmrem.fromScene(probe).texture;
-  scene.environmentIntensity = 0.85;
-  pmrem.dispose();
+// Kept, not disposed: the environment is regenerated whenever the time of
+// day moves, and a clone of the sky shares its material, so the probe
+// re-renders with whatever colours the clock has just set.
+const pmrem = new THREE.PMREMGenerator(renderer);
+const skyProbe = new THREE.Scene();
+skyProbe.add(sky.clone());
+function refreshEnvironment() {
+  const old = scene.environment;
+  scene.environment = pmrem.fromScene(skyProbe).texture;
+  if (old) old.dispose();
 }
+refreshEnvironment();
+scene.environmentIntensity = 0.85;
 
 // ## 11  LIGHTING
 // One hard sun for the dappled palm shadows, one hemisphere fill so the
@@ -1345,7 +1378,8 @@ Object.assign(sun.shadow.camera, { left: -SHADOW_HALF, right: SHADOW_HALF, top: 
 sun.shadow.camera.updateProjectionMatrix();
 scene.add(sun, sun.target);
 
-scene.add(new THREE.HemisphereLight(0xbdddf5, 0xc6b79a, 0.95));
+const hemi = new THREE.HemisphereLight(0xbdddf5, 0xc6b79a, 0.95);
+scene.add(hemi);
 
 // A cool bounce from the pool, so the dome's underside is not dead.
 const bounce = new THREE.DirectionalLight(0x8fd8e8, 0.45);
@@ -2102,6 +2136,12 @@ const motes = (() => {
 
 const monoliths = [];   // kept under the old name: sections 19 and 21 read it
 
+// Materials the time of day has to reach into. Collected as they are built,
+// because they are created inside the street block and the clock runs long
+// after it.
+let interiorMat = null;
+const signMats = [];
+
 {
   const concrete = [], accent = [], glass = [], metal = [], interiors = [], kerbs = [];
   const screenBins = { dots: [], weave: [], fins: [] };
@@ -2496,8 +2536,13 @@ const monoliths = [];   // kept under the old name: sections 19 and 21 read it
         roughness: 0.92,
         metalness: 0,
         envMapIntensity: 0.12,
+        // Lit from within after dark; the clock sets how much.
+        emissiveMap: signTex,
+        emissive: 0xffffff,
+        emissiveIntensity: 0,
       })
     );
+    signMats.push(sign.material);
     sign.position.set(0, 6.4, 2.37);
     sign.castShadow = true;
     sign.userData.brand = brand;
@@ -2665,17 +2710,15 @@ const monoliths = [];   // kept under the old name: sections 19 and 21 read it
     scene.add(m);
   }
 
-  const interiorMesh = new THREE.Mesh(
-    mergeGeometries(interiors),
-    new THREE.MeshStandardMaterial({
-      map: asTexture(texInterior()),
-      emissiveMap: asTexture(texInterior()),
-      emissive: 0xffe9c4,
-      emissiveIntensity: 0.55,
-      roughness: 0.9,
-      side: THREE.DoubleSide,
-    })
-  );
+  interiorMat = new THREE.MeshStandardMaterial({
+    map: asTexture(texInterior()),
+    emissiveMap: asTexture(texInterior()),
+    emissive: 0xffe9c4,
+    emissiveIntensity: 0.55,
+    roughness: 0.9,
+    side: THREE.DoubleSide,
+  });
+  const interiorMesh = new THREE.Mesh(mergeGeometries(interiors), interiorMat);
   scene.add(interiorMesh);
 
   const glassMesh = new THREE.Mesh(
@@ -4168,10 +4211,149 @@ const sound = (() => {
 // was built from, DD.scene the graph itself.
 window.DD = { THREE, scene, camera, renderer, composer, C, BRANDS, PATH, LOOK,
               wind: windUniforms, sky: skyUniforms, water: waterUniforms, sound,
+              setHour: applyTimeOfDay, get hour() { return currentHour; },
               goTo: (v) => scrollTo(0, v * (document.documentElement.scrollHeight - innerHeight)),
               // Place and render the scene at a scroll position without the
               // rAF loop; works in a backgrounded tab, where goTo does not.
               step: (v) => { scrollEased = v; step(0.016, clock.elapsedTime, v); } };
+
+
+// ## 26  TIME OF DAY — the scene follows the visitor's clock
+//
+// Opening this at eleven at night and getting a blazing noon is the single
+// thing that most gives away a rendered scene as a rendered scene. So the
+// plaza runs on the visitor's own clock: the sun rises and sets where and
+// when it should, and everything that depends on it follows.
+//
+// Not just the sun's direction, and that is the point. Changing only the
+// light angle gives you a daylit scene with long shadows, which reads as
+// late afternoon whatever the hour. What actually makes night look like
+// night is the whole chain moving together — sky gradient, fog colour and
+// density, ambient fill, exposure, the environment probe the glass and
+// concrete reflect, the shopfronts coming on from the inside, the signs
+// lighting up, and stars appearing once the sun is properly down.
+//
+// The table below is keyframes on the hour hand. Everything between them is
+// interpolated, so the transition through dawn and dusk is continuous
+// rather than a set of four presets.
+
+const TIMELINE = [
+  // h    elev  sunCol    sunI  hemiSky   hemiGnd   hemiI  zenith    horizon   under     fog       fogD    exp   inner sign bloom night
+  { h: 0.0,  el: -32, sc: 0x9fb4e8, si: 0.16, hs: 0x3a5a94, hg: 0x4a3a28, hi: 1.25,
+    zen: 0x030714, hor: 0x0d1930, und: 0x060b16, fog: 0x0e1a2f, fd: 0.0098, ex: 1.45, inn: 3.6, sg: 0.95, bl: 0.80, ni: 1.0 },
+  { h: 4.6,  el: -14, sc: 0xa8b6e0, si: 0.22, hs: 0x3f5f96, hg: 0x4a3c2c, hi: 1.20,
+    zen: 0x061027, hor: 0x1d2a49, und: 0x0c1220, fog: 0x18253c, fd: 0.0092, ex: 1.40, inn: 3.4, sg: 0.88, bl: 0.78, ni: 0.92 },
+  { h: 6.2,  el: 2,   sc: 0xff9358, si: 1.05, hs: 0x5b6a96, hg: 0x35302f, hi: 0.62,
+    zen: 0x123059, hor: 0xd08a63, und: 0x3a3238, fog: 0x8e7a73, fd: 0.0078, ex: 1.12, inn: 1.5, sg: 0.45, bl: 0.62, ni: 0.35 },
+  { h: 8.0,  el: 24,  sc: 0xffd6a8, si: 2.10, hs: 0x9dc2e6, hg: 0xa79a82, hi: 0.82,
+    zen: 0x1a5cb4, hor: 0xcfdcea, und: 0x9fb0be, fog: 0xc2d2e2, fd: 0.0060, ex: 1.02, inn: 0.75, sg: 0.10, bl: 0.48, ni: 0.0 },
+  { h: 12.0, el: 66,  sc: 0xfff2da, si: 2.70, hs: 0xbdddf5, hg: 0xc6b79a, hi: 0.98,
+    zen: 0x0b4fbe, hor: 0xa8d2ee, und: 0x9fb9c9, fog: 0xb7d6ea, fd: 0.0052, ex: 0.98, inn: 0.50, sg: 0.0, bl: 0.42, ni: 0.0 },
+  { h: 16.0, el: 30,  sc: 0xffe0b4, si: 2.25, hs: 0xb2d2ee, hg: 0xc4b195, hi: 0.88,
+    zen: 0x1050b2, hor: 0xbcd6ec, und: 0x9db2c2, fog: 0xbdd2e4, fd: 0.0056, ex: 1.00, inn: 0.62, sg: 0.05, bl: 0.46, ni: 0.0 },
+  { h: 18.6, el: 5,   sc: 0xff8446, si: 1.25, hs: 0x6b6a94, hg: 0x3d3430, hi: 0.66,
+    zen: 0x17356b, hor: 0xe08a52, und: 0x46383a, fog: 0xa07863, fd: 0.0074, ex: 1.10, inn: 1.4, sg: 0.40, bl: 0.66, ni: 0.28 },
+  { h: 19.8, el: -7,  sc: 0xc06a7a, si: 0.45, hs: 0x50609a, hg: 0x4e3e2e, hi: 1.00,
+    zen: 0x0a1736, hor: 0x5e3f57, und: 0x1e1c2a, fog: 0x3c3350, fd: 0.0086, ex: 1.32, inn: 3.0, sg: 0.72, bl: 0.74, ni: 0.72 },
+  { h: 21.5, el: -22, sc: 0x9fb4e8, si: 0.17, hs: 0x3c5c95, hg: 0x4a3a2a, hi: 1.22,
+    zen: 0x040917, hor: 0x101d36, und: 0x080d1a, fog: 0x111d33, fd: 0.0095, ex: 1.43, inn: 3.5, sg: 0.92, bl: 0.79, ni: 0.96 },
+  { h: 24.0, el: -32, sc: 0x9fb4e8, si: 0.16, hs: 0x3a5a94, hg: 0x4a3a28, hi: 1.25,
+    zen: 0x030714, hor: 0x0d1930, und: 0x060b16, fog: 0x0e1a2f, fd: 0.0098, ex: 1.45, inn: 3.6, sg: 0.95, bl: 0.80, ni: 1.0 },
+];
+
+// Declared above applyTimeOfDay, which writes to it and is called during
+// module evaluation — a `let` below the call is in its temporal dead zone
+// and throws. Third time this shape of bug has appeared in this file.
+let currentHour = 12;
+
+const _cA = new THREE.Color(), _cB = new THREE.Color();
+const mixCol = (out, a, b, t) => out.copy(_cA.setHex(a)).lerp(_cB.setHex(b), t);
+const mixNum = (a, b, t) => a + (b - a) * t;
+
+/**
+ * Places the scene at a given hour, 0 to 24.
+ *
+ * The azimuth runs east to west across the day so the shadows sweep the
+ * right way round, and the elevation comes from the table rather than a
+ * trigonometric model — a model would be accurate for a latitude we have
+ * not been told, and what matters here is that it looks like the hour, not
+ * that it is astronomically correct for Miami.
+ */
+function applyTimeOfDay(hour) {
+  const h = ((hour % 24) + 24) % 24;
+  let i = 0;
+  while (i < TIMELINE.length - 2 && TIMELINE[i + 1].h <= h) i++;
+  const a = TIMELINE[i], b = TIMELINE[i + 1];
+  const t = clamp((h - a.h) / (b.h - a.h), 0, 1);
+  const k = t * t * (3 - 2 * t);                    // ease, so dawn is not linear
+
+  const el = mixNum(a.el, b.el, k) * Math.PI / 180;
+  // Sunrise in the east, sunset in the west, tracking across the south.
+  const az = ((h - 6) / 12) * Math.PI + Math.PI * 0.08;
+  C.sun.set(Math.cos(az) * Math.cos(el), Math.sin(el), Math.sin(az) * Math.cos(el)).normalize();
+
+  mixCol(C.zenith, a.zen, b.zen, k);
+  mixCol(C.horizon, a.hor, b.hor, k);
+  mixCol(C.underside, a.und, b.und, k);
+  mixCol(C.fog, a.fog, b.fog, k);
+  C.fogDensity = mixNum(a.fd, b.fd, k);
+  const night = mixNum(a.ni, b.ni, k);
+
+  // --- sky and water read the same numbers -------------------------------
+  skyUniforms.uSun.value.copy(C.sun);
+  skyUniforms.uZenith.value.copy(C.zenith);
+  skyUniforms.uHorizon.value.copy(C.horizon);
+  skyUniforms.uUnder.value.copy(C.underside);
+  skyUniforms.uNight.value = night;
+
+  waterUniforms.uSun.value.copy(C.sun);
+  waterUniforms.uZenith.value.copy(C.zenith);
+  waterUniforms.uHorizon.value.copy(C.horizon);
+  waterUniforms.uUnder.value.copy(C.underside);
+  waterUniforms.uFogColor.value.copy(C.fog);
+  waterUniforms.uFogDensity.value = C.fogDensity;
+  // The pool goes black and reflective after dark rather than staying a
+  // lit turquoise, which is what water actually does at night.
+  waterUniforms.uDeep.value.copy(C.poolDeep).multiplyScalar(mixNum(1, 0.16, night));
+  waterUniforms.uShallow.value.copy(C.poolShallow).multiplyScalar(mixNum(1, 0.22, night));
+
+  // --- lights -------------------------------------------------------------
+  sun.color.copy(mixCol(_cA.clone(), a.sc, b.sc, k));
+  sun.intensity = mixNum(a.si, b.si, k);
+  hemi.color.copy(mixCol(_cA.clone(), a.hs, b.hs, k));
+  hemi.groundColor.copy(mixCol(_cA.clone(), a.hg, b.hg, k));
+  hemi.intensity = mixNum(a.hi, b.hi, k);
+  bounce.intensity = mixNum(0.45, 0.10, night);
+
+  scene.fog.color.copy(C.fog);
+  scene.fog.density = C.fogDensity;
+  renderer.toneMappingExposure = mixNum(a.ex, b.ex, k);
+  scene.environmentIntensity = mixNum(0.85, 0.35, night);
+
+  // --- the street turns its own lights on ---------------------------------
+  if (interiorMat) interiorMat.emissiveIntensity = mixNum(a.inn, b.inn, k);
+  const signGlow = mixNum(a.sg, b.sg, k);
+  for (const m of signMats) m.emissiveIntensity = signGlow;
+
+  if (bloomPass) bloomPass.strength = mixNum(a.bl, b.bl, k);
+
+  // The probe has to be re-rendered or every reflective surface keeps the
+  // sky it was built under.
+  refreshEnvironment();
+
+  currentHour = h;
+}
+
+
+/** The visitor's own local hour, fractional. */
+const localHour = () => {
+  const d = new Date();
+  return d.getHours() + d.getMinutes() / 60;
+};
+
+applyTimeOfDay(localHour());
+// Re-read every few minutes, so a tab left open through dusk follows it.
+setInterval(() => applyTimeOfDay(localHour()), 4 * 60 * 1000);
 
 // Surface a dead scene rather than a black rectangle.
 canvasEl.addEventListener("webglcontextlost", (e) => {
