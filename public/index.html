@@ -5503,9 +5503,74 @@ const sound = (() => {
     const cityGain = ctx.createGain(); cityGain.gain.value = 0.10;
     loop().connect(city); city.connect(cityGain); cityGain.connect(amb);
 
-    // Birds, occasionally, from somewhere off to one side.
+    /* Crickets.
+     *
+     * Not scheduled — a field of them is continuous, and a few hundred
+     * timers a minute to fake that would be absurd. Noise through a very
+     * narrow band becomes a whistle rather than a hiss, and chopping that
+     * whistle with a square wave at a dozen hertz is a chirp. Two of them
+     * at different pitches and rates, panned apart, is a hedge.
+     *
+     * The rate is not arbitrary either: crickets chirp faster when it is
+     * warm, and this is Florida, so they are quick.
+     */
+    const crickets = ctx.createGain();
+    crickets.gain.value = 0;
+    crickets.connect(amb);
+    for (const [hz, rate, pan] of [[4500, 11.5, -0.55], [5300, 13.4, 0.5]]) {
+      const bp = ctx.createBiquadFilter();
+      bp.type = "bandpass"; bp.frequency.value = hz; bp.Q.value = 16;
+
+      const puls = ctx.createGain(); puls.gain.value = 0.5;
+      const chirp = ctx.createOscillator();
+      chirp.type = "square"; chirp.frequency.value = rate;
+      const chirpAmt = ctx.createGain(); chirpAmt.gain.value = 0.5;
+      chirp.connect(chirpAmt); chirpAmt.connect(puls.gain); chirp.start();
+
+      // And they do not all go at once.
+      const burst = ctx.createGain(); burst.gain.value = 0.62;
+      const slow = ctx.createOscillator();
+      slow.type = "sine"; slow.frequency.value = 0.19 + Math.random() * 0.14;
+      const slowAmt = ctx.createGain(); slowAmt.gain.value = 0.38;
+      slow.connect(slowAmt); slowAmt.connect(burst.gain); slow.start();
+
+      const pn = ctx.createStereoPanner(); pn.pan.value = pan;
+      loop().connect(bp);
+      bp.connect(puls); puls.connect(burst); burst.connect(pn); pn.connect(crickets);
+    }
+
+    /* An owl, now and then, and only when it is properly dark. */
+    function owl() {
+      if (on && ctx && ctx.state === "running" && nightLevel > 0.45
+          && Math.random() < nightLevel) {
+        const t0 = ctx.currentTime + 0.1;
+        const pn = ctx.createStereoPanner();
+        pn.pan.value = Math.random() * 1.4 - 0.7;
+        pn.connect(amb);
+        const calls = Math.random() > 0.5 ? 2 : 3;
+        for (let i = 0; i < calls; i++) {
+          const at = t0 + i * (0.44 + Math.random() * 0.14);
+          const f = 370 + Math.random() * 95;
+          const o = ctx.createOscillator(); o.type = "sine";
+          o.frequency.setValueAtTime(f * 1.07, at);
+          o.frequency.exponentialRampToValueAtTime(f, at + 0.2);
+          const g = ctx.createGain();
+          g.gain.setValueAtTime(0.0001, at);
+          g.gain.exponentialRampToValueAtTime(0.042 * nightLevel, at + 0.1);
+          g.gain.exponentialRampToValueAtTime(0.0001, at + 0.44);
+          o.connect(g); g.connect(pn);
+          o.start(at); o.stop(at + 0.46);
+        }
+      }
+      setTimeout(owl, 17000 + Math.random() * 33000);
+    }
+    setTimeout(owl, 6000 + Math.random() * 12000);
+
+    // Birds, occasionally, from somewhere off to one side — by day.
     function bird() {
       if (!on || !ctx || ctx.state !== "running") { schedule(); return; }
+      // They thin out through dusk and are gone before it is properly dark.
+      if (Math.random() < nightLevel * 1.15) { schedule(); return; }
       const t = ctx.currentTime + 0.05;
       const pan = ctx.createStereoPanner();
       pan.pan.value = Math.random() * 1.6 - 0.8;
@@ -5529,10 +5594,38 @@ const sound = (() => {
     function schedule() { setTimeout(bird, 5000 + Math.random() * 14000); }
     schedule();
 
+    ambParts = { crickets, leaves: leavesGain, city: cityGain };
+    applyNight();
     return amb;
   }
 
+  /**
+   * Moves the ambience to wherever the sun is.
+   *
+   * Crickets up, wind down — a plaza is genuinely stiller after dark, and
+   * the palms were rustling at the same rate at three in the morning as at
+   * noon — and the city a little further away, because it is.
+   */
+  function applyNight() {
+    if (!ambParts || !ctx) return;
+    const t = ctx.currentTime;
+    const n = nightLevel;
+    ambParts.crickets.gain.setTargetAtTime(0.05 * Math.pow(n, 1.4), t, 1.6);
+    ambParts.leaves.gain.setTargetAtTime(0.0065 * (1 - 0.45 * n), t, 2.2);
+    ambParts.city.gain.setTargetAtTime(0.10 * (1 - 0.28 * n), t, 2.2);
+  }
+
   let ambGain = null, musicGain = null, uiGain = null;
+  /**
+   * How dark it is, 0 to 1, handed over by the clock in section 26.
+   *
+   * The scene has run on the visitor's own time for a while and the sound
+   * had not noticed: birds sang at two in the morning. They are diurnal,
+   * and a dawn chorus at midnight is the sort of thing that makes a place
+   * feel synthetic without anyone being able to say why.
+   */
+  let nightLevel = 0;
+  let ambParts = null;
   const stats = { beatSeconds: 0, beatRMS: 0, beatPeak: 0 };
 
   /**
@@ -5988,6 +6081,13 @@ const sound = (() => {
      * distance, and a tilt is not something "it sounds right" can settle.
      * This reports what is actually coming out of it.
      */
+    /** The clock's night value, 0 by day and 1 in the dark. */
+    setNight(v) {
+      nightLevel = clamp(v, 0, 1);
+      applyNight();
+      stats.night = +nightLevel.toFixed(2);
+    },
+
     /** Sets or reads the rattle level, for tuning it against your own ears. */
     rattle(v) {
       if (!rattleGain) return null;
@@ -5996,7 +6096,7 @@ const sound = (() => {
     },
 
     async spectrum(ms = 2500, where = "out") {
-      const tap = where === "in" ? musicGain : sysOut;
+      const tap = where === "in" ? musicGain : (where === "amb" ? ambGain : sysOut);
       if (!ctx || !tap) return null;
       const an = ctx.createAnalyser();
       an.fftSize = 4096;
@@ -6269,6 +6369,8 @@ function applyTimeOfDay(hour) {
   mixCol(C.fog, a.fog, b.fog, k);
   C.fogDensity = mixNum(a.fd, b.fd, k);
   const night = mixNum(a.ni, b.ni, k);
+  // The ambience runs on the same number the lighting does.
+  sound.setNight(night);
 
   // --- sky and water read the same numbers -------------------------------
   skyUniforms.uSun.value.copy(C.sun);
