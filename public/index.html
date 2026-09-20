@@ -65,8 +65,21 @@
   --rule: #e5e3dd;
   --rule-strong: #c6c3bb;
 
-  --shell: clamp(20px, 5vw, 56px);
-  --bar: 64px;
+  /* The notch, the home indicator and the rounded corners.
+     `viewport-fit=cover` has been set on this page since it was written,
+     which tells the browser to lay out *under* all of them — and nothing
+     read the insets back, so on any phone with a notch the header sat
+     under it and the last row of the shelf sat under the home indicator.
+     The fallbacks are what every other browser gets. */
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+
+  /* Both of these carry an inset, so everything measured off them clears
+     the hardware without knowing that it is doing so. */
+  --shell: max(clamp(20px, 5vw, 56px), var(--sal), var(--sar));
+  --bar: calc(64px + var(--sat));
 
   /* How many viewport-heights the whole journey runs for. Raise it to slow
      the camera down. Every waypoint is a fraction of the total, so nothing
@@ -80,6 +93,15 @@ body {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
+  /* No pull-to-refresh and no rubber-band. The whole page is a camera on a
+     scrollbar; a downward drag at the top of the street reloaded it and
+     put the visitor back at the dome, and the bounce at either end moved
+     the camera to a position the scene does not have. */
+  overscroll-behavior-y: none;
+  /* Safari inflates type in landscape unless told not to, which on a page
+     whose layout is measured in pixels moves everything. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   font-family: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   min-height: calc(var(--pages) * 100svh);
@@ -170,6 +192,9 @@ body {
   inset: 0 0 auto 0;
   z-index: 4;
   height: var(--bar);
+  /* `--bar` carries the top inset, so the box grows into the notch and the
+     padding keeps the wordmark in the sixty-four pixels below it. */
+  padding-top: var(--sat);
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
@@ -628,7 +653,11 @@ body[data-busy="1"] .pill, body[data-busy="1"] .pin { opacity: .55; }
 @media (max-width: 720px) {
   #shop .shelf {
     left: 0; right: 0; top: auto; bottom: 0;
-    width: auto; height: min(46vh, 430px);
+    width: auto;
+    /* Plus the home indicator, and padded by it — otherwise the last row
+       of cards sits behind a bar the visitor cannot move. */
+    height: calc(min(46vh, 430px) + var(--sab));
+    padding-bottom: var(--sab);
     border-left: 0; border-top: 1px solid var(--rule);
   }
   /* 375 wide, minus the gutter, the sound toggle, the mark and the way
@@ -805,6 +834,25 @@ body[data-shopping="1"] .sound[data-state="prompt"]::after { animation: none; op
   background: var(--paper); color: var(--ink);
 }
 #fallback[data-on="1"] { display: grid; }
+
+/* Fingers are not cursors.
+   Measured on a 375-wide phone before this: the filter chips were 24px
+   tall and the way out was 31, against a 44px floor in every platform's
+   own guidance. Those are the two controls a shop is actually operated
+   with. Nothing here moves on a mouse, where a 24px chip is fine. */
+@media (pointer: coarse) {
+  /* A floor on the box rather than bigger type: padding alone got the chip
+     to 36px and would have needed a full rem either side to reach 44,
+     which is a chip the size of a button. */
+  #shop .cat {
+    min-height: 44px; display: inline-flex; align-items: center;
+    padding: .4rem .82rem; font-size: .66rem;
+  }
+  #shop .cat i { margin-left: .4rem; }
+  #shop .out { min-height: 44px; padding: .5rem .9rem; }
+  #shop .hit { padding: .6rem .6rem .8rem; }
+  .index .ix { padding: .3rem 0; }
+}
 
 @media (max-width: 860px) {
   .index { display: none; }
