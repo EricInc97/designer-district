@@ -6751,6 +6751,20 @@ const sound = (() => {
   const btn = document.getElementById("sound");
   let armed = false;
 
+  /* Whether they wanted sound, remembered.
+   *
+   * Every visit started on "Tap for sound" regardless of what had been
+   * chosen last time — including for somebody who had deliberately muted
+   * it, who got asked again on every single page load.
+   *
+   * Only an explicit press is recorded. Autoplay being refused is not a
+   * preference, and writing it down as one would mute the returning visitor
+   * who had in fact asked for sound.
+   */
+  const PREF = "dd.sound";
+  const wanted = () => { try { return localStorage.getItem(PREF); } catch { return null; } };
+  const remember = (v) => { try { localStorage.setItem(PREF, v); } catch { /* private mode */ } };
+
   /** Three states: asking to be used, on, or muted. */
   window.__paintSound = () => paint();
 
@@ -6817,8 +6831,8 @@ const sound = (() => {
     e.stopPropagation();
     // A press here is unambiguous consent, so it both starts a blocked
     // context and mutes a running one.
-    if (sound.blocked || !sound.on) { sound.enable(); switchHint(); }
-    else sound.toggle();
+    if (sound.blocked || !sound.on) { sound.enable(); switchHint(); remember("on"); }
+    else { sound.toggle(); remember("off"); }
     setTimeout(paint, 60);
   });
 
@@ -6828,7 +6842,12 @@ const sound = (() => {
 // the entire soundtrack out with no console entry and no visible symptom
 // beyond a button that says it is on. Whatever else happens, it says so.
 sound.boot()
-  .then((playing) => { if (!playing) arm(); paint(); })
+  .then(async (playing) => {
+    // Somebody who muted it last time is not asked again.
+    if (wanted() === "off") { if (sound.on) await sound.toggle(); }
+    else if (!playing) arm();
+    paint();
+  })
   .catch((e) => { console.error("sound failed to start", e); arm(); paint(); });
 
   // Coming back to the tab is another chance: a browser that refused on a
@@ -6846,6 +6865,7 @@ sound.boot()
     const t = e.target;
     if (t && t !== document.body && t.closest && t.closest("input, textarea, [contenteditable]")) return;
     sound.toggle();
+    remember(sound.on ? "on" : "off");
     setTimeout(paint, 60);
   });
 }
@@ -6860,6 +6880,7 @@ window.DD = { THREE, scene, camera, renderer, composer, C, BRANDS, PATH, LOOK,
               // rAF loop; works in a backgrounded tab, where goTo does not.
               step: (v) => { scrollEased = v; step(0.016, clock.elapsedTime, v); },
               doors,
+              route: { houseInHash, openFromHash },
               // Getters, both: section 27 builds these several thousand
               // lines below this object and a plain reference is a
               // temporal dead zone away from working.
@@ -8136,6 +8157,36 @@ storeMode = (() => {
   // What was activated to get in here, so it can be given focus back.
   let cameFrom = null;
 
+  /* The shop you are in is in the address bar.
+   *
+   * Three things fall out of that and all three were missing. A shop can be
+   * sent to somebody. Reloading puts you back in it rather than at the top
+   * of the street. And Back leaves the shop instead of leaving the site —
+   * which on a phone, where Back is the system gesture, was the difference
+   * between stepping outside and losing the whole visit.
+   *
+   * `pushed` tracks whether the history entry underneath us is one we put
+   * there, because `leave()` should only walk back over its own entry. A
+   * hash somebody pasted in is not ours to pop.
+   */
+  let pushed = false;
+
+  function urlEnter(slug) {
+    try {
+      history.pushState({ dd: slug }, "", "#" + slug);
+      pushed = true;
+    } catch { /* file://, sandboxes, and other places history is refused */ }
+  }
+
+  function urlLeave() {
+    try {
+      if (pushed) { pushed = false; history.back(); }
+      else if (location.hash) {
+        history.replaceState(null, "", location.pathname + location.search);
+      }
+    } catch { /* as above */ }
+  }
+
   /* The page behind the overlay, switched off while the overlay is up.
    *
    * Without this, Tab walks straight out of the shop into the header, the
@@ -8946,12 +8997,13 @@ storeMode = (() => {
     buildGrid();
   }
 
-  async function enter(i) {
+  async function enter(i, opts = {}) {
     if (busy || active || i < 0 || i >= monoliths.length) return;
     busy = true;
     const m = monoliths[i];
     const b = m.brand;
     cameFrom = document.activeElement !== document.body ? document.activeElement : null;
+    if (!opts.quiet) urlEnter(b.slug);
 
     sound.click();
 
@@ -9025,7 +9077,7 @@ storeMode = (() => {
       });
     }
 
-    await walkIn(i);
+    await walkIn(i, opts.instant);
 
     // The camera is already inside and already pointed at the back wall;
     // all that is left is to let the room's own framing take it the last
@@ -9052,9 +9104,10 @@ storeMode = (() => {
     busy = false;
   }
 
-  async function leave() {
+  async function leave(opts = {}) {
     if (busy || !active) return;
     busy = true;
+    if (!opts.quiet) urlLeave();
     wipeEl.dataset.on = "1";
     await wait(330);
 
@@ -9132,12 +9185,14 @@ storeMode = (() => {
   return {
     get active() { return active; },
     get busy() { return busy; },
+    /** Which house is open, or -1. The URL router needs to know. */
+    get house() { return house; },
     /** True whenever the camera belongs to this — the walk in included. */
     get controlling() { return active || seq !== null; },
     enter,
     leave,
-    enterBySlug(slug) {
-      enter(monoliths.findIndex((m) => m.brand.slug === slug));
+    enterBySlug(slug, opts) {
+      enter(monoliths.findIndex((m) => m.brand.slug === slug), opts);
     },
     arts: () => storeRoom.arts,
     pickPanel(mesh) {
@@ -9206,6 +9261,79 @@ indexItems.forEach((el, i) => {
     travelTo(TRAVEL(monoliths[i].z + LEAD));
   });
 });
+
+
+
+/* And a link somebody was sent — or typed.
+ *
+ * No walk in: there is no street to walk from yet, and two and a third
+ * seconds of camera in front of a page that was opened *at* a shop is a
+ * wait, not an arrival. The street is put where that house is first, so
+ * that leaving lands you outside it rather than back at the hero.
+ */
+function houseInHash() {
+  const slug = decodeURIComponent(location.hash.replace(/^#/, "")).trim();
+  return slug ? monoliths.findIndex((m) => m.brand.slug === slug) : -1;
+}
+
+function openFromHash(placeStreet) {
+  if (storeMode.busy) return;          // `settleRoute` will come back
+  const i = houseInHash();
+
+  if (i < 0) {
+    if (storeMode.active) storeMode.leave({ quiet: true });
+    return;
+  }
+  // Already in the right shop, or in the wrong one. Editing the address bar
+  // from one house to another should move you, which means stepping out of
+  // the first before stepping into the second.
+  if (storeMode.active) {
+    if (storeMode.house === i) return;
+    storeMode.leave({ quiet: true }).then(() => settleRoute());
+    return;
+  }
+
+  if (placeStreet) {
+    const max = document.documentElement.scrollHeight - innerHeight;
+    scrollTo(0, clamp(TRAVEL(monoliths[i].z + LEAD), 0, 1) * max);
+    readScroll();
+    scrollEased = scrollTarget;
+  }
+  // One frame, so the camera is on the house before the room takes over.
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => storeMode.enter(i, { instant: true, quiet: true }));
+  });
+}
+
+/**
+ * Waits for whatever is in flight, then routes.
+ *
+ * Both events below can land in the middle of a walk-in or a walk-out, and
+ * dropping the request when that happens is how a hash change to another
+ * shop left the first one and never opened the second. The URL is a
+ * destination; if we are busy we are not there yet, so it keeps until we
+ * are. Capped, because a wedged transition should not spin forever.
+ */
+function settleRoute(frames = 240) {
+  if (!storeMode.busy) { openFromHash(true); return; }
+  if (frames > 0) requestAnimationFrame(() => settleRoute(frames - 1));
+}
+
+openFromHash(true);
+
+/* Back, Forward, and a hand-typed fragment all come through here.
+ *
+ * Off the URL, deliberately, and not off `event.state`. The first version
+ * read the state object and treated "no state" as "leave the shop" — and
+ * then discovered that assigning `location.hash` fires `popstate` with a
+ * null state *before* it fires `hashchange` in this engine. So changing the
+ * fragment from one shop to another left the first shop on the popstate and
+ * was then refused on the hashchange for being busy, which is a shop you
+ * cannot get to by editing its own address. The URL is the only thing that
+ * knows where you are meant to be; both events just mean "check it".
+ */
+addEventListener("popstate", () => settleRoute());
+addEventListener("hashchange", () => settleRoute());
 
 // Surface a dead scene rather than a black rectangle.
 canvasEl.addEventListener("webglcontextlost", (e) => {
