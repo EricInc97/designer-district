@@ -5176,11 +5176,85 @@ const sound = (() => {
     });
   }
 
+  /**
+   * Apple, and the two reasons a working page is silent on an iPhone.
+   *
+   * The first is the audio session. iOS files Web Audio under the *ambient*
+   * category by default, and ambient audio is killed by the hardware
+   * ring/silent switch — the little slider on the side of the phone. Nothing
+   * in the page is wrong, `ctx.state` says "running", the meters move, and
+   * the handset plays nothing. Android has no such switch, which is exactly
+   * why this reproduced on one and not the other. `navigator.audioSession`
+   * moves us to the playback category, which ignores the switch; it landed
+   * in Safari 16.4, and before that the only lever was to have an
+   * HTMLMediaElement playing, which promotes the session as a side effect.
+   *
+   * The second is that Safari has a third context state nobody else has:
+   * "interrupted", which it parks the context in after a call, a lock, or
+   * another app taking the session. It never comes back by itself, and
+   * every check in here tested for "suspended".
+   */
+  const APPLE = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+
+  function claimPlayback() {
+    try {
+      if (navigator.audioSession) {
+        navigator.audioSession.type = "playback";
+        stats.session = "playback";
+        return true;
+      }
+    } catch { /* read-only on some builds */ }
+    stats.session = "ambient";
+    return false;
+  }
+
+  /**
+   * The pre-16.4 lever: half a second of actual silence, looping.
+   *
+   * Only built where it is needed and only ever started inside a gesture.
+   * The samples are genuine silence, so the volume is beside the point —
+   * but it is not zero, because a muted element does not count.
+   */
+  let keeper = null;
+  function holdSession() {
+    if (!APPLE || navigator.audioSession) return;
+    if (!keeper) {
+      const rate = 8000, n = rate / 2;
+      const buf = new ArrayBuffer(44 + n), v = new DataView(buf);
+      const put = (o, str) => { for (let i = 0; i < str.length; i++) v.setUint8(o + i, str.charCodeAt(i)); };
+      put(0, "RIFF"); v.setUint32(4, 36 + n, true); put(8, "WAVEfmt ");
+      v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+      v.setUint32(24, rate, true); v.setUint32(28, rate, true);
+      v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+      put(36, "data"); v.setUint32(40, n, true);
+      for (let i = 0; i < n; i++) v.setUint8(44 + i, 128);   // 8-bit zero
+      keeper = new Audio(URL.createObjectURL(new Blob([buf], { type: "audio/wav" })));
+      keeper.loop = true;
+      keeper.volume = 0.001;
+      keeper.setAttribute("playsinline", "");
+    }
+    const q = keeper.play();
+    if (q && q.catch) q.catch(() => {});
+  }
+  function dropSession() { if (keeper) { try { keeper.pause(); } catch {} } }
+
   let clickNoise = null;
   async function start() {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return false;
+    claimPlayback();
     ctx = new AC();
+
+    // "interrupted" is Safari's, and it is terminal without this.
+    ctx.onstatechange = () => {
+      stats.state = ctx.state;
+      if (on && ctx.state !== "running" && ctx.state !== "closed") {
+        const q = ctx.resume();
+        if (q && q.catch) q.catch(() => {});
+      }
+      if (typeof window.__paintSound === "function") window.__paintSound();
+    };
     master = ctx.createGain();
     master.gain.value = 0;
     master.connect(ctx.destination);
@@ -5236,7 +5310,12 @@ const sound = (() => {
 
   return {
     get on() { return on; },
-    get blocked() { return !!ctx && ctx.state === "suspended"; },
+    // Not `=== "suspended"`. Safari's "interrupted" is neither running nor
+    // suspended, so the old test called an inaudible context healthy: the
+    // button painted "Sound on", nothing came out, and the recovery paths
+    // that watch this flag never fired.
+    get blocked() { return !!ctx && ctx.state !== "running"; },
+    get apple() { return APPLE; },
     click: uiClick,
 
     /**
@@ -5265,8 +5344,13 @@ const sound = (() => {
         const ok = await start();
         if (!ok) return false;
       }
-      if (ctx.state === "suspended") { try { await ctx.resume(); } catch {} }
+      claimPlayback();
+      if (ctx.state !== "running") {
+        holdSession();
+        try { await ctx.resume(); } catch {}
+      }
       on = !on;
+      if (!on) dropSession();
       ramp();
       return on;
     },
@@ -5282,8 +5366,19 @@ const sound = (() => {
     enable() {
       if (!ctx) { start().then(() => this.enable()); return false; }
       on = true;
+      // Both of these have to happen inside the gesture, before the resume.
+      claimPlayback();
+      holdSession();
       const r = ctx.resume();
       if (r && r.catch) r.catch(() => {});
+      // An empty buffer through the graph, which is the oldest iOS unlock
+      // there is and still the one that settles some builds.
+      try {
+        const src = ctx.createBufferSource();
+        src.buffer = ctx.createBuffer(1, 1, 22050);
+        src.connect(ctx.destination);
+        src.start(0);
+      } catch { /* nothing to lose */ }
       ramp();
       return ctx.state === "running";
     },
@@ -5315,13 +5410,23 @@ const sound = (() => {
 
     /** For the console: is it running, is it audible, is it silent? */
     get debug() {
-      return { state: ctx ? ctx.state : "not started", on,
+      return { state: ctx ? ctx.state : "not started", on, apple: APPLE,
+               session: stats.session || "unset",
+               keeper: keeper ? (keeper.paused ? "paused" : "playing") : "none",
                masterGain: master ? +master.gain.value.toFixed(3) : 0,
                distance: stats.distance, muffleHz: stats.muffleHz, ...stats };
     },
 
-    suspend() { if (ctx && ctx.state === "running") ctx.suspend(); },
-    resume() { if (ctx && on && ctx.state === "suspended") ctx.resume(); },
+    suspend() {
+      if (ctx && ctx.state === "running") ctx.suspend();
+      dropSession();
+    },
+    resume() {
+      if (!ctx || !on || ctx.state === "running") return;
+      claimPlayback();
+      const q = ctx.resume();
+      if (q && q.catch) q.catch(() => {});
+    },
   };
 })();
 
@@ -5341,6 +5446,8 @@ const sound = (() => {
   let armed = false;
 
   /** Three states: asking to be used, on, or muted. */
+  window.__paintSound = () => paint();
+
   function paint() {
     const playing = sound.on && !sound.blocked;
     const state = playing ? "on" : (sound.on ? "prompt" : "off");
@@ -5372,11 +5479,34 @@ const sound = (() => {
     for (const ev of GESTURES) window.addEventListener(ev, begin, { passive: true });
   };
 
+  /**
+   * The one failure the page has no way of seeing.
+   *
+   * With the playback session claimed the ring/silent switch should no
+   * longer matter, but on an iPhone too old for `navigator.audioSession`
+   * it still can, and there is no API that reports the position of a
+   * physical slider. So if this is an Apple device and everything on our
+   * side says it should be audible, say the only useful thing once.
+   */
+  let toldAboutSwitch = false;
+  function switchHint() {
+    if (toldAboutSwitch || !sound.apple) return;
+    setTimeout(() => {
+      if (!sound.on || sound.blocked) return;
+      toldAboutSwitch = true;
+      const lbl = btn.querySelector(".lbl");
+      lbl.textContent = "Check the side switch";
+      btn.dataset.state = "prompt";
+      setTimeout(() => { paint(); }, 4200);
+    }, 1100);
+  }
+
   btn.addEventListener("click", (e) => {
     e.stopPropagation();
     // A press here is unambiguous consent, so it both starts a blocked
     // context and mutes a running one.
-    if (sound.blocked || !sound.on) sound.enable(); else sound.toggle();
+    if (sound.blocked || !sound.on) { sound.enable(); switchHint(); }
+    else sound.toggle();
     setTimeout(paint, 60);
   });
 
