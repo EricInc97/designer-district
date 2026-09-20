@@ -116,13 +116,31 @@ body {
 
 /* ## 03  STYLES — chrome and the scroll overlay */
 
+/*
+ * Sized to the LARGE viewport, deliberately.
+ *
+ * On a phone the address bar slides in and out as you scroll, and the
+ * viewport changes height under you. three's `setSize` writes the height it
+ * was given straight onto the canvas as an inline style, so the moment the
+ * bar retracts — or the `resize` that follows arrives a frame late, which on
+ * scroll-driven UI it always does — the canvas is shorter than the window
+ * and the white page shows through underneath it. That was the bar along the
+ * bottom.
+ *
+ * `100lvh` is the height with the browser UI retracted, so the canvas is
+ * never shorter than what is on screen. When the bar is showing, a sliver of
+ * the render is hidden below the fold instead, which is the right way round:
+ * something covered rather than something missing. `setSize(w, h, false)`
+ * further down stops three from overwriting this with pixels again.
+ */
 #stage {
   position: fixed;
-  inset: 0;
+  top: 0; left: 0;
   z-index: 0;
   display: block;
   width: 100%;
-  height: 100%;
+  height: 100vh;
+  height: 100lvh;
   touch-action: pan-y;
 }
 
@@ -327,6 +345,40 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
   box-shadow: 0 8px 26px rgba(0,0,0,.5), 0 0 0 3px #fff;
 }
 .pin[data-live="1"] { box-shadow: 0 8px 26px rgba(0,0,0,.5), 0 0 0 3px var(--ink); }
+
+/* The leader line, and the tack it lands on.
+   A marker floating loose over the street reads as an overlay dropped on top
+   of the picture. Tied down to the shopfront it labels, it reads as being
+   *in* the scene — and once the marker can be lifted clear of the sign
+   without losing what it points at, it can be lifted far enough to stop
+   colliding with the sign artwork underneath it.
+
+   The stem is one pixel wide and stretched with `scaleX`, so a frame costs a
+   transform and nothing else. That is also why the dark edging runs top to
+   bottom: a horizontal gradient stretches with the bar, a vertical one does
+   not, so the hairline stays one pixel however long the line gets. */
+.stem {
+  position: absolute;
+  left: 0; top: 0;
+  width: 1px; height: 3px;
+  transform-origin: 0 50%;
+  background: linear-gradient(to bottom,
+      rgba(0,0,0,.45) 0 1px,
+      var(--pin-bg, #fff) 1px 2px,
+      rgba(0,0,0,.45) 2px 3px);
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+.tack {
+  position: absolute;
+  left: 0; top: 0;
+  width: 10px; height: 10px;
+  border-radius: 999px;
+  background: var(--pin-bg, #fff);
+  box-shadow: 0 0 0 2px rgba(0,0,0,.38), 0 2px 10px rgba(0,0,0,.5);
+  pointer-events: none;
+  will-change: transform, opacity;
+}
 
 @media (prefers-reduced-motion: no-preference) {
   .pin { animation: pinIn .35s cubic-bezier(.2,1.3,.4,1) both; }
@@ -822,7 +874,11 @@ function inBuilt(x, z) {
 
 // Scroll choreography. Each panel owns a slice of the journey.
 const BEATS = {
-  hero:   [0.000, 0.095],
+  // Shorter than it was. The route is a straight run now, so the same
+  // fraction of it carries the camera much further: at 0.095 it is already
+  // at the arch, and the lockup was still sitting over a close-up of the
+  // shell. It clears at 0.070, about three metres short of the threshold.
+  hero:   [0.000, 0.070],
   // Nothing between the hero and the street on purpose: that stretch is the
   // camera swinging around the dome, and a caption over it would only be
   // something to read instead of looking.
@@ -1250,8 +1306,20 @@ try {
   throw err;
 }
 
+/**
+ * The canvas box, which is not the window.
+ *
+ * Everything that turns a 3D point into a screen position — the projection
+ * aspect, the waypoint markers, the pointer — has to measure against the
+ * canvas, not `innerHeight`. They agreed while the canvas was sized in
+ * pixels off the window; they stop agreeing the moment the canvas is sized
+ * in `lvh` and the address bar is showing.
+ */
+let viewW = canvasEl.clientWidth || innerWidth;
+let viewH = canvasEl.clientHeight || innerHeight;
+
 renderer.setPixelRatio(Math.min(devicePixelRatio, QUALITY.dpr));
-renderer.setSize(innerWidth, innerHeight);
+renderer.setSize(viewW, viewH, false);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.98;
 renderer.shadowMap.enabled = true;
@@ -1260,7 +1328,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(C.fog.getHex(), C.fogDensity);
 
-const camera = new THREE.PerspectiveCamera(46, innerWidth / innerHeight, 0.25, 900);
+const camera = new THREE.PerspectiveCamera(46, viewW / viewH, 0.25, 900);
 camera.position.set(0, 3.2, 30);
 
 // ## 10  SKY — gradient, sun, clouds, environment
@@ -1485,25 +1553,43 @@ const POOL = { w: 27, d: 22, lip: 2.4, y: C.poolY };
     const midZ = inner + len / 2 - 0.6;
     const parts = [];
 
-    // Narrow. At 6.4 wide with a 10.5 landing the walk covered most of the
-    // water in front of the dome, which is the one place its reflection has
-    // to land — the pool was there and had nowhere to show anything.
-    const deck = new THREE.BoxGeometry(4.2, 0.62, len);
-    deck.translate(0, C.plazaY - 0.31 + 0.02, midZ);
-    parts.push(deck);
+    // Both sides, now that the shell has a door at each end. The walk goes
+    // in under the dome and straight out the back, and the route into the
+    // street is through it rather than around it.
+    for (const sz of [1, -1]) {
+      // Narrow. At 6.4 wide with a 10.5 landing the walk covered most of the
+      // water in front of the dome, which is the one place its reflection
+      // has to land — the pool was there and had nowhere to show anything.
+      const deck = new THREE.BoxGeometry(4.2, 0.62, len);
+      deck.translate(0, C.plazaY - 0.31 + 0.02, sz * midZ);
+      parts.push(deck);
 
-    // A landing where it meets the step, so you arrive somewhere.
-    const landing = new THREE.BoxGeometry(6.6, 0.5, 2.6);
-    landing.translate(0, C.plazaY - 0.25, inner + 1.1);
-    parts.push(landing);
+      // A landing where it meets the step, so you arrive somewhere.
+      const landing = new THREE.BoxGeometry(6.6, 0.5, 2.6);
+      landing.translate(0, C.plazaY - 0.25, sz * (inner + 1.1));
+      parts.push(landing);
 
-    for (const sx of [-1, 1]) {
-      const wall = new THREE.BoxGeometry(0.46, 0.56, len);
-      wall.translate(sx * 2.1, C.plazaY + 0.28, midZ);
-      parts.push(wall);
-      const cap = new THREE.BoxGeometry(0.66, 0.11, len);
-      cap.translate(sx * 2.1, C.plazaY + 0.6, midZ);
-      parts.push(cap);
+      for (const sx of [-1, 1]) {
+        const wall = new THREE.BoxGeometry(0.46, 0.56, len);
+        wall.translate(sx * 2.1, C.plazaY + 0.28, sz * midZ);
+        parts.push(wall);
+        const cap = new THREE.BoxGeometry(0.66, 0.11, len);
+        cap.translate(sx * 2.1, C.plazaY + 0.6, sz * midZ);
+        parts.push(cap);
+      }
+
+      // The threshold. The plinth stands 62cm above the deck — a real step
+      // up, and correct, since the reference has the dome sitting clear of
+      // the plaza floor. Two treads turn it into an approach instead of a
+      // kerb to trip over on the way in.
+      const rise = (C.plinthTop - 0.02) / 3;
+      for (let k = 0; k < 2; k++) {
+        const top = C.plazaY + 0.02 + (k + 1) * rise;
+        const h = top + 0.9;
+        const tread = new THREE.BoxGeometry(4.2 - k * 0.35, h, 0.62);
+        tread.translate(0, top - h / 2, sz * (4.92 - k * 0.6));
+        parts.push(tread);
+      }
     }
 
     const walk = new THREE.Mesh(mergeGeometries(parts), marble);
@@ -1782,6 +1868,79 @@ const CUT = C.domeCut * Math.PI;
 const HOLE_ANGLE = C.holeAngle;
 const HOLES = holeDirections(C.domeHoles, CUT);
 
+/* ── the walk-through ──────────────────────────────────────────────────
+ *
+ * An arch cut clean through the shell, fore and aft, on the same line the
+ * causeway runs. It is the difference between a sculpture you circle and a
+ * pavilion you walk into, and the camera now takes the second reading: down
+ * the walk, in under the shell, and out the far side into the street.
+ *
+ * Defined in metres above the plinth rather than in angles, because that is
+ * how a door is actually judged — a person walks through 4.2 wide and 4
+ * high whatever polar angle the shell happens to be at there. Everything
+ * else converts into this frame: the alpha map that cuts the shell, and the
+ * test that drops any lens ring standing in the opening.
+ */
+const DOOR = { w: 2.1, shoulder: 2.3, top: 4.0, feather: 0.16 };
+const DOOR_AZ = [Math.PI / 2, Math.PI * 1.5];      // +z and -z
+
+/** Half-width of the opening at a given height: straight, then an arch. */
+function doorHalf(h) {
+  if (h <= DOOR.shoulder) return DOOR.w;
+  const t = (h - DOOR.shoulder) / (DOOR.top - DOOR.shoulder);
+  return t >= 1 ? 0 : DOOR.w * Math.sqrt(1 - t * t);
+}
+
+/** Height above the plinth of the shell at a polar angle, in world units. */
+const shellHeight = (theta) =>
+  C.domeCenterY + C.domeSquash * C.domeRadius * Math.cos(theta) - C.plinthTop;
+
+/**
+ * How far inside a doorway a point on the shell lies, in metres.
+ * Negative is outside, which is what lets the cut be feathered.
+ */
+function doorDepth(theta, phi) {
+  const h = shellHeight(theta);
+  if (h > DOOR.top || h < -0.6) return -9;
+  const half = doorHalf(h);
+  if (half <= 0) return -9;
+  const r = C.domeRadius * Math.sin(theta);
+  let best = -9;
+  for (const az of DOOR_AZ) {
+    let d = Math.abs(phi - az);
+    if (d > Math.PI) d = Math.PI * 2 - d;
+    const v = half - d * r;
+    if (v > best) best = v;
+  }
+  return best;
+}
+
+/** True when a lens opening overlaps a doorway and should not be ringed. */
+const holeMeetsDoor = (() => {
+  const u = new THREE.Vector3(), v = new THREE.Vector3(), q = new THREE.Vector3();
+  return (dir) => {
+    u.set(0, 1, 0);
+    if (Math.abs(dir.y) > 0.9) u.set(1, 0, 0);
+    u.cross(dir).normalize();
+    v.crossVectors(dir, u).normalize();
+    const ca = Math.cos(HOLE_ANGLE), sa = Math.sin(HOLE_ANGLE);
+    for (let i = -1; i < 16; i++) {
+      if (i < 0) q.copy(dir);
+      else {
+        const a = (i / 16) * Math.PI * 2;
+        q.copy(dir).multiplyScalar(ca)
+          .addScaledVector(u, Math.cos(a) * sa)
+          .addScaledVector(v, Math.sin(a) * sa)
+          .normalize();
+      }
+      let ph = Math.atan2(q.z, -q.x);
+      if (ph < 0) ph += Math.PI * 2;
+      if (doorDepth(Math.acos(clamp(q.y, -1, 1)), ph) > 0) return true;
+    }
+    return false;
+  };
+})();
+
 /**
  * The shell's alpha map, in the equirectangular frame SphereGeometry unwraps
  * to. Rasterised per hole inside its own bounding box rather than per pixel
@@ -1829,6 +1988,26 @@ function texDomeAlpha() {
       }
     }
   }
+  // The two doorways, cut after the lenses so they win wherever they meet.
+  // Only the rows that can contain one are visited — the arch tops out four
+  // metres above the plinth, which is a little over a third of the way up
+  // the map.
+  {
+    const cosTop = clamp(
+      (C.plinthTop + DOOR.top - C.domeCenterY) / (C.domeSquash * C.domeRadius), -1, 1);
+    const yTop = Math.max(0, Math.floor((Math.acos(cosTop) / CUT) * H) - 2);
+    for (let y = yTop; y < H; y++) {
+      const theta = (y / H) * CUT;
+      for (let x = 0; x < W; x++) {
+        const dd = doorDepth(theta, (x / W) * Math.PI * 2);
+        if (dd <= -DOOR.feather) continue;
+        const a = dd >= 0 ? 0 : Math.round((-dd / DOOR.feather) * 255);
+        const i = (y * W + x) * 4;
+        if (a < d[i]) { d[i] = d[i + 1] = d[i + 2] = a; }
+      }
+    }
+  }
+
   ctx.putImageData(img, 0, 0);
   const t = new THREE.CanvasTexture(c);
   t.wrapS = THREE.RepeatWrapping;
@@ -1870,6 +2049,11 @@ function texDomeAlpha() {
   const m = new THREE.Matrix4();
 
   for (const dir of HOLES) {
+    // A lens that overlaps a doorway loses its lip and its glass. What is
+    // left is an open circle running into the arch, which is how the cut
+    // stays part of the pattern instead of looking sawn out of it.
+    if (holeMeetsDoor(dir)) continue;
+
     const ringR = C.domeRadius * Math.sin(HOLE_ANGLE);
     const depth = C.domeRadius * Math.cos(HOLE_ANGLE);
     q.setFromUnitVectors(up, dir);
@@ -1951,9 +2135,26 @@ function texDomeAlpha() {
 // which is the one kind of cost a phone really feels.
 
 const fountain = (() => {
-  const JETS = QUALITY.light ? 10 : 16;
   const ring = C.domeRadius * Math.sin(C.domeCut * Math.PI) * 1.32;
   const nozzleY = POOL.y + 0.05;
+
+  // Azimuths, less the ones standing in a walkway.
+  //
+  // The causeways run out along the z axis fore and aft, so a nozzle near
+  // that line is a nozzle underneath the marble — firing a column of water
+  // up through the deck the visitor is about to walk down. Those are
+  // dropped rather than nudged aside: a ring of jets that breaks where the
+  // path crosses it is what an actual basin looks like.
+  const AZ = [];
+  {
+    const n = QUALITY.light ? 10 : 16;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      if (Math.abs(Math.cos(a) * ring) < 2.9) continue;
+      AZ.push(a);
+    }
+  }
+  const JETS = AZ.length;
 
   const water = new THREE.MeshPhysicalMaterial({
     color: 0xcfeaf2,
@@ -1982,7 +2183,7 @@ const fountain = (() => {
   {
     const rims = [];
     for (let i = 0; i < JETS; i++) {
-      const a = (i / JETS) * Math.PI * 2;
+      const a = AZ[i];
       const g = new THREE.CylinderGeometry(0.26, 0.3, 0.16, 8);
       g.translate(Math.cos(a) * ring, nozzleY + 0.02, Math.sin(a) * ring);
       rims.push(g);
@@ -2001,8 +2202,7 @@ const fountain = (() => {
   const life = new Float32Array(N);
   const sr = rng(70707);
   const respawn = (i, stagger) => {
-    const j = i % JETS;
-    const a = (j / JETS) * Math.PI * 2;
+    const a = AZ[i % JETS];
     pos[i * 3] = Math.cos(a) * ring + (sr() - 0.5) * 0.1;
     pos[i * 3 + 1] = nozzleY;
     pos[i * 3 + 2] = Math.sin(a) * ring + (sr() - 0.5) * 0.1;
@@ -2046,7 +2246,7 @@ const fountain = (() => {
     lights,
     update(dt, t) {
       for (let i = 0; i < JETS; i++) {
-        const a = (i / JETS) * Math.PI * 2;
+        const a = AZ[i];
         const h = 1.5 + Math.sin(t * 1.35 + i * 1.7) * 0.5 + Math.sin(t * 2.9 + i) * 0.22;
         dummy.position.set(Math.cos(a) * ring, nozzleY, Math.sin(a) * ring);
         dummy.scale.set(1, h, 1);
@@ -3700,35 +3900,54 @@ const streetLamps = [];
 
 // ## 19  CAMERA — the scroll path
 // Two curves: one the camera rides, one it looks at. Keeping them separate is
-// what lets it hold the dome in frame while swinging around it, then turn and
-// walk away down the street without a snap.
+// what lets it hold the dome in frame on the approach, then walk in under it
+// and away down the street without a snap.
+//
+// Straight down the axis, and through the dome rather than around it.
+//
+// The old route swung out to x 13 and came back — a good look at the shell
+// from outside, but it treated the dome as an object to be orbited, and it
+// arrived at the street sideways. The shell has doors at both ends now, so
+// the walk is the obvious one: down the causeway, in under the dome, out the
+// back, and into the street on the same line. It also makes the whole
+// journey one move instead of two, which is what a visitor's thumb is doing.
+//
+// x stays at exactly 0 from the near causeway to the far one. The doorway is
+// 4.2 wide and the pointer parallax adds up to 1.15 either side, so there is
+// nearly a metre of daylight at the jambs — but only because nothing else is
+// spending that budget.
 
 const PATH = new THREE.CatmullRomCurve3([
   // Opens close in on the dome, the way the reference frames it, rather than
   // from across an empty apron.
-  new THREE.Vector3(0, 3.0, 21),
-  new THREE.Vector3(0.6, 3.3, 18),
-  new THREE.Vector3(9, 4.4, 16),
-  new THREE.Vector3(13, 5.4, 2),
-  new THREE.Vector3(9.5, 4.2, -12),
-  new THREE.Vector3(2.5, 3.1, -24),
-  new THREE.Vector3(0, 2.9, -42),
-  new THREE.Vector3(0, 2.9, -68),
-  new THREE.Vector3(0, 2.9, -96),
-  new THREE.Vector3(0, 3.1, -124),
-  new THREE.Vector3(0, 4.4, -150),
+  new THREE.Vector3(0, 3.05, 22),
+  new THREE.Vector3(0, 3.05, 16),
+  new THREE.Vector3(0, 3.00, 10),
+  new THREE.Vector3(0, 2.95, 4),        // the near arch
+  new THREE.Vector3(0, 2.90, -1),       // under the shell
+  new THREE.Vector3(0, 2.95, -7),       // the far arch
+  new THREE.Vector3(0, 3.00, -13),
+  new THREE.Vector3(0, 2.95, -21),
+  new THREE.Vector3(0, 2.90, -30),
+  new THREE.Vector3(0, 2.90, -42),
+  new THREE.Vector3(0, 2.90, -68),
+  new THREE.Vector3(0, 2.90, -96),
+  new THREE.Vector3(0, 3.10, -124),
+  new THREE.Vector3(0, 4.40, -150),
   // Stops in the open ground between the last shopfront and the block that
   // closes the street, rather than travelling on through it.
-  new THREE.Vector3(0, 6.5, -162),
+  new THREE.Vector3(0, 6.50, -162),
 ], false, "catmullrom", 0.4);
 
+// Held on the dome at the top of the page, then let go forward so that by
+// the time the camera is at the arch it is already looking through it.
 const LOOK = new THREE.CatmullRomCurve3([
-  new THREE.Vector3(0, 5.4, 0),
-  new THREE.Vector3(0, 5.4, 0),
   new THREE.Vector3(0, 5.2, 0),
-  new THREE.Vector3(0, 4.8, 0),
-  new THREE.Vector3(0, 4.0, -8),
-  new THREE.Vector3(0, 3.2, -34),
+  new THREE.Vector3(0, 5.0, -3),
+  new THREE.Vector3(0, 4.4, -9),
+  new THREE.Vector3(0, 3.7, -17),
+  new THREE.Vector3(0, 3.2, -27),
+  new THREE.Vector3(0, 3.0, -40),
   new THREE.Vector3(0, 3.0, -56),
   new THREE.Vector3(0, 3.0, -84),
   new THREE.Vector3(0, 3.0, -112),
@@ -3748,8 +3967,8 @@ function readScroll() {
 addEventListener("scroll", readScroll, { passive: true });
 
 addEventListener("pointermove", (e) => {
-  pointer.tx = (e.clientX / innerWidth) * 2 - 1;
-  pointer.ty = (e.clientY / innerHeight) * 2 - 1;
+  pointer.tx = (e.clientX / viewW) * 2 - 1;
+  pointer.ty = (e.clientY / viewH) * 2 - 1;
 }, { passive: true });
 
 // ## 20  POST — bloom
@@ -3760,7 +3979,7 @@ const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
 let bloomPass = null;
 if (QUALITY.bloom) {
-  bloomPass = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.42, 0.72, 0.86);
+  bloomPass = new UnrealBloomPass(new THREE.Vector2(viewW, viewH), 0.42, 0.72, 0.86);
   composer.addPass(bloomPass);
 }
 composer.addPass(new OutputPass());
@@ -3774,8 +3993,8 @@ const ndc = new THREE.Vector2();
 const faces = monoliths.map((m) => m.face);
 
 function pick(e) {
-  ndc.x = (e.clientX / innerWidth) * 2 - 1;
-  ndc.y = -(e.clientY / innerHeight) * 2 + 1;
+  ndc.x = (e.clientX / viewW) * 2 - 1;
+  ndc.y = -(e.clientY / viewH) * 2 + 1;
   ray.setFromCamera(ndc, camera);
   const hit = ray.intersectObjects(faces, false)[0];
   if (hit) location.href = `${SITE}/brands/${hit.object.userData.brand.slug}`;
@@ -3783,8 +4002,8 @@ function pick(e) {
 canvasEl.addEventListener("click", pick);
 
 canvasEl.addEventListener("pointermove", (e) => {
-  ndc.x = (e.clientX / innerWidth) * 2 - 1;
-  ndc.y = -(e.clientY / innerHeight) * 2 + 1;
+  ndc.x = (e.clientX / viewW) * 2 - 1;
+  ndc.y = -(e.clientY / viewH) * 2 + 1;
   ray.setFromCamera(ndc, camera);
   canvasEl.style.cursor = ray.intersectObjects(faces, false).length ? "pointer" : "";
 }, { passive: true });
@@ -3868,6 +4087,11 @@ const TRAVEL = (() => {
   };
 })();
 
+// How far above the sign the marker floats. Generous: the line is what
+// keeps it attached, so the marker is free to sit clear of the shopfront
+// instead of on top of its own artwork.
+const PIN_LIFT = 5.0;
+
 const pins = monoliths.map((m, i) => {
   const b = m.brand;
   const el = document.createElement("button");
@@ -3884,8 +4108,18 @@ const pins = monoliths.map((m, i) => {
     // the card uses to decide which district you are looking at.
     travelTo(TRAVEL(m.z + LEAD));
   });
+  // Painted before the button so the line passes under the marker.
+  const stem = document.createElement("i");
+  stem.className = "stem";
+  stem.style.setProperty("--pin-bg", b.bg[0]);
+  const tack = document.createElement("i");
+  tack.className = "tack";
+  tack.style.setProperty("--pin-bg", b.bg[0]);
+
+  pinsEl.appendChild(stem);
+  pinsEl.appendChild(tack);
   pinsEl.appendChild(el);
-  return { el, m, shown: false };
+  return { el, stem, tack, m, shown: false };
 });
 
 /**
@@ -3927,38 +4161,77 @@ function travelTo(target) {
 }
 
 const pinPos = new THREE.Vector3();
+const pinFoot = new THREE.Vector3();
 
 /** Places every marker over its shopfront, and hides the ones out of frame. */
 function placePins(active, visible) {
   for (let i = 0; i < pins.length; i++) {
-    const { el, m } = pins[i];
-    if (!visible) { if (pins[i].shown) { el.style.display = "none"; pins[i].shown = false; } continue; }
+    const { el, stem, tack, m } = pins[i];
+    if (!visible) {
+      if (pins[i].shown) {
+        el.style.display = stem.style.display = tack.style.display = "none";
+        pins[i].shown = false;
+      }
+      continue;
+    }
 
-    m.face.getWorldPosition(pinPos);
-    pinPos.y += 3.4;                              // float above the sign
+    // Two points, not one: where the marker floats, and the spot on the
+    // shopfront it belongs to. Both are projected, because a vertical line
+    // in the world is only a vertical line on screen when the camera is
+    // level, and this one is not.
+    m.face.getWorldPosition(pinFoot);
+    pinPos.copy(pinFoot);
+    pinPos.y += PIN_LIFT;
     const dist = pinPos.distanceTo(camera.position);
     pinPos.project(camera);
+    pinFoot.project(camera);
 
     const onScreen = pinPos.z > -1 && pinPos.z < 1
       && Math.abs(pinPos.x) < 1.15 && Math.abs(pinPos.y) < 1.15
       && dist < 78;
 
     if (!onScreen) {
-      if (pins[i].shown) { el.style.display = "none"; pins[i].shown = false; }
+      if (pins[i].shown) {
+        el.style.display = stem.style.display = tack.style.display = "none";
+        pins[i].shown = false;
+      }
       continue;
     }
 
-    const x = (pinPos.x * 0.5 + 0.5) * innerWidth;
-    const y = (-pinPos.y * 0.5 + 0.5) * innerHeight;
+    const x = (pinPos.x * 0.5 + 0.5) * viewW;
+    const y = (-pinPos.y * 0.5 + 0.5) * viewH;
+    const fx = (pinFoot.x * 0.5 + 0.5) * viewW;
+    const fy = (-pinFoot.y * 0.5 + 0.5) * viewH;
     // Near markers are full size, far ones shrink away rather than crowding.
     const k = clamp(1.15 - dist / 90, 0.42, 1);
+    const o = clamp(1.35 - dist / 70, 0.25, 1);
+
     el.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0) translate(-50%, -100%) scale(${k.toFixed(2)})`;
-    el.style.opacity = clamp(1.35 - dist / 70, 0.25, 1).toFixed(2);
+    el.style.opacity = o.toFixed(2);
     el.dataset.live = i === active ? "1" : "0";
-    if (!pins[i].shown) { el.style.display = "grid"; pins[i].shown = true; }
+
+    // The line runs foot to marker. Length as a scale on a one-pixel bar,
+    // angle as a rotation, both folded into the one transform.
+    const dx = x - fx, dy = y - fy;
+    const len = Math.max(0, Math.hypot(dx, dy) - 5);
+    stem.style.transform =
+      `translate3d(${fx.toFixed(1)}px, ${fy.toFixed(1)}px, 0) rotate(${Math.atan2(dy, dx).toFixed(3)}rad) scaleX(${len.toFixed(1)})`;
+    stem.style.opacity = (o * 0.9).toFixed(2);
+
+    tack.style.transform =
+      `translate3d(${fx.toFixed(1)}px, ${fy.toFixed(1)}px, 0) translate(-50%, -50%) scale(${k.toFixed(2)})`;
+    tack.style.opacity = o.toFixed(2);
+
+    if (!pins[i].shown) {
+      el.style.display = "grid";
+      stem.style.display = tack.style.display = "block";
+      pins[i].shown = true;
+    }
   }
 }
-pins.forEach((p) => { p.el.style.display = "none"; });
+pins.forEach((p) => {
+  p.el.style.display = p.stem.style.display = p.tack.style.display = "none";
+});
 
 let shownBrand = -1;
 function showBrand(i) {
@@ -4079,7 +4352,9 @@ const BASE_FOV = 46, BASE_ASPECT = 1.6;
 const H_HALF = Math.atan(Math.tan((BASE_FOV / 2) * Math.PI / 180) * BASE_ASPECT);
 
 function resize() {
-  const w = innerWidth, h = innerHeight;
+  const w = canvasEl.clientWidth || innerWidth;
+  const h = canvasEl.clientHeight || innerHeight;
+  viewW = w; viewH = h;
   camera.aspect = w / h;
   camera.fov = clamp(
     2 * Math.atan(Math.tan(H_HALF) / camera.aspect) * 180 / Math.PI,
@@ -4087,13 +4362,20 @@ function resize() {
   );
   camera.updateProjectionMatrix();
   renderer.setPixelRatio(Math.min(devicePixelRatio, QUALITY.dpr));
-  renderer.setSize(w, h);
+  // `false`: do not write width/height back onto the canvas as inline pixels.
+  // The stylesheet owns the box, and it owns it in `lvh` for a reason.
+  renderer.setSize(w, h, false);
   composer.setSize(w, h);
   if (bloomPass) bloomPass.setSize(w, h);
   readScroll();
 }
 addEventListener("resize", resize);
 addEventListener("orientationchange", () => setTimeout(resize, 250));
+// `resize` on the window does not fire for every address-bar move on every
+// phone, and the scroll listener is where the stale size actually shows.
+if (window.visualViewport) {
+  visualViewport.addEventListener("resize", resize);
+}
 
 // Stop burning a GPU on a tab nobody is looking at.
 document.addEventListener("visibilitychange", () => {
