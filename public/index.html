@@ -1445,6 +1445,41 @@ const POOL = { w: 25, d: 18, lip: 2.4, y: C.poolY };
   lip.castShadow = true; lip.receiveShadow = true;
   scene.add(lip);
 
+  // The walk out to it.
+  //
+  // In the reference the basin is not a pond you look at from the edge — a
+  // marble causeway runs out into it with the water divided either side, and
+  // that is most of why the dome reads as something you can go and stand
+  // under rather than an object on a plinth. Deck flush with the paving,
+  // parapets low enough to see over.
+  {
+    const marble = new THREE.MeshStandardMaterial({
+      color: 0xe9e4d8, roughness: 0.42, metalness: 0.02, envMapIntensity: 0.8,
+    });
+    const reach = POOL.d / 2 + POOL.lip;
+    const inner = C.domeRadius * Math.sin(C.domeCut * Math.PI) * 1.05;
+    const len = reach - inner + 1.2;
+    const midZ = inner + len / 2 - 0.6;
+    const parts = [];
+
+    const deck = new THREE.BoxGeometry(4.6, 0.62, len);
+    deck.translate(0, C.plazaY - 0.31 + 0.02, midZ);
+    parts.push(deck);
+
+    for (const sx of [-1, 1]) {
+      const wall = new THREE.BoxGeometry(0.42, 0.62, len);
+      wall.translate(sx * 2.3, C.plazaY + 0.31, midZ);
+      parts.push(wall);
+      const cap = new THREE.BoxGeometry(0.62, 0.12, len);
+      cap.translate(sx * 2.3, C.plazaY + 0.66, midZ);
+      parts.push(cap);
+    }
+
+    const walk = new THREE.Mesh(mergeGeometries(parts), marble);
+    walk.castShadow = true; walk.receiveShadow = true;
+    scene.add(walk);
+  }
+
   // The broad step the basin sits on, raised a hand above the paving.
   {
     const step = new THREE.Mesh(
@@ -2297,8 +2332,9 @@ const monoliths = [];   // kept under the old name: sections 19 and 21 read it
 // Materials the time of day has to reach into. Collected as they are built,
 // because they are created inside the street block and the clock runs long
 // after it.
-let interiorMat = null;
+let interiorMat = null, canopyStripMat = null, lampHeadMat = null, glassMat = null;
 const signMats = [];
+const streetLamps = [];
 
 {
   const concrete = [], accent = [], glass = [], metal = [], interiors = [], kerbs = [];
@@ -2879,22 +2915,86 @@ const signMats = [];
   const interiorMesh = new THREE.Mesh(mergeGeometries(interiors), interiorMat);
   scene.add(interiorMesh);
 
-  const glassMesh = new THREE.Mesh(
-    mergeGeometries(glass),
-    new THREE.MeshPhysicalMaterial({
-      color: 0x22323a,
-      roughness: 0.05,
-      metalness: 0.1,
-      transmission: 0.55,
-      thickness: 0.2,
-      ior: 1.5,
-      transparent: true,
-      opacity: 0.85,
-      envMapIntensity: 1.6,
-      side: THREE.DoubleSide,
-    })
-  );
+  glassMat = new THREE.MeshPhysicalMaterial({
+    color: 0x22323a,
+    roughness: 0.05,
+    metalness: 0.1,
+    transmission: 0.55,
+    thickness: 0.2,
+    ior: 1.5,
+    transparent: true,
+    opacity: 0.85,
+    envMapIntensity: 1.6,
+    side: THREE.DoubleSide,
+  });
+  const glassMesh = new THREE.Mesh(mergeGeometries(glass), glassMat);
   scene.add(glassMesh);
+
+  // ── lighting the street ───────────────────────────────────────────────
+  //
+  // At night the alley was a black corridor. Shop windows are small and sit
+  // behind tinted glass, so they cannot light a street on their own however
+  // hot their emissive is — the photograph of it was almost entirely under
+  // 12/255. Three things fix it, and all three are needed.
+  //
+  // A strip under every canopy, which is what the real street uses and what
+  // puts light on the shopfront itself. Lamp standards down the kerb, whose
+  // point lights are the only thing here that actually puts light on the
+  // paving — emissive geometry glows but illuminates nothing, there being no
+  // global illumination to carry it. And the shop glazing lightens after
+  // dark, so the lit interiors read through it instead of being swallowed.
+  {
+    const strips = [], poles = [], heads = [];
+
+    for (const m of monoliths) {
+      m.group.updateMatrixWorld(true);
+      const strip = new THREE.BoxGeometry(STREET.width - 2.4, 0.13, 0.5);
+      strip.translate(0, 5.05, 1.9);
+      strip.applyMatrix4(m.group.matrixWorld);
+      strips.push(strip);
+    }
+
+    canopyStripMat = new THREE.MeshStandardMaterial({
+      color: 0xfff1d6, emissive: 0xffdca8, emissiveIntensity: 0, roughness: 0.6,
+    });
+    const stripMesh = new THREE.Mesh(mergeGeometries(strips), canopyStripMat);
+    scene.add(stripMesh);
+
+    const LAMPS = QUALITY.light ? 3 : 6;
+    const span = Math.abs(BRANDS.length * STREET.step);
+    for (let i = 0; i < LAMPS; i++) {
+      const z = STREET.from - 8 - (i + 0.5) * (span / LAMPS);
+      const x = (i % 2 === 0 ? -1 : 1) * (STREET.half - 1.4);
+
+      const pole = new THREE.CylinderGeometry(0.075, 0.1, 5.0, 6);
+      pole.translate(x, 2.5, z);
+      poles.push(pole);
+      const arm = new THREE.BoxGeometry(0.9, 0.1, 0.1);
+      arm.translate(x - Math.sign(x) * 0.45, 4.95, z);
+      poles.push(arm);
+
+      const head = new THREE.SphereGeometry(0.22, 8, 6);
+      head.translate(x - Math.sign(x) * 0.9, 4.88, z);
+      heads.push(head);
+
+      const l = new THREE.PointLight(0xffd8a4, 0, 30, 1.6);
+      l.position.set(x - Math.sign(x) * 0.9, 4.88, z);
+      scene.add(l);
+      streetLamps.push(l);
+    }
+
+    const poleMesh = new THREE.Mesh(
+      mergeGeometries(poles),
+      new THREE.MeshStandardMaterial({ color: 0x3a3d40, roughness: 0.42, metalness: 0.6 })
+    );
+    poleMesh.castShadow = true;
+    scene.add(poleMesh);
+
+    lampHeadMat = new THREE.MeshStandardMaterial({
+      color: 0xfff4e2, emissive: 0xffd9a2, emissiveIntensity: 0, roughness: 0.4,
+    });
+    scene.add(new THREE.Mesh(mergeGeometries(heads), lampHeadMat));
+  }
 
   const kerbMesh = new THREE.Mesh(
     mergeGeometries(kerbs),
@@ -4498,6 +4598,15 @@ function applyTimeOfDay(hour) {
   // the shell takes a faint emissive with them so it reads as lit from
   // within rather than merely illuminated.
   for (const l of fountain.lights) l.intensity = mixNum(0, 14, night);
+  for (const l of streetLamps) l.intensity = mixNum(0, 16, night);
+  if (canopyStripMat) canopyStripMat.emissiveIntensity = mixNum(0, 1.9, night);
+  if (lampHeadMat) lampHeadMat.emissiveIntensity = mixNum(0, 3.2, night);
+  // Tinted glass swallows a lit interior. After dark it opens up, which is
+  // also what a real shopfront does once the inside is brighter than the out.
+  if (glassMat) {
+    glassMat.opacity = mixNum(0.85, 0.42, night);
+    glassMat.transmission = mixNum(0.55, 0.9, night);
+  }
   if (domeShellMat) domeShellMat.emissiveIntensity = mixNum(0, 0.34, night);
   if (domeRimMat) domeRimMat.emissiveIntensity = mixNum(0, 0.26, night);
 
