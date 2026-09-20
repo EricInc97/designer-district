@@ -34,6 +34,7 @@
     ## 24  STARTUP
     ## 25  SOUND — ambience, and a beat coming from somewhere
     ## 26  TIME OF DAY — the scene follows the visitor's clock
+    ## 27  STORE INTERIORS — step inside a house
   ═══════════════════════════════════════════════════════════════════════════
 -->
 
@@ -385,6 +386,206 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
 }
 @keyframes pinIn { from { scale: .4; opacity: 0 } to { scale: 1; opacity: 1 } }
 
+/* ---- the shop, from the inside ------------------------------------------
+   Chrome for the interior mode. It sits over the room rather than covering
+   it: a bar across the top, a rail of stock across the bottom, and a card
+   that opens for one piece. The room stays visible between them, because the
+   whole point is to be standing in it. */
+#shop {
+  position: fixed; inset: 0; z-index: 6;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .32s ease, visibility 0s linear .32s;
+  --shop-ink: #ffffff;
+  --shop-bg: #101010;
+}
+#shop[data-on="1"] {
+  opacity: 1; visibility: visible;
+  transition: opacity .32s ease .12s, visibility 0s;
+}
+
+#shop .top {
+  position: absolute; left: 0; right: 0; top: var(--bar);
+  display: flex; align-items: center; gap: .85rem;
+  /* The sound toggle lives in this corner and stays reachable inside a
+     shop, so the way out is set in from the edge to clear it. */
+  padding: .8rem calc(clamp(14px, 4vw, 30px) + 60px) .8rem clamp(14px, 4vw, 30px);
+  /* Deep enough to hold white type over a Supreme-red or Off-White-white
+     wall, both of which sit directly behind this bar. */
+  background: linear-gradient(180deg, rgba(0,0,0,.8), rgba(0,0,0,.46) 62%, rgba(0,0,0,0));
+  pointer-events: auto;
+}
+#shop .mark {
+  width: 46px; height: 46px; flex: none;
+  display: grid; place-items: center;
+  border-radius: 10px; overflow: hidden;
+  background: var(--shop-bg);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.25);
+}
+#shop .mark img { max-width: 78%; max-height: 78%; display: block; }
+#shop .mark span { font-weight: 800; font-size: .72rem; letter-spacing: .04em; color: var(--shop-ink); }
+#shop .who { min-width: 0; }
+#shop .who h3 {
+  margin: 0; font-size: clamp(1rem, 3.6vw, 1.35rem); font-weight: 600;
+  letter-spacing: -0.02em; text-transform: uppercase; color: #fff;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#shop .who p { margin: .1rem 0 0; font-size: .6875rem; letter-spacing: .2em;
+  text-transform: uppercase; color: rgba(255,255,255,.72);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#shop .out {
+  margin-left: auto; flex: none;
+  display: inline-flex; align-items: center; gap: .45rem;
+  border: 1px solid rgba(255,255,255,.5); background: rgba(0,0,0,.35);
+  color: #fff; border-radius: 999px;
+  padding: .52rem .95rem; font: inherit; font-size: .6875rem; font-weight: 500;
+  letter-spacing: .16em; text-transform: uppercase; cursor: pointer;
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+}
+#shop .out:hover { background: #fff; color: #0b0b0b; border-color: #fff; }
+
+/* The rail. Every piece the house has in stock, which is the listing the
+   storefront shows — the same rows, standing up in the room instead. */
+#shop .rail {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: 1.1rem clamp(14px, 4vw, 30px) calc(1.1rem + env(safe-area-inset-bottom));
+  background: linear-gradient(0deg, rgba(0,0,0,.78), rgba(0,0,0,.42) 60%, rgba(0,0,0,0));
+  pointer-events: auto;
+}
+#shop .rail .strip {
+  display: flex; gap: .6rem; overflow-x: auto; overflow-y: hidden;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: .2rem;
+}
+#shop .rail .strip::-webkit-scrollbar { display: none; }
+#shop .item {
+  flex: none; width: 104px; scroll-snap-align: center;
+  border: 0; padding: 0; background: none; color: #fff;
+  text-align: left; cursor: pointer; font: inherit;
+}
+#shop .item .sh {
+  width: 104px; height: 104px; border-radius: 8px; overflow: hidden;
+  background: rgba(255,255,255,.1);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.22);
+  transition: box-shadow .18s ease, transform .18s ease;
+}
+#shop .item .sh img { width: 100%; height: 100%; object-fit: cover; display: block; }
+#shop .item[data-live="1"] .sh { box-shadow: 0 0 0 2px #fff; transform: translateY(-3px); }
+#shop .item b {
+  display: block; margin-top: .4rem; font-size: .72rem; font-weight: 500;
+  line-height: 1.25; max-height: 2.5em; overflow: hidden;
+  text-shadow: 0 1px 3px rgba(0,0,0,.9);
+}
+#shop .item i {
+  display: block; font-style: normal; font-size: .72rem;
+  color: rgba(255,255,255,.76); text-shadow: 0 1px 3px rgba(0,0,0,.9);
+}
+#shop .item[data-gone="1"] .sh img { filter: grayscale(1) brightness(.6); }
+
+/* One piece, picked up. */
+#shop .look {
+  position: absolute; right: clamp(14px, 4vw, 30px);
+  top: 50%; translate: 0 -50%;
+  width: min(330px, 78vw);
+  /* A laptop in landscape is 560 tall, and a square picture plus a name,
+     a price, a size run and a button does not fit in it. Capped against the
+     viewport and allowed to scroll rather than running off both ends. */
+  max-height: calc(100dvh - var(--bar) - 200px);
+  overflow-y: auto;
+  background: var(--paper); color: var(--ink);
+  border: 1px solid var(--rule);
+  padding: 1.1rem 1.15rem 1.25rem;
+  pointer-events: auto;
+  opacity: 0; translate: 0 calc(-50% + 10px);
+  transition: opacity .22s ease, translate .22s ease;
+}
+#shop .look[data-on="1"] { opacity: 1; translate: 0 -50%; }
+#shop .look .pic {
+  aspect-ratio: 1; background: var(--paper-sunken); overflow: hidden;
+  margin: 0 0 .9rem;
+}
+@media (max-height: 720px) {
+  #shop .look { padding: .85rem .95rem 1rem; }
+  /* A fixed height, not a ratio: the card is a third of the screen wide, so
+     any ratio still gives a picture taller than the room left for it. */
+  #shop .look .pic { aspect-ratio: auto; height: clamp(88px, 21vh, 150px); margin-bottom: .6rem; }
+  #shop .look .pill { margin-top: .75rem; }
+  #shop .look .stock { margin-top: .5rem; }
+  #shop .look .sizes { margin-top: .5rem; }
+}
+#shop .look .pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+#shop .look h4 { margin: 0; font-size: 1rem; font-weight: 600; line-height: 1.25; }
+#shop .look .price { margin: .35rem 0 0; font-size: .9375rem; }
+#shop .look .sizes {
+  margin: .7rem 0 0; display: flex; flex-wrap: wrap; gap: .3rem;
+}
+#shop .look .sizes span {
+  border: 1px solid var(--rule-strong); padding: .18rem .5rem;
+  font-size: .6875rem; letter-spacing: .08em;
+}
+#shop .look .stock { margin: .7rem 0 0; font-size: .6875rem; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--ink-faint); }
+#shop .look .pill { margin-top: 1rem; width: 100%; justify-content: center; }
+
+/* A phone is not a small laptop.
+   A square picture with the name, price, sizes and button stacked under it
+   is most of a 812-tall screen, and the room — the entire point of being in
+   here — ends up behind it. On a phone the card is a strip that sits above
+   the listing: thumbnail, the same facts beside it, and the room still
+   visible over the top of it. */
+@media (max-width: 720px) {
+  #shop .look {
+    left: clamp(12px, 3.5vw, 30px); right: clamp(12px, 3.5vw, 30px);
+    width: auto; top: auto; bottom: 172px;
+    max-height: none; overflow: visible;
+    translate: 0 10px;
+    display: grid;
+    grid-template-columns: 88px 1fr;
+    column-gap: .8rem;
+    align-items: start;
+    padding: .75rem .85rem .85rem;
+  }
+  #shop .look[data-on="1"] { translate: 0 0; }
+  #shop .look .pic {
+    grid-column: 1; grid-row: 1 / span 5;
+    width: 88px; height: 88px; aspect-ratio: auto; margin: 0;
+  }
+  #shop .look h4, #shop .look .price, #shop .look .sizes,
+  #shop .look .stock, #shop .look .pill { grid-column: 2; }
+  #shop .look h4 { font-size: .9rem; }
+  #shop .look .price { margin-top: .15rem; font-size: .875rem; }
+  #shop .look .sizes { margin-top: .4rem; }
+  #shop .look .stock { margin-top: .4rem; }
+  #shop .look .pill { margin-top: .55rem; padding: .5rem .9rem; }
+
+  #shop .top { padding-top: .55rem; padding-bottom: .55rem; }
+  #shop .who h3 { font-size: 1.05rem; }
+  #shop .mark { width: 38px; height: 38px; border-radius: 8px; }
+  /* The label collapses to a glyph so the house's name has the width. */
+  #shop .out { width: 38px; height: 38px; padding: 0; justify-content: center; }
+  #shop .out span { display: none; }
+  #shop .out::before { content: "¹5"; font-size: 15px; line-height: 1; }
+
+  #shop .item, #shop .item .sh { width: 84px; }
+  #shop .item .sh { height: 84px; }
+  #shop .rail { padding-top: .9rem; }
+}
+
+/* The cut between outside and in. A brand-coloured wipe, long enough to
+   hide the camera being put somewhere else entirely and short enough that
+   it reads as a cut rather than a load. */
+#wipe {
+  position: fixed; inset: 0; z-index: 7;
+  background: #101010;
+  opacity: 0; visibility: hidden;
+  transition: opacity .3s ease;
+  pointer-events: none;
+}
+#wipe[data-on="1"] { opacity: 1; visibility: visible; }
+
 /* The running order down the street. */
 .index {
   position: fixed; right: var(--shell); top: 56%; translate: 0 -50%;
@@ -622,6 +823,35 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
   </button>
 
 </div>
+
+<!-- Inside a shop. Hidden until the camera is actually in one. -->
+<div id="shop" aria-hidden="true">
+  <div class="top">
+    <div class="mark" id="shop-mark"></div>
+    <div class="who">
+      <h3 id="shop-name">&mdash;</h3>
+      <p id="shop-count">&mdash;</p>
+    </div>
+    <button class="out" id="shop-out" type="button" aria-label="Back to the street">
+      <span>Back to the street</span>
+    </button>
+  </div>
+
+  <div class="look" id="shop-look" data-on="0">
+    <div class="pic"><img id="look-img" alt="" /></div>
+    <h4 id="look-name">&mdash;</h4>
+    <p class="price" id="look-price">&mdash;</p>
+    <div class="sizes" id="look-sizes"></div>
+    <p class="stock" id="look-stock">&mdash;</p>
+    <a class="pill" id="look-link" href="#">View on the store</a>
+  </div>
+
+  <div class="rail">
+    <div class="strip" id="shop-strip"></div>
+  </div>
+</div>
+
+<div id="wipe"></div>
 
 <!-- ## 05  IMPORT MAP -->
 <script type="importmap">
@@ -3992,20 +4222,32 @@ const ray = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
 const faces = monoliths.map((m) => m.face);
 
-function pick(e) {
+function aimRay(e) {
   ndc.x = (e.clientX / viewW) * 2 - 1;
   ndc.y = -(e.clientY / viewH) * 2 + 1;
   ray.setFromCamera(ndc, camera);
-  const hit = ray.intersectObjects(faces, false)[0];
-  if (hit) location.href = `${SITE}/brands/${hit.object.userData.brand.slug}`;
+}
+
+/** What is under the pointer: a garment if we are inside, a house if not. */
+function under() {
+  if (storeMode && storeMode.active) {
+    return ray.intersectObjects(storeMode.arts(), false)[0] || null;
+  }
+  return ray.intersectObjects(faces, false)[0] || null;
+}
+
+function pick(e) {
+  aimRay(e);
+  const hit = under();
+  if (!hit) return;
+  if (storeMode && storeMode.active) storeMode.pickPanel(hit.object);
+  else storeMode.enterBySlug(hit.object.userData.brand.slug);
 }
 canvasEl.addEventListener("click", pick);
 
 canvasEl.addEventListener("pointermove", (e) => {
-  ndc.x = (e.clientX / viewW) * 2 - 1;
-  ndc.y = -(e.clientY / viewH) * 2 + 1;
-  ray.setFromCamera(ndc, camera);
-  canvasEl.style.cursor = ray.intersectObjects(faces, false).length ? "pointer" : "";
+  aimRay(e);
+  canvasEl.style.cursor = under() ? "pointer" : "";
 }, { passive: true });
 
 // ---- overlay wiring -------------------------------------------------------
@@ -4250,8 +4492,11 @@ function showBrand(i) {
   card.eyebrow.textContent = `District ${String(i + 1).padStart(2, "0")} of ${BRANDS.length}`;
   card.name.textContent = b.name;
   card.note.textContent = b.note;
+  // The pill used to leave the page. It opens the door now; the storefront
+  // is one tap further in, on whichever piece you pick up.
   card.link.href = `${SITE}/brands/${b.slug}`;
-  card.link.textContent = `Shop ${b.name}`;
+  card.link.textContent = `Step inside ${b.name}`;
+  card.link.dataset.house = String(i);
   indexItems.forEach((el, k) => { el.dataset.live = k === i ? "1" : "0"; });
 }
 
@@ -4259,6 +4504,17 @@ function showBrand(i) {
 
 const clock = new THREE.Clock();
 let running = true;
+
+/**
+ * The interior mode, once it exists.
+ *
+ * Declared here rather than where it is built because `step` below reads it
+ * and the startup render runs before section 27 has been evaluated. A `const`
+ * further down the file would be in its dead zone at exactly that moment,
+ * which is a mistake this file has already made three times.
+ */
+let storeMode = null;
+
 const camPos = new THREE.Vector3();
 const camLook = new THREE.Vector3();
 const shadowFocus = new THREE.Vector3();
@@ -4274,14 +4530,24 @@ const shadowFocus = new THREE.Vector3();
  */
 function step(dt, t, p) {
   // --- camera -------------------------------------------------------------
-  PATH.getPointAt(p, camPos);
-  LOOK.getPointAt(p, camLook);
+  const inside = !!(storeMode && storeMode.active);
+
+  if (inside) {
+    storeMode.aim(dt, camPos, camLook);
+  } else {
+    PATH.getPointAt(p, camPos);
+    LOOK.getPointAt(p, camLook);
+  }
 
   if (!QUALITY.still) {
     pointer.x += (pointer.tx - pointer.x) * Math.min(1, dt * 2.2);
     pointer.y += (pointer.ty - pointer.y) * Math.min(1, dt * 2.2);
-    camPos.x += pointer.x * 1.15;
-    camPos.y += -pointer.y * 0.55 + Math.sin(t * 0.42) * 0.09;   // a slow breath
+    // Indoors the room is four metres away, not forty, so the same parallax
+    // would swing the walls about. A quarter of it reads as standing still
+    // and shifting your weight, which is what it is for.
+    const sway = inside ? 0.3 : 1;
+    camPos.x += pointer.x * 1.15 * sway;
+    camPos.y += (-pointer.y * 0.55 + Math.sin(t * 0.42) * 0.09) * sway;
   }
 
   camera.position.copy(camPos);
@@ -4309,17 +4575,27 @@ function step(dt, t, p) {
   // A plain range test. This was a feathered curve once, and at the very top
   // of the page it evaluated to exactly 0.5 — so the hero panel failed its own
   // "> 0.5" check and the first thing a visitor saw was a wordless scene.
-  const within = ([a, b]) => (p >= a && p <= b ? "1" : "0");
-  panels.hero.dataset.on  = within(BEATS.hero);
-  panels.end.dataset.on   = within(BEATS.end);
+  if (inside) {
+    // The journey's own furniture has nothing to say in here.
+    panels.hero.dataset.on = "0";
+    panels.end.dataset.on = "0";
+    panels.brands.dataset.on = "0";
+    indexEl.dataset.on = "0";
+    hintEl.style.opacity = "0";
+    placePins(shownBrand, false);
+  } else {
+    const within = ([a, b]) => (p >= a && p <= b ? "1" : "0");
+    panels.hero.dataset.on  = within(BEATS.hero);
+    panels.end.dataset.on   = within(BEATS.end);
 
-  const inStreet = p >= BEATS.brands[0] && p <= BEATS.brands[1];
-  panels.brands.dataset.on = inStreet ? "1" : "0";
-  indexEl.dataset.on = inStreet ? "1" : "0";
-  hintEl.style.opacity = p < 0.02 ? "0.75" : "0";
+    const inStreet = p >= BEATS.brands[0] && p <= BEATS.brands[1];
+    panels.brands.dataset.on = inStreet ? "1" : "0";
+    indexEl.dataset.on = inStreet ? "1" : "0";
+    hintEl.style.opacity = p < 0.02 ? "0.75" : "0";
 
-  if (inStreet) showBrand(readableBrand());
-  placePins(shownBrand, inStreet);
+    if (inStreet) showBrand(readableBrand());
+    placePins(shownBrand, inStreet);
+  }
   sound.update(camera);
 
   composer.render();
@@ -5105,7 +5381,8 @@ window.DD = { THREE, scene, camera, renderer, composer, C, BRANDS, PATH, LOOK,
               goTo: (v) => scrollTo(0, v * (document.documentElement.scrollHeight - innerHeight)),
               // Place and render the scene at a scroll position without the
               // rAF loop; works in a backgrounded tab, where goTo does not.
-              step: (v) => { scrollEased = v; step(0.016, clock.elapsedTime, v); } };
+              step: (v) => { scrollEased = v; step(0.016, clock.elapsedTime, v); },
+              get store() { return storeMode; } };
 
 
 // ## 26  TIME OF DAY — the scene follows the visitor's clock
@@ -5265,6 +5542,757 @@ const localHour = () => {
 applyTimeOfDay(localHour());
 // Re-read every few minutes, so a tab left open through dusk follows it.
 setInterval(() => applyTimeOfDay(localHour()), 4 * 60 * 1000);
+
+
+// ## 27  STORE INTERIORS — step inside a house
+//
+// Clicking a house stops being a link off the page and becomes a door. The
+// camera cuts to a room behind that shopfront, the house's own stock is on
+// the walls, and the listing along the bottom is the same catalogue the
+// storefront serves — fetched from /api/storefront, which exists for this.
+//
+// One room, re-dressed.
+//
+// Fifteen interiors standing permanently in the scene would be fifteen times
+// the geometry to carry down a street you can only ever be inside one of.
+// There is a single room instead, moved onto whichever monolith you walked
+// into and given that building's own transform — so it lands inside the
+// footprint, facing the street, with no arithmetic about which kerb it is on.
+//
+// What changes per house is real, though, not a tint. Five kinds of room —
+// gallery, vault, atelier, bodega, works — each with its own fixtures, and
+// each house's own colours on the walls, floor, trim and light. A Chrome
+// Hearts vitrine room and a Supreme gridwall room are not the same box in
+// two colours.
+
+// Deeper than the shop it sits behind, and that is fine: it is a closed
+// box, nothing outside it is ever in frame, and the depth is what lets the
+// camera stand far enough back to see the whole wall. Capped at 11.6 all the
+// same — one more metre and the back wall would push through the block that
+// closes the plaza on that side, and *that* would be in frame.
+const ROOM = { w: 14.4, d: 11.6, h: 5.6, front: -2.8 };
+const ROOM_BACK = ROOM.front - ROOM.d;
+
+// A phone sees a 34-degree wedge where a laptop sees 67. The same wall of
+// stock cannot serve both: four across is two and a half across in portrait,
+// cropped at both jambs. Portrait gets a squarer grid of fewer, larger
+// pieces, which is also what a phone wants to look at.
+const ROOM_PORTRAIT = innerWidth / innerHeight < 1;
+
+/**
+ * A room per house.
+ *
+ * `kind` picks the fixtures. The colours are the house's own, carried over
+ * from its tile on the storefront and from the shopfront outside, so walking
+ * in does not change the subject.
+ */
+const INTERIOR = {
+  "bape":          { kind: "bodega",  wall: "#6b7a50", wall2: "#2b2f22", floor: "#cfcbc0", trim: "#b9be8f", lamp: "#fff1d2" },
+  "chrome-hearts": { kind: "vault",   wall: "#16171c", wall2: "#23252d", floor: "#0e0f12", trim: "#cbced6", lamp: "#e8f0ff" },
+  "supreme":       { kind: "bodega",  wall: "#ce1f26", wall2: "#8f1218", floor: "#e6e4df", trim: "#ffffff", lamp: "#ffffff" },
+  "amiri":         { kind: "gallery", wall: "#f1ebdf", wall2: "#ded3bd", floor: "#c8b99e", trim: "#8a7a5e", lamp: "#fff0d6" },
+  "balenciaga":    { kind: "vault",   wall: "#0d0d0d", wall2: "#1c1c1c", floor: "#151515", trim: "#7a7a7a", lamp: "#eaf0f6" },
+  "gallery-dept":  { kind: "works",   wall: "#dedbd4", wall2: "#c8c4ba", floor: "#b7b3aa", trim: "#1a1a1a", lamp: "#fff6e6" },
+  "godspeed":      { kind: "works",   wall: "#2a1d08", wall2: "#3c2b11", floor: "#1d1509", trim: "#caa23c", lamp: "#ffdb96" },
+  "purple-brand":  { kind: "works",   wall: "#4b2a7b", wall2: "#331d55", floor: "#2a2438", trim: "#b8a0e4", lamp: "#e4d6ff" },
+  "off-white":     { kind: "gallery", wall: "#f3f3f1", wall2: "#e2e2de", floor: "#d5d5d1", trim: "#111111", lamp: "#ffffff" },
+  "casablanca":    { kind: "atelier", wall: "#cfe3d8", wall2: "#e8c9a0", floor: "#cbb691", trim: "#2b2018", lamp: "#ffeccb" },
+  "ksubi":         { kind: "works",   wall: "#cad7e6", wall2: "#93a8c6", floor: "#b2bcc9", trim: "#121820", lamp: "#eaf3ff" },
+  "essentials":    { kind: "atelier", wall: "#b4a89b", wall2: "#9c9084", floor: "#a2968a", trim: "#5f564e", lamp: "#ffeed6" },
+  "rhude":         { kind: "atelier", wall: "#d8c9ab", wall2: "#bda98a", floor: "#94826a", trim: "#2a2119", lamp: "#ffe7ba" },
+  "vale":          { kind: "vault",   wall: "#17203a", wall2: "#0d1426", floor: "#101726", trim: "#c9a86a", lamp: "#ffe3b0" },
+  "hellstar":      { kind: "bodega",  wall: "#3a0e0e", wall2: "#7d1f10", floor: "#2a1a16", trim: "#e8552a", lamp: "#ffb27a" },
+};
+
+const storeRoom = (() => {
+  const group = new THREE.Group();
+  group.visible = false;
+
+  // One material per role, recoloured on the way in. Sharing them is what
+  // keeps re-dressing the room a dozen assignments rather than a rebuild.
+  const matFloor = new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.38, metalness: 0.04 });
+  const matWall  = new THREE.MeshStandardMaterial({ color: 0xdddddd, roughness: 0.93 });
+  const matWall2 = new THREE.MeshStandardMaterial({ color: 0xbbbbbb, roughness: 0.88 });
+  const matCeil  = new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.96 });
+  const matTrim  = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.34, metalness: 0.62 });
+  const matGlow  = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 2.4, roughness: 0.7 });
+  const matCase  = new THREE.MeshPhysicalMaterial({
+    color: 0xdfeaf0, roughness: 0.06, metalness: 0, transparent: true,
+    opacity: 0.26, side: THREE.DoubleSide, envMapIntensity: 1.5,
+  });
+
+  const box = (w, h, d, x, y, z) => {
+    const g = new THREE.BoxGeometry(w, h, d);
+    g.translate(x, y, z);
+    return g;
+  };
+  const tube = (r, h, x, y, z, axis) => {
+    const g = new THREE.CylinderGeometry(r, r, h, 8);
+    if (axis === "x") g.rotateZ(Math.PI / 2);
+    if (axis === "z") g.rotateX(Math.PI / 2);
+    g.translate(x, y, z);
+    return g;
+  };
+  const add = (geos, mat, shadow) => {
+    const m = new THREE.Mesh(mergeGeometries(geos), mat);
+    if (shadow) { m.castShadow = true; m.receiveShadow = true; }
+    return m;
+  };
+
+  // ── the shell ──────────────────────────────────────────────────────────
+  const midZ = ROOM.front - ROOM.d / 2;
+  group.add(add([box(ROOM.w, 0.24, ROOM.d, 0, -0.12, midZ)], matFloor, true));
+  group.add(add([box(ROOM.w, 0.24, ROOM.d, 0, ROOM.h + 0.12, midZ)], matCeil, false));
+  group.add(add([box(ROOM.w, ROOM.h, 0.24, 0, ROOM.h / 2, ROOM_BACK - 0.12)], matWall2, true));
+  group.add(add([
+    box(0.24, ROOM.h, ROOM.d, -(ROOM.w / 2 + 0.12), ROOM.h / 2, midZ),
+    box(0.24, ROOM.h, ROOM.d,  (ROOM.w / 2 + 0.12), ROOM.h / 2, midZ),
+    box(ROOM.w, ROOM.h, 0.24, 0, ROOM.h / 2, ROOM.front + 0.12),
+  ], matWall, true));
+
+  // ── fixtures, one set per kind, only one shown at a time ───────────────
+  const fixtures = {};
+  const kit = (name, build) => {
+    const g = new THREE.Group();
+    g.visible = false;
+    build(g);
+    group.add(g);
+    fixtures[name] = g;
+  };
+
+  // A white cube: plinths down the middle, a bench, a lighting track.
+  kit("gallery", (g) => {
+    const stone = [], glow = [], steel = [];
+    for (let i = 0; i < 3; i++) {
+      stone.push(box(1.15, 0.95, 1.15, (i % 2 ? 1 : -1) * 2.9, 0.475, -5.6 - i * 2.6));
+    }
+    stone.push(box(4.4, 0.4, 0.95, 0, 0.42, ROOM.front - 1.9));
+    steel.push(box(0.1, 0.42, 0.1, -1.9, 0.21, ROOM.front - 1.9));
+    steel.push(box(0.1, 0.42, 0.1,  1.9, 0.21, ROOM.front - 1.9));
+    for (const sx of [-1, 1]) {
+      steel.push(box(0.09, 0.09, ROOM.d - 1.6, sx * 3.6, ROOM.h - 0.34, midZ));
+      for (let i = 0; i < 4; i++) {
+        const z = ROOM.front - 1.8 - i * 2.2;
+        steel.push(tube(0.11, 0.3, sx * 3.6, ROOM.h - 0.56, z, "y"));
+        glow.push(box(0.17, 0.05, 0.17, sx * 3.6, ROOM.h - 0.71, z));
+      }
+    }
+    g.add(add(stone, matWall, true), add(steel, matTrim, true), add(glow, matGlow, false));
+  });
+
+  // Dark, metal, glass: vitrines on the floor and a fluted feature wall.
+  kit("vault", (g) => {
+    const metal = [], glass = [], glow = [];
+    for (const sx of [-1, 1]) {
+      metal.push(box(2.9, 0.82, 1.15, sx * 3.7, 0.41, -6.4));
+      metal.push(box(3.0, 0.07, 1.25, sx * 3.7, 0.86, -6.4));
+      glass.push(box(2.9, 0.85, 1.15, sx * 3.7, 1.32, -6.4));
+      glow.push(box(2.5, 0.04, 0.9, sx * 3.7, 1.72, -6.4));
+    }
+    for (let i = 0; i < 17; i++) {
+      const x = -ROOM.w / 2 + 0.8 + i * ((ROOM.w - 1.6) / 16);
+      metal.push(box(0.16, ROOM.h - 0.5, 0.16, x, (ROOM.h - 0.5) / 2, ROOM_BACK + 0.2));
+    }
+    glow.push(box(ROOM.w - 1.2, 0.05, 0.16, 0, 0.16, ROOM_BACK + 0.45));
+    g.add(add(metal, matTrim, true), add(glass, matCase, false), add(glow, matGlow, false));
+  });
+
+  // Warm timber, a rug and freestanding rails.
+  kit("atelier", (g) => {
+    const wood = [], steel = [], glow = [];
+    for (let i = 0; i < 16; i++) {
+      wood.push(box(ROOM.w - 1.0, 0.13, 0.12, 0, 0.55 + i * ((ROOM.h - 1.2) / 15), ROOM_BACK + 0.2));
+    }
+    wood.push(box(ROOM.w * 0.56, 0.05, 4.4, 0, 0.04, midZ + 0.6));
+    for (const sx of [-1, 1]) {
+      const x = sx * 3.9;
+      steel.push(tube(0.045, 2.05, x - 1.6, 1.02, -8.4, "y"));
+      steel.push(tube(0.045, 2.05, x + 1.6, 1.02, -8.4, "y"));
+      steel.push(tube(0.035, 3.2, x, 2.0, -8.4, "x"));
+      for (let k = 0; k < 7; k++) {
+        wood.push(box(0.5, 1.1, 0.13, x - 1.35 + k * 0.45, 1.35, -8.4));
+      }
+    }
+    glow.push(box(ROOM.w - 2.4, 0.07, 0.3, 0, ROOM.h - 0.34, ROOM.front - 1.3));
+    glow.push(box(ROOM.w - 2.4, 0.07, 0.3, 0, ROOM.h - 0.34, ROOM_BACK + 1.3));
+    g.add(add(wood, matTrim, true), add(steel, matTrim, true), add(glow, matGlow, false));
+  });
+
+  // Colour-block walls, gridwall panels, a counter and strip light.
+  kit("bodega", (g) => {
+    const bars = [], glow = [], body = [];
+    for (const sx of [-1, 1]) {
+      for (let i = 0; i < 9; i++) {
+        bars.push(box(0.1, 3.0, 0.07, sx * (ROOM.w / 2 - 0.16), 2.0, ROOM.front - 1.4 - i * 0.92));
+      }
+      for (let k = 0; k < 5; k++) {
+        bars.push(box(0.07, 0.07, ROOM.d - 2.4, sx * (ROOM.w / 2 - 0.16), 0.9 + k * 0.55, midZ));
+      }
+    }
+    body.push(box(3.4, 1.0, 0.85, 3.6, 0.5, ROOM.front - 2.2));
+    body.push(box(3.6, 0.09, 1.0, 3.6, 1.05, ROOM.front - 2.2));
+    for (let i = 0; i < 3; i++) {
+      glow.push(box(0.34, 0.09, ROOM.d - 2.0, -4.2 + i * 4.2, ROOM.h - 0.3, midZ));
+    }
+    g.add(add(bars, matTrim, true), add(body, matWall2, true), add(glow, matGlow, false));
+  });
+
+  // Raw: scaffold rails, painted floor markings, clamp lamps.
+  kit("works", (g) => {
+    const pipe = [], paint = [], glow = [];
+    for (const sx of [-1, 1]) {
+      const x = sx * 4.3;
+      pipe.push(tube(0.06, ROOM.h, x, ROOM.h / 2, -5.6, "y"));
+      pipe.push(tube(0.06, ROOM.h, x, ROOM.h / 2, -10.6, "y"));
+      pipe.push(tube(0.055, 5.0, x, 2.25, -8.1, "z"));
+      pipe.push(tube(0.055, 5.0, x, 3.7, -8.1, "z"));
+      for (let k = 0; k < 6; k++) {
+        paint.push(box(0.46, 1.05, 0.12, x - sx * 0.3, 1.62, -6.2 - k * 0.8));
+      }
+      pipe.push(tube(0.05, 0.5, x, 4.5, -7.2, "y"));
+      glow.push(box(0.3, 0.16, 0.3, x, 4.2, -7.2));
+    }
+    for (let i = 0; i < 4; i++) {
+      paint.push(box(ROOM.w - 2.2, 0.02, 0.16, 0, 0.02, -4.6 - i * 2.4));
+    }
+    g.add(add(pipe, matTrim, true), add(paint, matWall2, true), add(glow, matGlow, false));
+  });
+
+  // ── the brand's mark, on the back wall ─────────────────────────────────
+  const markCanvas = canvas(1024, 256);
+  const markTex = asTexture(markCanvas);
+  const markMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(5.2, 1.0),
+    new THREE.MeshStandardMaterial({ map: markTex, roughness: 0.6 })
+  );
+  // Clear above the top row, and low enough to stay under the page header.
+  // It sat across the stock, and every shop opened on its own name half
+  // hidden behind a T-shirt.
+  markMesh.position.set(0, 4.55, ROOM_BACK + 0.40);
+  group.add(markMesh);
+
+  // ── the stock on the walls ─────────────────────────────────────────────
+  //
+  // Twelve at a time: eight across the back wall where you are looking, two
+  // on each return. The rail along the bottom of the screen carries the rest
+  // and swaps these as it scrolls, so the room is always showing the part of
+  // the listing being read.
+  const PANEL = ROOM_PORTRAIT ? { w: 1.86, h: 1.76 } : { w: 1.9, h: 1.8 };
+  const COLS = ROOM_PORTRAIT ? [-2.05, 2.05] : [-5.25, -1.75, 1.75, 5.25];
+  const ROWS = [3.28, 1.34];
+  const SLOTS = [];
+  // Standing proud of the wall by 0.4, not flush with it.
+  //
+  // Every wall treatment here has depth — the vault's fluting reaches 0.28
+  // off the plaster, the atelier's battens 0.26 — and a picture hung flush
+  // is a picture behind them. Casablanca opened with its entire stock filed
+  // away between timber slats. Hung forward they read as hung, and it fixes
+  // all five rooms without special-casing any of them.
+  const OFF = 0.40;
+  for (const y of ROWS) {
+    for (const x of COLS) SLOTS.push({ x, y, z: ROOM_BACK + OFF, ry: 0 });
+  }
+  for (const sx of [-1, 1]) {
+    for (const z of [-7.0, -10.6]) {
+      SLOTS.push({ x: sx * (ROOM.w / 2 - 0.42), y: 2.5, z, ry: sx > 0 ? -Math.PI / 2 : Math.PI / 2 });
+    }
+  }
+
+  // How wide the back wall's grid actually is, so the camera can be placed
+  // to hold all of it rather than at a distance that happened to look right
+  // on one screen.
+  const GRID_HALF = Math.abs(COLS[0]) + PANEL.w / 2;
+
+  const loader = new THREE.TextureLoader();
+  loader.setCrossOrigin("anonymous");
+
+  const panels = SLOTS.map((slot) => {
+    const g = new THREE.Group();
+    g.position.set(slot.x, slot.y, slot.z);
+    g.rotation.y = slot.ry;
+
+    const frame = new THREE.Mesh(
+      new THREE.BoxGeometry(PANEL.w + 0.22, PANEL.h + 0.22, 0.1), matTrim);
+    frame.position.z = -0.05;
+    frame.castShadow = true;
+    g.add(frame);
+
+    const mat = new THREE.MeshStandardMaterial({ color: 0x9a9a9a, roughness: 0.82, metalness: 0 });
+    const art = new THREE.Mesh(new THREE.PlaneGeometry(PANEL.w, PANEL.h), mat);
+    art.position.z = 0.012;
+    g.add(art);
+
+    group.add(g);
+    return { group: g, art, mat, tex: null, product: null, slot };
+  });
+
+  /** Fits a loaded image into a panel the way `object-fit: cover` would. */
+  function cover(tex, iw, ih) {
+    const ia = iw / ih, pa = PANEL.w / PANEL.h;
+    if (ia > pa) { tex.repeat.set(pa / ia, 1); tex.offset.set((1 - pa / ia) / 2, 0); }
+    else { tex.repeat.set(1, ia / pa); tex.offset.set(0, (1 - ia / pa) / 2); }
+  }
+
+  return {
+    group, panels, fixtures, PANEL, GRID_HALF,
+    arts: panels.map((pn) => pn.art),
+
+    /** Puts the room behind a monolith and paints it in that house's colours. */
+    dress(m) {
+      const b = m.brand;
+      const conf = INTERIOR[b.slug] || INTERIOR["off-white"];
+
+      group.position.copy(m.group.position);
+      group.rotation.copy(m.group.rotation);
+      group.updateMatrixWorld(true);
+
+      matWall.color.set(conf.wall);
+      matWall2.color.set(conf.wall2);
+      matFloor.color.set(conf.floor);
+      matCeil.color.set(conf.wall).lerp(new THREE.Color(0xffffff), 0.55);
+      matTrim.color.set(conf.trim);
+      matGlow.color.set(conf.lamp);
+      matGlow.emissive.set(conf.lamp);
+
+      for (const k in fixtures) fixtures[k].visible = (k === conf.kind);
+
+      // The same sign the shopfront outside wears, at room scale.
+      const x = markCanvas.getContext("2d");
+      x.drawImage(texSign(b), 0, 0, markCanvas.width, markCanvas.height);
+      markTex.needsUpdate = true;
+      dressSign(markCanvas, markTex, b);
+
+      return conf;
+    },
+
+    /** Hangs one page of the listing on the walls. */
+    hang(items) {
+      panels.forEach((pn, i) => {
+        const it = items[i];
+        pn.product = it || null;
+        pn.group.visible = !!it;
+        if (!it) return;
+        if (pn.tex) { pn.tex.dispose(); pn.tex = null; }
+        pn.mat.map = null;
+        pn.mat.color.set(0x8f8f8f);
+        pn.mat.needsUpdate = true;
+        loader.load(it.image, (tex) => {
+          // The page may have moved on while this was in flight.
+          if (pn.product !== it) { tex.dispose(); return; }
+          tex.colorSpace = THREE.SRGBColorSpace;
+          tex.anisotropy = 8;
+          cover(tex, tex.image.width, tex.image.height);
+          pn.tex = tex;
+          pn.mat.map = tex;
+          pn.mat.color.set(0xffffff);
+          pn.mat.needsUpdate = true;
+        }, undefined, () => { /* a missing picture keeps its grey card */ });
+      });
+    },
+  };
+})();
+scene.add(storeRoom.group);
+
+
+// ── the mode ────────────────────────────────────────────────────────────
+//
+// Entering is a cut, not a walk. The shopfront is glazing, piers and a
+// canopy; flying a camera through it looks like a camera going through a
+// wall, and holding the visitor on a three-second approach to a shop they
+// have already chosen is worse. A brand-coloured wipe covers 300ms, the
+// room is dressed and the camera put in it behind that, and it reads as
+// stepping in. It also gives three.js somewhere to hide the shader
+// recompile the room's lights would otherwise stutter on.
+
+storeMode = (() => {
+  const shopEl   = document.getElementById("shop");
+  const wipeEl   = document.getElementById("wipe");
+  const markEl   = document.getElementById("shop-mark");
+  const nameEl   = document.getElementById("shop-name");
+  const countEl  = document.getElementById("shop-count");
+  const stripEl  = document.getElementById("shop-strip");
+  const lookEl   = document.getElementById("shop-look");
+  const lookImg  = document.getElementById("look-img");
+  const lookName = document.getElementById("look-name");
+  const lookPrice= document.getElementById("look-price");
+  const lookSizes= document.getElementById("look-sizes");
+  const lookStock= document.getElementById("look-stock");
+  const lookLink = document.getElementById("look-link");
+
+  const money = new Intl.NumberFormat("en-US", {
+    style: "currency", currency: "USD", minimumFractionDigits: 2,
+  });
+
+  const PAGE = storeRoom.panels.length;
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  let active = false, busy = false;
+  let items = [], page = -1, picked = -1, house = -1;
+  let savedScroll = 0;
+  let railCells = [];
+
+  // ── the catalogue ─────────────────────────────────────────────────────
+  //
+  // One request for the whole street, kept for the session. Fifteen shops
+  // browsed in one visit is fifteen round trips otherwise, and the payload
+  // is small precisely so it can be fetched whole.
+  let catalogue = null, catalogueP = null;
+  function loadCatalogue() {
+    if (catalogueP) return catalogueP;
+    catalogueP = fetch("/api/storefront", { headers: { accept: "application/json" } })
+      .then((r) => (r.ok ? r.json() : { brands: {} }))
+      .then((j) => (catalogue = j.brands || {}))
+      .catch(() => (catalogue = {}));
+    return catalogueP;
+  }
+  // Warm it once the street is up, so the first door opens on a hit.
+  setTimeout(loadCatalogue, 2500);
+
+  // ── camera ────────────────────────────────────────────────────────────
+  const curPos = new THREE.Vector3(), curLook = new THREE.Vector3();
+  const tgtPos = new THREE.Vector3(), tgtLook = new THREE.Vector3();
+  const v3 = new THREE.Vector3(), q4 = new THREE.Quaternion();
+
+  /**
+   * Where you stand when you walk in.
+   *
+   * Derived from the lens, not chosen: far enough back that the whole grid
+   * is inside the horizontal field, clamped to the room it has to fit in.
+   * The camera's fov changes with the viewport, so this is read fresh each
+   * time rather than baked at build.
+   */
+  function standBack() {
+    const hHalf = Math.atan(Math.tan(camera.fov * Math.PI / 360) * camera.aspect);
+    const want = (storeRoom.GRID_HALF + 0.5) / Math.tan(hHalf);
+    const z = ROOM_BACK + clamp(want, 5.2, ROOM.d - 1.5);
+    v3.set(0, 2.0, z).applyMatrix4(storeRoom.group.matrixWorld);
+    tgtPos.copy(v3);
+    // Aimed a little under the grid, not at it. The listing along the
+    // bottom of the screen covers the lower quarter, and level with the
+    // wall that quarter was the whole bottom row of stock. Tipping the lens
+    // down lifts the wall clear of it and puts the floor behind the rail,
+    // which is the part of the room the rail can afford to hide.
+    v3.set(0, 1.75, ROOM_BACK).applyMatrix4(storeRoom.group.matrixWorld);
+    tgtLook.copy(v3);
+  }
+
+  /** Step up to one piece, square on and close enough to read the label. */
+  function standAt(pn) {
+    pn.art.getWorldPosition(tgtLook);
+    pn.group.getWorldQuaternion(q4);
+
+    // How close is a question about the lens again, not a number. Three
+    // metres off a two-metre panel is a comfortable look on a laptop and a
+    // garment filling the entire screen on a phone, where the horizontal
+    // field is half as wide.
+    const hHalf = Math.atan(Math.tan(camera.fov * Math.PI / 360) * camera.aspect);
+    const back = clamp((storeRoom.PANEL.w / 2 + 0.55) / Math.tan(hHalf), 2.9, 7.5);
+
+    v3.set(0, 0, 1).applyQuaternion(q4);
+    tgtPos.copy(tgtLook).addScaledVector(v3, back);
+
+    const wide = innerWidth > 720;
+    if (wide) {
+      // The card docks right on a wide screen, so stand a pace to the right
+      // of square-on and the piece sits beside it rather than under it.
+      v3.set(1, 0, 0).applyQuaternion(q4);
+      tgtPos.addScaledVector(v3, back * 0.44);
+    }
+    tgtPos.y = Math.max(1.5, tgtLook.y - 0.3);
+    // On a phone the card and the listing own the bottom two fifths, so aim
+    // under the piece to lift it into the part of the screen still showing
+    // the room.
+    if (!wide) tgtLook.y -= 0.55;
+  }
+
+  // ── light ─────────────────────────────────────────────────────────────
+  //
+  // Borrowed, not added. Three point lights appearing in the scene changes
+  // the light count every material is compiled against, and every material
+  // in the street would be rebuilt on the way in and again on the way out.
+  // The street lamps are already counted, already there, and cannot be seen
+  // from inside a shop — so they come indoors and go back afterwards.
+  const borrowed = [];
+  // Candela, and a small room. The first pass at this used 36, 22, 22 —
+  // numbers carried over from street lamps twenty metres up — and every
+  // interior opened blown to white with the stock invisible in it. Four
+  // metres from a wall, single figures is a shop.
+  const LAMPS = [
+    [0, ROOM.h - 0.8, ROOM.front - 4.6, 7.5],
+    [-4.7, 3.2, ROOM_BACK + 2.4, 4.5],
+    [4.7, 3.2, ROOM_BACK + 2.4, 4.5],
+  ];
+
+  function lightsOn(conf) {
+    for (let i = 0; i < LAMPS.length && i < streetLamps.length; i++) {
+      const l = streetLamps[i];
+      borrowed.push({
+        l, power: LAMPS[i][3],
+        pos: l.position.clone(), col: l.color.clone(),
+        intensity: l.intensity, distance: l.distance, decay: l.decay,
+      });
+      v3.set(LAMPS[i][0], LAMPS[i][1], LAMPS[i][2]).applyMatrix4(storeRoom.group.matrixWorld);
+      l.position.copy(v3);
+      l.color.set(conf.lamp);
+      l.distance = 22;
+      l.decay = 1.7;
+      l.intensity = LAMPS[i][3];
+    }
+  }
+
+  function lightsOff() {
+    for (const b of borrowed) {
+      b.l.position.copy(b.pos);
+      b.l.color.copy(b.col);
+      b.l.intensity = b.intensity;
+      b.l.distance = b.distance;
+      b.l.decay = b.decay;
+    }
+    borrowed.length = 0;
+  }
+
+  // ── the listing ───────────────────────────────────────────────────────
+  function setPage(n) {
+    const last = Math.max(0, Math.ceil(items.length / PAGE) - 1);
+    n = clamp(n, 0, last);
+    if (n === page) return;
+    page = n;
+    storeRoom.hang(items.slice(n * PAGE, n * PAGE + PAGE));
+  }
+
+  function buildRail() {
+    stripEl.textContent = "";
+    railCells = items.map((it, i) => {
+      const cell = document.createElement("button");
+      cell.type = "button";
+      cell.className = "item";
+      cell.dataset.gone = it.stock > 0 ? "0" : "1";
+
+      const sh = document.createElement("div");
+      sh.className = "sh";
+      const img = document.createElement("img");
+      img.loading = "lazy";
+      img.decoding = "async";
+      img.alt = "";
+      img.src = it.image;
+      sh.appendChild(img);
+
+      const b = document.createElement("b");
+      b.textContent = it.name;
+      const price = document.createElement("i");
+      price.textContent = money.format(it.price);
+
+      cell.append(sh, b, price);
+      cell.addEventListener("click", () => choose(i, true));
+      stripEl.appendChild(cell);
+      return cell;
+    });
+    stripEl.scrollLeft = 0;
+  }
+
+  /** Selects one piece: the card, the rail, and the camera all follow. */
+  function choose(i, scrollRail) {
+    if (i < 0 || i >= items.length) return;
+    picked = i;
+    const it = items[i];
+
+    railCells.forEach((c, k) => { c.dataset.live = k === i ? "1" : "0"; });
+    if (scrollRail && railCells[i]) {
+      railCells[i].scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    }
+
+    setPage(Math.floor(i / PAGE));
+    const pn = storeRoom.panels[i - page * PAGE];
+    if (pn && pn.product) standAt(pn);
+
+    lookImg.src = it.image;
+    lookName.textContent = it.name;
+    lookPrice.textContent = money.format(it.price);
+    lookSizes.textContent = "";
+    for (const sz of it.sizes || []) {
+      const el = document.createElement("span");
+      el.textContent = sz;
+      lookSizes.appendChild(el);
+    }
+    lookStock.textContent = it.stock > 0 ? `${it.stock} in stock` : "Sold out";
+    lookLink.href = `${SITE}/products/${it.id}`;
+    lookEl.dataset.on = "1";
+  }
+
+  function clearPick() {
+    picked = -1;
+    lookEl.dataset.on = "0";
+    railCells.forEach((c) => { c.dataset.live = "0"; });
+    standBack();
+  }
+
+  // Scrolling the listing walks the walls along with it, so the room is
+  // always showing the run of stock being read rather than a fixed dozen.
+  let railTick = 0;
+  stripEl.addEventListener("scroll", () => {
+    if (!active || railTick) return;
+    railTick = requestAnimationFrame(() => {
+      railTick = 0;
+      const kids = stripEl.children;
+      if (kids.length < 1) return;
+      const pitch = kids.length > 1 ? kids[1].offsetLeft - kids[0].offsetLeft
+                                    : kids[0].offsetWidth;
+      const mid = stripEl.scrollLeft + stripEl.clientWidth / 2;
+      const idx = clamp(Math.round((mid - kids[0].offsetWidth / 2) / pitch), 0, items.length - 1);
+      setPage(Math.floor(idx / PAGE));
+    });
+  }, { passive: true });
+
+  // ── doors ─────────────────────────────────────────────────────────────
+  function lockScroll(on) {
+    document.documentElement.style.overflow = on ? "hidden" : "";
+    document.body.style.overflow = on ? "hidden" : "";
+  }
+
+  async function enter(i) {
+    if (busy || active || i < 0 || i >= monoliths.length) return;
+    busy = true;
+    const m = monoliths[i];
+    const b = m.brand;
+
+    sound.click();
+    await loadCatalogue();
+
+    wipeEl.style.background = b.bg[0];
+    wipeEl.dataset.on = "1";
+    await wait(330);
+
+    house = i;
+    const conf = storeRoom.dress(m);
+    items = (catalogue && catalogue[b.slug]) ? catalogue[b.slug].slice() : [];
+    page = -1;
+    setPage(0);
+    if (items.length === 0) storeRoom.hang([]);
+    buildRail();
+
+    const art = logoFor(b.slug);
+    markEl.textContent = "";
+    markEl.style.background = `linear-gradient(135deg, ${b.bg[0]}, ${b.bg[1]})`;
+    if (art) {
+      const im = document.createElement("img");
+      im.src = art; im.alt = "";
+      markEl.appendChild(im);
+    } else {
+      const sp = document.createElement("span");
+      sp.style.color = b.ink;
+      sp.textContent = b.name.slice(0, 2).toUpperCase();
+      markEl.appendChild(sp);
+    }
+    nameEl.textContent = b.name;
+    countEl.textContent = items.length
+      ? `${items.length} piece${items.length === 1 ? "" : "s"} in store`
+      : "Stock is loading on the storefront";
+    lookLink.textContent = "View on the store";
+
+    storeRoom.group.visible = true;
+    lightsOn(conf);
+    standBack();
+    curPos.copy(tgtPos);
+    curLook.copy(tgtLook);
+
+    savedScroll = window.scrollY;
+    lockScroll(true);
+    lookEl.dataset.on = "0";
+    picked = -1;
+    shopEl.dataset.on = "1";
+    shopEl.setAttribute("aria-hidden", "false");
+    active = true;
+
+    // Long enough for a frame with the new light count to have been drawn.
+    await wait(190);
+    wipeEl.dataset.on = "0";
+    busy = false;
+  }
+
+  async function leave() {
+    if (busy || !active) return;
+    busy = true;
+    wipeEl.dataset.on = "1";
+    await wait(330);
+
+    active = false;
+    shopEl.dataset.on = "0";
+    shopEl.setAttribute("aria-hidden", "true");
+    lookEl.dataset.on = "0";
+    storeRoom.group.visible = false;
+    lightsOff();
+    house = -1;
+
+    lockScroll(false);
+    scrollTo(0, savedScroll);
+    readScroll();
+    scrollEased = scrollTarget;
+
+    await wait(120);
+    wipeEl.dataset.on = "0";
+    busy = false;
+  }
+
+  document.getElementById("shop-out").addEventListener("click", leave);
+  addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (picked >= 0) clearPick(); else leave();
+  });
+
+  return {
+    get active() { return active; },
+    get busy() { return busy; },
+    enter,
+    leave,
+    enterBySlug(slug) {
+      enter(monoliths.findIndex((m) => m.brand.slug === slug));
+    },
+    arts: () => storeRoom.arts,
+    pickPanel(mesh) {
+      const k = storeRoom.panels.findIndex((pn) => pn.art === mesh);
+      if (k < 0 || !storeRoom.panels[k].product) return;
+      sound.click();
+      choose(page * PAGE + k, true);
+    },
+    /** Writes this frame's camera. Also holds the borrowed lamps in place,
+     *  because the clock reassigns every street lamp every few minutes. */
+    aim(dt, outPos, outLook) {
+      const k = Math.min(1, dt * 3.6);
+      curPos.lerp(tgtPos, k);
+      curLook.lerp(tgtLook, k);
+      outPos.copy(curPos);
+      outLook.copy(curLook);
+      for (const b of borrowed) b.l.intensity = b.power;
+    },
+  };
+})();
+
+// The card's pill, the waypoints and the running order all lead to the same
+// door — the waypoints by way of the street, so you see which shop it is
+// before you are standing in it.
+card.link.addEventListener("click", (e) => {
+  const i = Number(card.link.dataset.house);
+  if (!Number.isFinite(i) || i < 0) return;
+  e.preventDefault();
+  storeMode.enter(i);
+});
+
+pins.forEach((pn, i) => {
+  pn.el.addEventListener("click", () => {
+    const here = Math.abs(camera.position.z - pn.m.z) < 13;
+    if (here) { storeMode.enter(i); return; }
+    setTimeout(() => storeMode.enter(i), 720);
+  }, true);
+});
+
+indexItems.forEach((el, i) => {
+  el.style.cursor = "pointer";
+  el.style.pointerEvents = "auto";
+  el.addEventListener("click", () => {
+    sound.click();
+    travelTo(TRAVEL(monoliths[i].z + LEAD));
+  });
+});
 
 // Surface a dead scene rather than a black rectangle.
 canvasEl.addEventListener("webglcontextlost", (e) => {
