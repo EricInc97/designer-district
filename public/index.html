@@ -5355,6 +5355,24 @@ const sound = (() => {
     { n: "Pool Deck",    bpm: 130, root: 34, feel: "club",  sc: DORIAN,   prog: [0, 5, 4, 3], hats: 0.78, swing: 0 },
     { n: "Night Garage", bpm: 126, root: 23, feel: "club",  sc: PHRYGIAN, prog: [0, 2, 5, 0], hats: 0.72, swing: 0 },
 
+    /* ── the shop floor ───────────────────────────────────────────────
+     *
+     * Deep house, which is what the high street actually plays: a Zara or
+     * an H&M is a hundred and twenty beats a minute of it from open to
+     * close. It sits between the lo-fi and the club sets — warmer and
+     * slower than the club ones, with somewhere to go, which the lo-fi
+     * ones deliberately do not have.
+     *
+     * Kept between 118 and 124 because that is the whole range the style
+     * uses, and because it has to sit next to a 138 Jersey record in the
+     * same shuffle without either sounding like a mistake.
+     */
+    { n: "Flagship",     bpm: 122, root: 29, feel: "house", sc: MINOR,    prog: [0, 5, 3, 4], hats: 0.7, swing: 0 },
+    { n: "Ground Floor", bpm: 120, root: 26, feel: "house", sc: DORIAN,   prog: [0, 3, 4, 2], hats: 0.65, swing: 0 },
+    { n: "Mezzanine",    bpm: 124, root: 31, feel: "house", sc: MINOR,    prog: [0, 0, 5, 4], hats: 0.75, swing: 0 },
+    { n: "Open Plan",    bpm: 118, root: 27, feel: "house", sc: DORIAN,   prog: [0, 4, 5, 3], hats: 0.6, swing: 0 },
+    { n: "Fitting Room", bpm: 121, root: 24, feel: "house", sc: MINOR,    prog: [0, 2, 4, 5], hats: 0.68, swing: 0 },
+
     /* ── the three measured off the reference beats ───────────────────
      *
      * Not chosen. Each of these was analysed — decoded, onset envelope per
@@ -5557,6 +5575,55 @@ const sound = (() => {
         o.start(t); o.stop(t + len + 0.02);
       },
 
+      /**
+       * The chord stab.
+       *
+       * Three notes through *one* filter, not three filtered notes. A stab
+       * is a chord played into a resonant lowpass, and giving each note its
+       * own sweep produces three envelopes that never line up into the one
+       * "chow" the sound is named for. `open` moves the cutoff it starts
+       * from, which is the only control the genre really needs.
+       */
+      stab: (t, notes, len, gain, open = 1) => {
+        const f = ctx.createBiquadFilter();
+        f.type = "lowpass"; f.Q.value = 7;
+        f.frequency.setValueAtTime(380 + 2500 * open, t);
+        f.frequency.exponentialRampToValueAtTime(300, t + len * 1.15);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(gain, t + 0.012);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+        f.connect(g); g.connect(dest);
+        notes.forEach((n, i) => {
+          const o = ctx.createOscillator();
+          o.type = "sawtooth";
+          o.frequency.value = midi(n);
+          o.detune.value = (i - 1) * 6;      // barely, just enough to widen
+          o.connect(f);
+          o.start(t); o.stop(t + len + 0.02);
+        });
+      },
+
+      /** The bed under it. Slow in, slow out, and dark — the thing you
+       *  only notice when it stops. */
+      pad: (t, notes, len, gain) => {
+        const f = ctx.createBiquadFilter();
+        f.type = "lowpass"; f.frequency.value = 780; f.Q.value = 0.7;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(gain, t + len * 0.4);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+        f.connect(g); g.connect(dest);
+        notes.forEach((n, i) => {
+          const o = ctx.createOscillator();
+          o.type = "sawtooth";
+          o.frequency.value = midi(n);
+          o.detune.value = i % 2 ? 8 : -8;
+          o.connect(f);
+          o.start(t); o.stop(t + len + 0.05);
+        });
+      },
+
       lead: (t, note, len, gain) => {
         const o = ctx.createOscillator(); o.type = "sawtooth";
         o.frequency.value = midi(note);
@@ -5637,6 +5704,69 @@ const sound = (() => {
         V.bass(t + e * (beat / 2), note - 12, beat * 0.42, 0.3);
       }
       if (fill) for (let k = 0; k < 6; k++) V.snare(t + beat * 3 + k * (beat / 6), 0.25 + k * 0.1);
+
+    } else if (feel === "house") {
+      /**
+       * The shop, not the club.
+       *
+       * What a Zara or an H&M actually plays is deep house with the
+       * aggression taken out, and it is made of five things: four on the
+       * floor around a hundred and twenty, an open hat on every offbeat —
+       * the one sound the genre cannot do without — a clap doubled a few
+       * milliseconds late so it has width instead of being a click, a bass
+       * that plays in the holes the kick leaves, and a seventh chord
+       * stabbed into a resonant filter.
+       *
+       * Nothing in it is loud. It is music to look at a rail of shirts to,
+       * and the moment any one part of it asks for attention it has stopped
+       * doing its job.
+       */
+      for (let q = 0; q < 4; q++) V.kick(t + q * beat, q === 0 ? 0.88 : 0.76);
+
+      // The offbeat open hat. Every "and", and it is the whole genre.
+      for (let q = 0; q < 4; q++) V.hat(t + q * beat + beat / 2, 0.07, true);
+      // Closed sixteenths under it, barely there, for the glide.
+      for (let e = 0; e < 16; e++) {
+        if (e % 4 === 0) continue;                  // the kick has that one
+        if (e % 2 === 0 || mrand() < hats) V.hat(t + e * s16, e % 2 ? 0.02 : 0.028);
+      }
+      // A shaker on the sixteenth between, which is what stops a straight
+      // grid sounding like a drum machine sitting still.
+      for (let e = 0; e < 16; e += 2) V.dust(t + (e + 0.5) * s16);
+
+      /* Two claps, four milliseconds apart.
+       * One clap is a click. Two, offset by less than anyone can hear as
+       * separate, is a room with people in it. */
+      for (const at of [t + beat, t + beat * 3]) {
+        V.clap(at, 0.8);
+        V.clap(at + 0.004, 0.45);
+      }
+
+      // The bass plays where the kick is not: every offbeat eighth, short.
+      for (let e = 1; e < 8; e += 2) V.bass(t + e * (beat / 2), note - 12, beat * 0.38, 0.28);
+      // And one long note underneath to give the bar a floor.
+      V.sub(t, note - 24, beat * 1.8);
+
+      /* The chord, voiced as a seventh — root, third, fifth, seventh — an
+       * octave and a half up, where a stab lives. Triads sound like a hymn;
+       * the seventh is what makes it house. */
+      const ch = [0, 2, 4, 6].map((step) =>
+        root + 24 + sc[(deg + step) % sc.length] + (deg + step >= sc.length ? 12 : 0));
+
+      /* Off the beat, pushing against the kick rather than sitting on it.
+       * Sixteenths 3, 6, 11 and 14: none of them is a downbeat, and the
+       * pair either side of the halfway point is what gives the bar its
+       * forward lean. */
+      const STAB = fill ? [3, 6, 10, 11, 14, 15] : [3, 6, 11, 14];
+      STAB.forEach((e, i) => {
+        // The filter opens through the bar and resets, which is the slow
+        // breathing you hear in a shop without ever listening for it.
+        const open = 0.42 + 0.5 * (e / 16) + (fill ? 0.2 : 0);
+        V.stab(t + e * s16, ch, s16 * (i % 2 ? 2.1 : 1.5), 0.085, Math.min(open, 1));
+      });
+
+      // And the bed, one chord an octave down, held across the bar.
+      V.pad(t, ch.slice(0, 3).map((n) => n - 12), bar * 1.02, 0.05);
 
     } else if (feel === "jersey") {
       /**
