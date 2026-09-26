@@ -4861,14 +4861,41 @@ const boards = (() => {
    * a bucket that does not send the header fails the load instead, which
    * costs the photograph and nothing else.
    */
-  function fetchArt(key, src) {
+  function fetchArt(key, src, fallback) {
     if (!src || asked.has(key)) return;
     asked.add(key);
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = () => { art.set(key, img); for (const f of waiting) f(key); };
-    img.onerror = () => asked.delete(key);
+    img.onerror = () => {
+      asked.delete(key);
+      // The resized copy is an optimisation, never a dependency.
+      if (fallback && fallback !== src) fetchArt(key, fallback);
+    };
     img.src = src;
+  }
+
+  /**
+   * A product photograph at the size a board is going to draw it, not the
+   * size it was uploaded at.
+   *
+   * This is the single thing that made the boards expensive on a phone.
+   * Standing on the street on the light tier pulled forty-one catalogue
+   * shots averaging 322KB, one of them a 1.1MB PNG -- to be drawn into a
+   * tile a hundred and forty pixels wide, because a light-tier board canvas
+   * is 158 by 230. Supabase will resize on the way out, and since a browser
+   * asks for WebP the same 1.1MB PNG comes back as 1KB at 256 across.
+   *
+   * If the transform is ever switched off the request errors and `fetchArt`
+   * falls back to the original url, so this can cost bytes and never the
+   * picture.
+   */
+  const THUMB = QUALITY.light ? 256 : 512;
+  function thumbFor(url) {
+    const MARK = "/storage/v1/object/public/";
+    if (!url || !url.includes(MARK)) return url;
+    const base = url.replace(MARK, "/storage/v1/render/image/public/");
+    return `${base}${base.includes("?") ? "&" : "?"}width=${THUMB}&resize=contain&quality=72`;
   }
 
   /** Shrinks a label until it fits, and returns the size it settled on. */
@@ -5083,7 +5110,7 @@ const boards = (() => {
         x.fillRect(tile.x, tile.y, tile.w, tile.h);
         x.restore();
       } else {
-        fetchArt(keyOf(creative), pr.image);
+        fetchArt(keyOf(creative), thumbFor(pr.image), pr.image);
       }
 
       // Whose shop, in the house's own artwork where we have it.
@@ -5115,19 +5142,29 @@ const boards = (() => {
       x.textBaseline = "alphabetic";
       x.fillStyle = b.ink;
 
-      const nameSize = wide ? H * 0.15 : H * 0.062;
-      const lines = wrapAt(x, pr.name, cw, nameSize, 700, face, wide ? 1 : 2);
-      let ty = wide ? H * 0.62 : H * 0.70;
+      /* Bigger type and less of it on a small screen.
+       *
+       * The portrait layout gives the name two lines at six per cent of the
+       * board's height, which is fine on a desktop where that board is two
+       * hundred pixels tall and unreadable on a phone where it is sixty. On
+       * the light tier the name gets one line at eight and a half per cent,
+       * the price grows with it, and the size run is dropped: at that scale
+       * it was four grey pixels pretending to be information.
+       */
+      const small = QUALITY.light;
+      const nameSize = wide ? H * (small ? 0.17 : 0.15) : H * (small ? 0.085 : 0.062);
+      const lines = wrapAt(x, pr.name, cw, nameSize, 700, face, (wide || small) ? 1 : 2);
+      let ty = wide ? H * 0.62 : H * (small ? 0.72 : 0.70);
       for (const ln of lines) { x.fillText(ln, cx, ty); ty += nameSize * 1.14; }
 
       const price = `$${Number(pr.price).toFixed(2)}`;
       x.globalAlpha = 0.92;
-      x.font = `700 ${Math.round(wide ? H * 0.16 : H * 0.075)}px ${face}`;
+      x.font = `700 ${Math.round(wide ? H * 0.16 : H * (small ? 0.10 : 0.075))}px ${face}`;
       const priceY = wide ? H * 0.92 : ty + H * 0.035;
       x.fillText(price, cx, priceY);
       x.globalAlpha = 1;
 
-      if (!wide && pr.sizes && pr.sizes.length) {
+      if (!wide && !small && pr.sizes && pr.sizes.length) {
         const sz = pr.sizes.join("   ");
         x.globalAlpha = 0.58;
         fitText(x, sz, cw, H * 0.045, 600, face);
@@ -5569,7 +5606,11 @@ const boards = (() => {
       const inStock = all.filter((q) => (q.stock ?? 0) > 0);
       const pool = inStock.length ? inStock : all;
       const reel = [{ kind: "brand", brand: b.house, key: slug }];
-      for (let i = 0; i < Math.min(3, pool.length); i++) {
+      // Two rather than three on the light tier. The bytes are small now,
+      // but each one is still a request, and a phone on a cellular link
+      // pays for the round trip more than for the payload.
+      const want = QUALITY.light ? 2 : 3;
+      for (let i = 0; i < Math.min(want, pool.length); i++) {
         const pr = pool[(i + nth * 3) % pool.length];
         reel.push({ kind: "product", brand: b.house, product: pr, key: pr.id });
       }
