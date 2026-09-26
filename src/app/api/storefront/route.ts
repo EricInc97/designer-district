@@ -102,9 +102,22 @@ export async function GET() {
     { ok: true, configured: true, brands },
     {
       headers: {
-        // Long enough that a visitor scrolling in and out of fifteen shops
-        // fetches it once, short enough that a new drop shows up the same day.
-        "Cache-Control": "public, max-age=60, s-maxage=300, stale-while-revalidate=3600",
+        /*
+         * Thirty seconds at the edge, nothing in the browser.
+         *
+         * It was `max-age=60, s-maxage=300, stale-while-revalidate=3600`,
+         * which is a sensible shape for a catalogue nobody is watching and
+         * the wrong one for a shop floor somebody is editing: replace a
+         * photograph and it could be five minutes before the edge even
+         * asked, and an hour before a client stopped being handed the
+         * stale copy.
+         *
+         * `max-age=0` sends every client request to the edge; `s-maxage=30`
+         * means the database is asked at most twice a minute however many
+         * people are looking. The page polls, so thirty seconds is the
+         * worst case between saving an image and seeing it on the wall.
+         */
+        "Cache-Control": "public, max-age=0, s-maxage=30, stale-while-revalidate=120",
       },
     },
   );

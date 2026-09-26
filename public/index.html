@@ -1100,13 +1100,28 @@ const QUALITY = (() => {
     lampsDome: light ? 2 : 4,
     lampsStreet: light ? 2 : 4,
     spray:     light ? 130 : 420,
-    // Palms are the most expensive thing in the scene: every frond is
-    // alpha-tested, and every one of them is drawn a second time into the
-    // shadow map. The street is lined with buildings now, so it does not need
-    // a dense grove to feel full.
+    /* What a crown costs, measured rather than assumed.
+     *
+     * This used to say palms were the most expensive thing in the scene.
+     * They were not: hiding the entire merged frond mesh — every frond on
+     * every palm, alpha test, shadow pass and all — moved a desktop frame
+     * by 0.09ms of 24. Ten fronds was a sparse crown paying a price it did
+     * not owe, and sparse is most of why these read as ferns on a stick.
+     *
+     * Seventeen is not free, but it is close. Measured properly — this
+     * build and the previous one served side by side, same tab, same
+     * viewport, five runs each, medians — the whole of this pass costs
+     * 0.67ms on a 22.25ms frame, for 39.7k extra triangles across the
+     * crowns, the sky and the planting. Toggling a single mesh off and
+     * timing one run says 2.5ms, and that number is noise; do not trust it.
+     * The light tier still gets eleven and the cheaper sky, because none of
+     * this was measured on a phone.
+     *
+     * The count of *trees* stays where it is. That is a composition decision
+     * about a street with buildings down both sides, not a budget one. */
     palmsRow:  light ? 4   : 6,
     palmsRing: light ? 6   : 9,
-    frondsPer: light ? 8   : 10,
+    frondsPer: light ? 11  : 17,
     bloom:     !light,
     holeSeg:   light ? 16  : 26,   // radial segments on each dome rim
     texScale:  light ? 0.6 : 1,
@@ -1424,31 +1439,54 @@ function texBark() {
  * makes the dappled shadow underneath look like a palm rather than a blob.
  */
 function texFrond() {
-  const c = canvas(1024, 384), x = c.getContext("2d"), W = c.width, H = c.height, mid = H / 2;
+  const c = canvas(1024, 448), x = c.getContext("2d"), W = c.width, H = c.height, mid = H / 2;
   x.clearRect(0, 0, W, H);
+  const ink = (r, g, b, k) =>
+    `rgb(${Math.round(r * k)},${Math.round(g * k)},${Math.round(b * k)})`;
 
-  const leaflets = 74;
+  /* Nearly twice as many leaflets, each half as wide.
+   *
+   * At 74 the comb was coarse enough to count, which is what made a crown
+   * read as a fern. The thing that actually reads as a palm at any distance
+   * is a *fine* comb with gaps in it, so the count goes up, the width comes
+   * down, and one in twenty is dropped outright — a frond with a perfectly
+   * even comb looks machined, and the missing ones are most of what makes
+   * it look grown.
+   */
+  const leaflets = 132;
   for (let i = 0; i < leaflets; i++) {
     const t = i / (leaflets - 1);
-    const px = 18 + t * (W - 40);
-    // Leaflets are short at the base, longest at a third, tapering to the tip.
-    const len = Math.sin(Math.pow(t, 0.55) * Math.PI) * (H * 0.46) * (1 - 0.25 * t) + 6;
-    const sweep = 0.34 + t * 0.5;            // they comb further back along the spine
-    const wob = (Math.random() - 0.5) * 7;
+    const px = 14 + t * (W - 30);
+    if (t > 0.08 && t < 0.94 && Math.random() < 0.05) continue;
+
+    // Short at the base, longest around a third of the way out, tapering to
+    // a point at the tip.
+    const env = Math.sin(Math.pow(t, 0.52) * Math.PI);
+    const len = env * (H * 0.47) * (1 - 0.22 * t) + 5;
+    const sweep = 0.40 + t * 0.62;           // they comb further back along the spine
+    const wob = (Math.random() - 0.5) * 6;
+    const wide = len * 0.055 * (0.75 + Math.random() * 0.5);
 
     for (const dir of [-1, 1]) {
-      const tipX = px + len * sweep * 1.25;
-      const tipY = mid + dir * len + wob;
+      const L = len * (0.92 + Math.random() * 0.16);
+      const tipX = px + L * sweep;
+      const tipY = mid + dir * L + wob;
+      const shade = 0.74 + 0.26 * Math.random();
       const g = x.createLinearGradient(px, mid, tipX, tipY);
-      const shade = 0.82 + 0.18 * Math.random();
-      g.addColorStop(0,   `rgb(${Math.round(84 * shade)},${Math.round(116 * shade)},${Math.round(44 * shade)})`);
-      g.addColorStop(0.55,`rgb(${Math.round(124 * shade)},${Math.round(168 * shade)},${Math.round(58 * shade)})`);
-      g.addColorStop(1,   `rgb(${Math.round(176 * shade)},${Math.round(206 * shade)},${Math.round(96 * shade)})`);
+      // Dark where it leaves the rachis, bleached at the tip, which is the
+      // way round a leaf in full sun actually is.
+      g.addColorStop(0,    ink(52, 84, 30, shade));
+      g.addColorStop(0.45, ink(96, 142, 46, shade));
+      g.addColorStop(0.85, ink(148, 190, 72, shade));
+      g.addColorStop(1,    ink(186, 214, 104, shade));
       x.fillStyle = g;
       x.beginPath();
-      x.moveTo(px - 4, mid);
-      x.quadraticCurveTo(px + len * 0.25, mid + dir * len * 0.55, tipX, tipY);
-      x.quadraticCurveTo(px + len * 0.30, mid + dir * len * 0.42, px + 5, mid);
+      x.moveTo(px - wide, mid);
+      // Out along the leading edge, bowing away from the spine, and back
+      // along the trailing edge, which sits closer in — so the leaflet is a
+      // shallow crescent rather than a symmetrical spike.
+      x.quadraticCurveTo(px + L * 0.30, mid + dir * L * 0.62, tipX, tipY);
+      x.quadraticCurveTo(px + L * 0.18, mid + dir * L * 0.48, px + wide, mid);
       x.closePath();
       x.fill();
     }
@@ -1478,6 +1516,54 @@ function texLeaf() {
   x.closePath(); x.fill();
   x.strokeStyle = "rgba(60,84,24,.5)"; x.lineWidth = 1;
   x.beginPath(); x.moveTo(3, H / 2); x.lineTo(W - 4, H / 2); x.stroke();
+  return c;
+}
+
+/**
+ * One broad leaf: an oval blade with a pale midrib and pale laterals combed
+ * toward the tip.
+ *
+ * The planting in the street tubs was built out of spheres, and a sphere is
+ * the one shape a plant never makes — it came out as a green lump with some
+ * sticks in it. What a tub of planting actually reads as at ten metres is
+ * two silhouettes side by side: something broad-leaved and something
+ * feathery. The feathery half already exists as the palm frond, so this is
+ * the other half.
+ */
+function texBroadLeaf() {
+  const c = canvas(512, 384), x = c.getContext("2d"), W = c.width, H = c.height, mid = H / 2;
+  x.clearRect(0, 0, W, H);
+  const run = W - 14;
+  // Widest at a third, drawn to a point at the tip.
+  const halfAt = (t) => Math.sin(Math.pow(t, 0.62) * Math.PI) * (H * 0.46) * (1 - 0.12 * t) + 1;
+
+  x.beginPath();
+  x.moveTo(6, mid);
+  for (let i = 0; i <= 44; i++) { const t = i / 44; x.lineTo(6 + t * run, mid - halfAt(t)); }
+  for (let i = 44; i >= 0; i--) { const t = i / 44; x.lineTo(6 + t * run, mid + halfAt(t)); }
+  x.closePath();
+  const g = x.createLinearGradient(0, 0, W, 0);
+  g.addColorStop(0, "#2d5122"); g.addColorStop(0.55, "#3f7a2e"); g.addColorStop(1, "#5d9d3e");
+  x.fillStyle = g;
+  x.fill();
+
+  // The laterals, which are what stop it reading as a green petal.
+  x.strokeStyle = "rgba(206,228,168,.5)";
+  x.lineCap = "round";
+  for (let i = 1; i < 13; i++) {
+    const t = i / 13, h = halfAt(t);
+    x.lineWidth = 2.4 - t * 1.4;
+    for (const dir of [-1, 1]) {
+      x.beginPath();
+      x.moveTo(6 + t * run, mid);
+      x.quadraticCurveTo(6 + (t + 0.05) * run, mid + dir * h * 0.5,
+                         6 + (t + 0.11) * run, mid + dir * h * 0.88);
+      x.stroke();
+    }
+  }
+  x.strokeStyle = "rgba(224,240,190,.8)";
+  x.lineWidth = 3.4;
+  x.beginPath(); x.moveTo(8, mid); x.lineTo(W - 12, mid); x.stroke();
   return c;
 }
 
@@ -1777,6 +1863,13 @@ camera.position.set(0, 3.2, 30);
 // genuinely matches the one overhead.
 
 const SKY_GLSL = /* glsl */`
+  /* The cloud deck is the one thing in this shader that costs real time:
+   * measured on a desktop at 1009x768, the sky sphere went from lost in the
+   * noise to 2.96ms a frame once it started taking a second and a third
+   * sample. The second one earns it -- it is what gives a cloud a shaded
+   * underside. The third, the high veil, is a flourish, so a phone does not
+   * pay for it. Both this shader and the water's share the flag. */
+  ${QUALITY.light ? "" : "#define SKY_HQ 1"}
   float hash31(vec3 p){ return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453123); }
   float vnoise(vec3 x){
     vec3 i = floor(x), f = fract(x);
@@ -1790,6 +1883,16 @@ const SKY_GLSL = /* glsl */`
   float fbm(vec3 p){
     float a = 0.5, s = 0.0;
     for (int i = 0; i < 5; i++) { s += a * vnoise(p); p *= 2.03; a *= 0.5; }
+    return s;
+  }
+  /* Three octaves rather than five.
+   *
+   * The two extra samples the cloud deck now takes are asking a coarse
+   * question — "is there more cloud over there than here" — and the detail
+   * octaves cannot change that answer, only the cost of it. */
+  float fbm3(vec3 p){
+    float a = 0.5, s = 0.0;
+    for (int i = 0; i < 3; i++) { s += a * vnoise(p); p *= 2.03; a *= 0.5; }
     return s;
   }
   /** A sparse field of them, only in the cells the hash picks out. */
@@ -1814,15 +1917,81 @@ const SKY_GLSL = /* glsl */`
     col += vec3(1.0, 0.92, 0.80) * pow(sd, 3.0) * 0.06;     // wide haze
 
     if (up > 0.001) {
-      // Project onto a plane so the clouds take on perspective near the horizon.
-      vec3 cp = d / max(up, 0.075);
-      cp.xz += vec3(t * 0.0045, 0.0, t * 0.0026).xz;
-      float f = fbm(cp * 0.52);
-      float cover = smoothstep(0.46, 0.82, f) * smoothstep(0.0, 0.16, up);
-      // Lit tops, cool bases.
-      vec3 cloud = mix(vec3(0.74, 0.80, 0.89), vec3(1.0, 0.99, 0.97), smoothstep(0.48, 0.95, f));
-      cloud += vec3(1.0, 0.93, 0.8) * pow(max(dot(d, sunDir), 0.0), 8.0) * 0.25;
-      col = mix(col, cloud, cover * 0.92);
+      /* Project onto a plane so the deck takes on perspective.
+       *
+       * The floor under that divide used to be 0.075, which let the
+       * projection stretch to thirteen times its size at the skyline. Two
+       * things went wrong with that. Overhead the whole hemisphere landed
+       * inside one lobe of the noise, so the zenith was a single soft blob;
+       * at the skyline the field was stretched so far that neighbouring
+       * pixels sampled unrelated parts of it, which averages to grey mush.
+       * All of the weather ended up in a smeared band and none of it had an
+       * edge. Clamping the stretch and opening the field up by the same
+       * factor puts cloud across the whole sky and keeps a puff a puff. */
+      vec3 cp = d / max(up, 0.22);
+      cp.xz += vec3(t * 0.0018, 0.0, t * 0.0010).xz;
+      vec3 q = cp * 1.35;
+      float f = fbm(q);
+
+      /* Cumulus, not haze.
+       *
+       * This was one noise field faded from 0.46 to 0.82 and tinted between
+       * two pale greys. A band that wide has no edge anywhere in it, so the
+       * sky came out smeared rather than populated -- weather-as-a-gradient.
+       * What makes a fair-weather cumulus legible is two things the old one
+       * had neither of: it stops somewhere, and it is lit from above.
+       *
+       * The edge is a narrow band. The lighting is a second sample taken one
+       * step toward the sun: where there is more cloud between this point and
+       * the sun than there is here, this point is underneath something and
+       * goes blue-grey. That single comparison is the whole difference
+       * between a white blob and a cloud with a bottom to it.
+       */
+      float cover = smoothstep(0.50, 0.65, f) * smoothstep(0.0, 0.07, up);
+      /* The 1.107 is not a taste knob.
+       *
+       * Five octaves sum to 0.969 of the noise and three sum to 0.875, so
+       * subtracting one from the other leaves a constant bias of about
+       * -0.047 whatever the sky is doing -- which tilted every pixel toward
+       * "lit" and flattened the shading back out again. Scaling the short
+       * sum onto the long one is what makes the difference mean what it
+       * says: more cloud toward the sun than here, or less. */
+      float depth = fbm3(q + sunDir * 0.7) * 1.107 - f;
+      float shade = clamp(0.62 - depth * 2.6, 0.0, 1.0);
+
+      /* Lit by the same sun as everything below them.
+       *
+       * The old pair of greys were fixed, so at six in the evening the sky
+       * behind them went orange and the clouds stayed the white they are at
+       * noon, which reads as a photograph of one sky pasted over another.
+       * Both ends of the ramp now swing warm as the sun drops. */
+      float low = 1.0 - smoothstep(0.02, 0.34, sunDir.y);
+      vec3 lit  = mix(vec3(1.00, 0.99, 0.96), vec3(1.00, 0.78, 0.58), low * 0.88);
+      vec3 base = mix(vec3(0.46, 0.52, 0.64), vec3(0.44, 0.35, 0.44), low * 0.75);
+      vec3 cloud = mix(base, lit, shade);
+
+      /* The bright rim on a cloud that has the sun behind it. Strongest
+       * where the deck is thinning out, which is exactly where the cover is
+       * midway between nothing and solid. */
+      float edge = cover * (1.0 - cover) * 4.0;
+      cloud += lit * pow(max(dot(d, sunDir), 0.0), 5.0) * edge * 0.55;
+
+      // And after dark they are not white any more -- they are the darkest
+      // thing in the sky, because they are what is blocking the stars.
+      float day = smoothstep(-0.16, 0.08, sunDir.y);
+      cloud = mix(cloud * vec3(0.10, 0.12, 0.19), cloud, day);
+
+      col = mix(col, cloud, cover);
+
+      #ifdef SKY_HQ
+      /* A thinner, much higher layer, stretched along x so it comes out in
+       * streaks instead of puffs. Cumulus alone gives a sky with exactly one
+       * kind of weather in it; the wisps above the deck are what stops the
+       * whole thing reading as a single repeating field. */
+      float veil = smoothstep(0.54, 0.80, fbm3(vec3(cp.x * 0.42 + t * 0.0022, 11.0, cp.z * 1.60)))
+                 * smoothstep(0.0, 0.24, up) * 0.34;
+      col = mix(col, mix(lit * vec3(0.12, 0.14, 0.22), lit, day), veil * (1.0 - cover));
+      #endif
     }
     return col;
   }
@@ -2721,11 +2890,21 @@ const fountain = (() => {
 const windUniforms = {
   uTime: { value: 0 },
   uWind: { value: QUALITY.still ? 0 : 1 },
+  /* Separate from uWind on purpose.
+   *
+   * A coastal palm does not stand up straight and wave about a vertical
+   * axis; it is combed downwind and *stays* combed, and the sway happens
+   * around that lean. Every photograph of one looks like this. Because it
+   * is shape rather than movement it has to survive a reduced-motion
+   * preference, which is exactly what uWind does not — so it cannot ride
+   * on the same uniform. */
+  uBend: { value: 1 },
 };
 
 const WIND_PARS = /* glsl */`
   uniform float uTime;
   uniform float uWind;
+  uniform float uBend;
   attribute float aSway;
   attribute float aPhase;
 `;
@@ -2741,12 +2920,18 @@ const WIND_BODY = /* glsl */`
   transformed.x += _g * _amp * 0.95;
   transformed.z += cos(uTime * 0.74 + _ph * 1.31) * _amp * 0.62;
   transformed.y -= abs(_g) * _amp * 0.30;
+  // The lean itself. Same falloff as the sway, so it is the frond tips that
+  // travel and the trunk barely moves at all.
+  float _b = _sw * _sw * uBend;
+  transformed.x += _b * 0.42;
+  transformed.y -= _b * 0.16;
 `;
 
 function applyWind(material) {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = windUniforms.uTime;
     shader.uniforms.uWind = windUniforms.uWind;
+    shader.uniforms.uBend = windUniforms.uBend;
     shader.vertexShader = shader.vertexShader
       .replace("#include <common>", `#include <common>\n${WIND_PARS}`)
       .replace("#include <begin_vertex>", `#include <begin_vertex>\n${WIND_BODY}`);
@@ -2793,26 +2978,45 @@ function trunkGeometry(curve, segs, radial, r0, r1) {
  * folded down the middle like the real thing so it catches light on one half
  * and shades the other.
  */
+const FROND_COLS = [-1, -0.55, 0, 0.55, 1];
+
 function frondGeometry(len, halfWidth, segs) {
   const pos = [], uv = [], idx = [];
+  const N = FROND_COLS.length;
   for (let i = 0; i <= segs; i++) {
     const t = i / segs;
-    const x = len * t;
-    const y = len * (0.48 * t - 0.92 * t * t);        // up, then over, then down
-    const w = halfWidth * Math.sin(Math.pow(t, 0.6) * Math.PI) * (1 - 0.3 * t) + 0.02;
-    // A deeper V than looks right on paper, because of how these are seen.
-    // A shallow frond edge-on against the sky is two pixels of dotted alpha
-    // and reads as a scratch on the render rather than a leaf — and the
-    // taller the palm, the more of its crown is up there against the sky.
-    // Folding it harder means there is always a half turned toward you.
-    const fold = w * 0.55;                            // the V of the rachis
-    pos.push(x, y - fold, -w); uv.push(t, 0);
-    pos.push(x, y,         0); uv.push(t, 0.5);
-    pos.push(x, y - fold,  w); uv.push(t, 1);
+    /* The spine.
+     *
+     * It was a straight run out in x with a parabola in y. A real frond
+     * does not leave the crown and travel in a straight line: it goes out
+     * and up, rolls over its shoulder, and the last third falls away
+     * steeply while the tip pulls back toward the trunk. The cubic on x is
+     * that pull-back; the steeper parabola on y is the fall.
+     */
+    const x = len * (t - 0.10 * t * t * t);
+    const y = len * (0.55 * t - 1.22 * t * t);
+    const w = halfWidth * Math.sin(Math.pow(t, 0.6) * Math.PI) * (1 - 0.30 * t) + 0.02;
+    /* Five columns rather than three.
+     *
+     * The three-column version was a crease: a flat half, a hard fold down
+     * the middle, and another flat half, which catches light in two
+     * unbroken slabs. A frond is closer to a shallow trough, so the fold
+     * goes as the square of the distance out from the rachis and the
+     * cross-section comes out curved. The reason for folding at all is
+     * unchanged and still the important one — a flat frond seen edge-on
+     * against the sky is two pixels of dotted alpha and reads as a scratch
+     * on the render, so there always has to be some of it turned toward
+     * you.
+     */
+    for (let c = 0; c < N; c++) {
+      const k = FROND_COLS[c];
+      pos.push(x, y - w * 0.58 * k * k, k * w);
+      uv.push(t, (k + 1) / 2);
+    }
   }
   for (let i = 0; i < segs; i++) {
-    for (let c = 0; c < 2; c++) {
-      const a = i * 3 + c, b = a + 3;
+    for (let c = 0; c < N - 1; c++) {
+      const a = i * N + c, b = a + N;
       idx.push(a, b, a + 1, b, b + 1, a + 1);
     }
   }
@@ -2841,6 +3045,12 @@ function stampSway(geo, fn) {
   return geo;
 }
 
+/* Hoisted out of the palm block on purpose: the planting in the street tubs
+ * is made of the same leaf at a tenth of the size, and building the canvas
+ * twice to get two identical textures would be a megabyte of GPU memory
+ * spent on a copy. */
+const frondTex = asTexture(texFrond());
+
 const crowns = [];   // world positions of every crown, for the leaf spawner
 {
   const rand = rng(20260919);
@@ -2868,7 +3078,7 @@ const crowns = [];   // world positions of every crown, for the leaf spawner
       new THREE.Vector3(leanX, h, leanZ),
     ]);
 
-    const tg = trunkGeometry(curve, 26, 9, 0.30 * scale, 0.20 * scale);
+    const tg = trunkGeometry(curve, 26, 12, 0.30 * scale, 0.19 * scale);
     stampSway(tg, (vx, vy) => Math.pow(clamp(vy / h, 0, 1), 1.7) * 0.42);
     stamp(tg, "aPhase", phase);
     tg.translate(x, 0, z);
@@ -2889,7 +3099,16 @@ const crowns = [];   // world positions of every crown, for the leaf spawner
       // wanted, and that frond is the long one, thrown a little flatter so it
       // reaches rather than climbs.
       const az = (i / n) * Math.PI * 2 + rand() * 0.42 + (opt.azTo ?? 0);
-      const rp = -0.30 + rand() * 0.55;                     // some reach up, some hang
+      /* A crown is not a wheel of equal spokes.
+       *
+       * This drew from -0.30 to +0.25, a band so narrow that every frond
+       * left the trunk at more or less the same angle and the crown came
+       * out as a disc. A real one has a few young fronds standing up near
+       * the spear, most sitting out around the horizontal, and the oldest
+       * hanging most of the way down before they drop. The exponent skews
+       * the draw toward the bottom of a much wider range, which is what
+       * gives the silhouette its shoulders. */
+      const rp = 0.46 - 1.30 * Math.pow(rand(), 0.72);
       const rl = 5.4 + rand() * 2.4;
       const aimed = opt.azTo !== undefined && i === 0;
       const pitch = aimed ? -0.24 : rp;
@@ -2916,6 +3135,26 @@ const crowns = [];   // world positions of every crown, for the leaf spawner
         .multiply(new THREE.Matrix4().makeRotationX(aimed ? 1.05 : rr));
       fg.applyMatrix4(m);
       frondGeos.push(fg);
+    }
+
+    /* The spear.
+     *
+     * The youngest leaf, still rolled up and standing almost straight out
+     * of the middle of the crown. It is one narrow blade and it costs
+     * nothing, and it is the single cheapest thing that settles the
+     * question of whether you are looking at a palm or at a large fern.
+     */
+    {
+      const sl = (3.1 + rand() * 1.1) * crown;
+      const sg = frondGeometry(sl, 0.30 * crown, 8);
+      stampSway(sg, (vx) => 0.42 + Math.pow(clamp(vx / sl, 0, 1), 1.7) * 0.55);
+      stamp(sg, "aPhase", phase + 1.7);
+      sg.applyMatrix4(new THREE.Matrix4()
+        .makeTranslation(crownWorld.x, crownWorld.y, crownWorld.z)
+        .multiply(new THREE.Matrix4().makeRotationY(rand() * Math.PI * 2))
+        .multiply(new THREE.Matrix4().makeRotationZ(1.16))
+        .multiply(new THREE.Matrix4().makeRotationX(rand() * 0.6)));
+      frondGeos.push(sg);
     }
   }
 
@@ -3084,7 +3323,6 @@ const crowns = [];   // world positions of every crown, for the leaf spawner
   trunks.layers.enable(MIRROR_LAYER);
   scene.add(trunks);
 
-  const frondTex = asTexture(texFrond());
   // No alphaMap. Three reads alphaMap's GREEN channel, not a canvas's alpha
   // channel, so pairing it with this texture multiplied the cut-out by how
   // green each pixel happened to be — every leaflet except the brightest
@@ -4261,7 +4499,7 @@ const streetLamps = [];
   // that stops the alley floor reading as an empty corridor: they give the
   // eye something at knee height between the shopfronts and the palms.
   {
-    const stone = [], green = [];
+    const stone = [], soil = [], broadLeaf = [], feather = [], bushAt = [];
     const r = rng(5150);
     const kerbX = STREET.half - 2.0;
 
@@ -4279,37 +4517,66 @@ const streetLamps = [];
       lip.translate(sx, 0.95, z);
       stone.push(lip);
 
-      // Planting, not three grey-green balls.
-      //
-      // A shrub reads as a shrub because of its silhouette, so the mass is
-      // built from more, smaller, irregular lumps — each one a low-poly
-      // sphere pushed out of round — and then broken by a fan of blades,
-      // which is what actually says "tropical" at a glance. Two greens, so
-      // the clump has light and shade in it rather than one flat tone.
-      const clump = 5 + Math.floor(r() * 3);
-      for (let k = 0; k < clump; k++) {
-        const b = new THREE.SphereGeometry(0.3 + r() * 0.26, 6, 5);
-        const pos = b.attributes.position;
-        for (let v = 0; v < pos.count; v++) {
-          const f = 0.82 + r() * 0.36;                    // knock it out of round
-          pos.setXYZ(v, pos.getX(v) * f, pos.getY(v) * f * 0.8, pos.getZ(v) * f);
-        }
-        b.computeVertexNormals();
-        b.translate(sx + (r() - 0.5) * 1.15, 1.25 + r() * 0.55, z + (r() - 0.5) * 1.15);
-        green.push(b);
+      /* Planting, rather than green lumps with sticks in them.
+       *
+       * This was a clump of squashed spheres and a fan of tapered cylinders.
+       * Spheres are the one shape a plant never makes, and at street level
+       * the whole tub read as a mossy boulder. What it is now is what is
+       * actually in a tub: a low mound of soil, a few broad leaves on
+       * stalks, and a feathery thing behind them — two silhouettes rather
+       * than one mass, which is the entire difference at a glance.
+       *
+       * Both kinds of leaf are the same geometry the palms use, at a tenth
+       * of the size and with a different picture on it. That is worth more
+       * than the saving: a leaf built this way already arches, already
+       * folds along its spine, and already takes the wind, so the planting
+       * moves in the same breeze as the crowns overhead instead of standing
+       * dead still underneath them.
+       */
+      const mound = new THREE.SphereGeometry(0.74, 12, 5);
+      {
+        const q = mound.attributes.position;
+        for (let v = 0; v < q.count; v++) q.setXYZ(v, q.getX(v), q.getY(v) * 0.26, q.getZ(v));
+        mound.computeVertexNormals();
+      }
+      mound.translate(sx, 0.97, z);
+      soil.push(mound);
+      bushAt.push([sx, 1.44, z]);
+
+      const stand = (geo, len, base, az, pitch, roll, phase, sway) => {
+        stampSway(geo, (vx) => Math.pow(clamp(vx / len, 0, 1), 1.5) * sway);
+        stamp(geo, "aPhase", phase);
+        geo.applyMatrix4(new THREE.Matrix4()
+          .makeTranslation(base[0], base[1], base[2])
+          .multiply(new THREE.Matrix4().makeRotationY(az))
+          .multiply(new THREE.Matrix4().makeRotationZ(pitch))
+          .multiply(new THREE.Matrix4().makeRotationX(roll)));
+      };
+
+      // The broad leaves: fewer, bigger, held out almost flat.
+      const broad = 5 + Math.floor(r() * 3);
+      for (let k = 0; k < broad; k++) {
+        const len = 0.95 + r() * 0.5;
+        const g = frondGeometry(len, 0.34 + r() * 0.12, 6);
+        stand(g, len,
+              [sx + (r() - 0.5) * 0.7, 1.06 + r() * 0.22, z + (r() - 0.5) * 0.7],
+              (k / broad) * Math.PI * 2 + r() * 0.6,
+              0.45 + r() * 0.65, (r() - 0.5) * 0.9,
+              i * 1.7 + k * 0.4, 0.30);
+        broadLeaf.push(g);
       }
 
-      // Blades fanning out of the middle.
-      const fan = 7 + Math.floor(r() * 4);
-      for (let k = 0; k < fan; k++) {
-        const a = (k / fan) * Math.PI * 2 + r() * 0.5;
-        const len = 0.9 + r() * 0.8;
-        const blade = new THREE.CylinderGeometry(0.012, 0.075, len, 3);
-        blade.translate(0, len / 2, 0);
-        blade.rotateZ(Math.cos(a) * (0.5 + r() * 0.45));
-        blade.rotateX(Math.sin(a) * (0.5 + r() * 0.45));
-        blade.translate(sx + (r() - 0.5) * 0.5, 1.15, z + (r() - 0.5) * 0.5);
-        green.push(blade);
+      // The feathery one: more of them, narrower, standing up behind.
+      const feathers = 7 + Math.floor(r() * 4);
+      for (let k = 0; k < feathers; k++) {
+        const len = 0.9 + r() * 0.62;
+        const g = frondGeometry(len, 0.15 + r() * 0.08, 8);
+        stand(g, len,
+              [sx + (r() - 0.5) * 0.5, 1.16 + r() * 0.2, z + (r() - 0.5) * 0.5],
+              (k / feathers) * Math.PI * 2 + r() * 0.5,
+              0.55 + r() * 0.75, (r() - 0.5) * 1.1,
+              i * 1.7 + k * 0.23 + 0.9, 0.34);
+        feather.push(g);
       }
 
       // A bench every third planter.
@@ -4332,25 +4599,60 @@ const streetLamps = [];
     stoneMesh.castShadow = true; stoneMesh.receiveShadow = true;
     scene.add(stoneMesh);
 
-    const greenMesh = new THREE.Mesh(
-      mergeGeometries(green),
-      new THREE.MeshStandardMaterial({ color: 0x55893a, roughness: 0.96, flatShading: true })
+    const soilMesh = new THREE.Mesh(
+      mergeGeometries(soil),
+      new THREE.MeshStandardMaterial({ color: 0x6b5941, roughness: 1, flatShading: true })
     );
-    greenMesh.castShadow = true; greenMesh.receiveShadow = true;
-    scene.add(greenMesh);
+    soilMesh.receiveShadow = true;
+    scene.add(soilMesh);
+
+    /* Two meshes, two textures, and the same wind the palms are on.
+     *
+     * alphaTest rather than transparency, for the same reason the crowns
+     * use it: sorted transparency on a few hundred overlapping leaves is
+     * both slower and wrong, and a cut-out leaf takes a shadow properly. */
+    const leafOf = (geos, tex) => {
+      const m = new THREE.Mesh(
+        mergeGeometries(geos),
+        applyWind(new THREE.MeshStandardMaterial({
+          map: tex, alphaTest: 0.3, side: THREE.DoubleSide,
+          roughness: 0.78, metalness: 0,
+        }))
+      );
+      m.castShadow = true; m.receiveShadow = true;
+      const depth = new THREE.MeshDepthMaterial({
+        depthPacking: THREE.RGBADepthPacking, map: tex, alphaTest: 0.4,
+      });
+      applyWind(depth);
+      m.customDepthMaterial = depth;
+      scene.add(m);
+      return m;
+    };
+    leafOf(broadLeaf, asTexture(texBroadLeaf()));
+    leafOf(feather, frondTex);
 
     // Bougainvillea. Three or four hot clusters down a bleached street do
     // more for the colour of the place than raising the saturation on
     // everything would, and the tropics plant the stuff everywhere.
     const petals = [];
-    for (let i = 0; i < green.length; i += 3) {
-      if (r() > 0.55) continue;
-      const src = green[i].attributes.position;
-      const bx = src.getX(0), by = src.getY(0), bz = src.getZ(0);
+    // Off the tubs now rather than off individual leaves: the clusters used
+    // to hang wherever the third sphere in the clump happened to sit, and
+    // the spheres are gone.
+    for (const [bx, by, bz] of bushAt) {
+      if (r() > 0.5) continue;
       const hue = [0xd6356f, 0xe8604a, 0xc23a86, 0xef8f3c][Math.floor(r() * 4)];
-      for (let k = 0; k < 5; k++) {
-        const b = new THREE.SphereGeometry(0.17 + r() * 0.1, 6, 4);
-        b.translate(bx + (r() - 0.5) * 1.5, by + (r() - 0.5) * 0.9, bz + (r() - 0.5) * 1.5);
+      /* Four times smaller and twice as many.
+       *
+       * These were sized against the clump of spheres they used to be
+       * scattered through, and next to actual leaves the same radius came
+       * out as five magenta beach balls sitting on a shrub — one of them
+       * hanging in mid-air, because the old anchors went up to where the
+       * top of the clump had been. A bract is a small thing that there is a
+       * lot of, so the spread comes in to the width of the foliage and the
+       * count goes up to match. */
+      for (let k = 0; k < 14; k++) {
+        const b = new THREE.SphereGeometry(0.05 + r() * 0.045, 6, 4);
+        b.translate(bx + (r() - 0.5) * 1.0, by + (r() - 0.5) * 0.42, bz + (r() - 0.5) * 1.0);
         const c = new THREE.Color(hue);
         const n = b.attributes.position.count;
         const arr = new Float32Array(n * 3);
@@ -4482,6 +4784,839 @@ const doorBacks = (() => {
     mesh,
     show(i) { if (i >= 0) write(i, true); },
     hide(i) { if (i >= 0) write(i, false); },
+  };
+})();
+
+// ## 18C  BOARDS — the screens over the street
+//
+// A shopping street with signage and no advertising is a strange thing: what
+// makes somewhere like this read as a place rather than as a render is the
+// light coming off the hoardings, not the architecture behind them. So the
+// street gets LED boards — bolted to the facades, standing on the roofs, and
+// one across the end of it — and after dark they are the brightest thing in
+// the scene and throw their own colour onto the pavement.
+//
+// Every board is showing a house's logo today. Almost none of the machinery
+// below knows that. A board holds a *creative*, which is a thing to paint,
+// and the only code that knows a creative happens to be a logo is REEL and
+// `paintCreative`. Putting product artwork up later means adding entries to
+// the one and a branch to the other; placement, cycling, the LED look, the
+// clock and the light spill all stay as they are.
+
+const boards = (() => {
+  const FACE_Z = 0.75;        // how far a facade board stands off its wall
+  const ROOF_Z = -1.2;        // and how far back a roof sign sits from the parapet
+
+  /* What a board is allowed to show.
+   *
+   * Not one playlist: a playlist *per board*, because a board on a house's
+   * own building may only ever show that house. Cycling every brand across
+   * every facade meant a Balenciaga logo three metres above the Godspeed
+   * shopfront, and the street stopped telling you whose door you were
+   * standing at -- which is the one job the street has.
+   *
+   * So there are three kinds of reel, and the placement decides which a
+   * board gets:
+   *
+   *   ownReel(brand)  a house's own building. One entry today. This is where
+   *                   that house's product artwork goes later, and it can
+   *                   cycle then without ever being confusing, because
+   *                   everything in it belongs to the shop underneath.
+   *   SITE_REEL       the district's own mark. Used on the crown at the end
+   *                   of the street and on the tickers, neither of which
+   *                   belongs to any one house.
+   *   BRAND_REEL      every house in turn. Only on the two boards flanking
+   *                   the crown, which stand on the block that closes the
+   *                   street rather than on anybody's shopfront, so a name
+   *                   up there reads as an advertisement and not as a sign.
+   */
+  const ownReel = (brand) => [{ kind: "brand", brand, key: brand.slug }];
+  const BRAND_REEL = BRANDS.map((brand) => ({ kind: "brand", brand, key: brand.slug }));
+  const SITE_REEL = [{ kind: "site", key: "site" }];
+
+  /* Artwork, fetched once and shared by every board.
+   *
+   * The signs each load their own copy because they are built before this
+   * exists and never change what they show. A board cycles through all
+   * fifteen houses, so fifteen boards loading fifteen logos each would be
+   * two hundred requests for fifteen files. */
+  const art = new Map();
+  const asked = new Set();
+  const waiting = [];
+
+  /** What piece of artwork a creative wants. Also its cache key. */
+  const keyOf = (c) => c.kind === "product" ? `p:${c.product.id}`
+                     : c.kind === "site"    ? "site"
+                     : c.brand.slug;
+
+  /**
+   * Fetches a picture once and tells anyone showing it.
+   *
+   * Always anonymous, and it is not optional. Dropping the attribute makes a
+   * cross-origin image paint onto the canvas without a CORS header, which
+   * taints it -- and a tainted canvas cannot be uploaded as a texture at
+   * all. It is not merely unreadable: three calls texSubImage2D on it every
+   * time the board changes and the whole upload throws SecurityError, so the
+   * board freezes on whatever it last managed to show. Requesting CORS means
+   * a bucket that does not send the header fails the load instead, which
+   * costs the photograph and nothing else.
+   */
+  function fetchArt(key, src) {
+    if (!src || asked.has(key)) return;
+    asked.add(key);
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => { art.set(key, img); for (const f of waiting) f(key); };
+    img.onerror = () => asked.delete(key);
+    img.src = src;
+  }
+
+  /** Shrinks a label until it fits, and returns the size it settled on. */
+  function fitText(x, label, maxW, start, weight, face) {
+    let size = Math.max(6, Math.round(start));
+    do { x.font = `${weight} ${size}px ${face}`; size -= 1; }
+    while (x.measureText(label).width > maxW && size > 7);
+    return size;
+  }
+
+  /**
+   * Breaks a label into at most `maxLines` lines that fit, cutting the tail.
+   *
+   * Shrinking until it fits is what `fitText` does and it is wrong for a
+   * product name: "BAPE A Bathing Ape Crew Socks -White/Black Classic Logo"
+   * came out on a portrait board at a size the price underneath dwarfed,
+   * which puts the two things on the sign in the wrong order -- the piece is
+   * what is being advertised, not the number. Wrapping holds the size and
+   * spends height instead, and whatever still does not fit is cut.
+   */
+  function wrapAt(x, label, maxW, size, weight, face, maxLines) {
+    x.font = `${weight} ${Math.round(size)}px ${face}`;
+    const words = String(label).split(/\s+/).filter(Boolean);
+    const lines = [];
+    let line = "", cut = false;
+    for (const w of words) {
+      const test = line ? `${line} ${w}` : w;
+      if (!line || x.measureText(test).width <= maxW) { line = test; continue; }
+      lines.push(line);
+      line = w;
+      if (lines.length === maxLines) { cut = true; break; }
+    }
+    if (!cut && line && lines.length < maxLines) lines.push(line);
+    else if (!cut && line) cut = true;
+    if (cut && lines.length) {
+      let last = lines[lines.length - 1];
+      while (last.length > 1 && x.measureText(`${last}\u2026`).width > maxW) last = last.slice(0, -1);
+      lines[lines.length - 1] = `${last}\u2026`;
+    }
+    return lines;
+  }
+
+  /** A rounded rectangle path, with a square fallback on old engines. */
+  function panelPath(x, px, py, w, h, r) {
+    x.beginPath();
+    if (x.roundRect) x.roundRect(px, py, w, h, r);
+    else x.rect(px, py, w, h);
+  }
+  for (const b of BRANDS) fetchArt(b.slug, logoFor(b.slug));
+  // The on-dark cuts, because a board is a black panel. The wordmark for
+  // anything wider than it is tall and the square mark for the towers, which
+  // is the whole reason both files exist.
+  fetchArt("site-wide", `${SITE}/brand/designer-district-wordmark-on-dark.png`);
+  fetchArt("site-tall", `${SITE}/brand/designer-district-mark-on-dark.png`);
+
+  /**
+   * The grid of lamps.
+   *
+   * Without this a board is a poster, and the difference between a poster and
+   * a screen at night is almost entirely that you can see the pitch. Drawn
+   * into the canvas rather than as a second map so that mipmapping disposes
+   * of it by itself: close up you see the lamps, far down the street you see
+   * a clean panel, which is what happens in life.
+   */
+  function ledOverlay(x, W, H) {
+    const pitch = Math.max(3, Math.round(Math.min(W, H) / 78));
+    x.save();
+    // 0.22 cost a fifth of every board's output for a texture you cannot
+    // resolve past about fifteen metres. The pitch is the point, not the
+    // shadow between the lamps.
+    x.globalAlpha = 0.12;
+    x.fillStyle = "#000";
+    for (let px = 0; px < W; px += pitch) x.fillRect(px, 0, 1, H);
+    for (let py = 0; py < H; py += pitch) x.fillRect(0, py, W, 1);
+    x.restore();
+  }
+
+  /**
+   * How bright the brightest part of what we just painted came out, 0 to 1.
+   *
+   * Necessary because the houses do not agree about colour: run a cream
+   * Amiri field and a near-black Balenciaga one through the same emissive
+   * and one of them blows out. But the statistic has to be the right one.
+   *
+   * This started as the mean, and the mean is exactly wrong here. A black
+   * board with white type on it has a low average, so the correction read it
+   * as too dim and drove it to the top of its clamp — the district's own
+   * crown at the end of the street came out at an emissive of 4.29, which is
+   * not a black sign lit up, it is a grey rectangle. What wants holding
+   * steady is the bright part, the type and the logo, not the field behind
+   * them. So: a coarse histogram, and the eighty-fifth percentile.
+   *
+   * Sampled every sixteenth pixel. This runs when a board changes, a couple
+   * of times a second across the whole street at most.
+   */
+  function peakLuma(cv) {
+    const x = cv.getContext("2d");
+    let d;
+    try {
+      d = x.getImageData(0, 0, cv.width, cv.height).data;
+    } catch {
+      return 0.8;      // tainted by artwork served without CORS: leave it be
+    }
+    const bins = new Uint32Array(32);
+    let n = 0;
+    for (let i = 0; i < d.length; i += 4 * 16) {
+      const l = (d[i] * 0.2126 + d[i + 1] * 0.7152 + d[i + 2] * 0.0722) / 255;
+      bins[Math.min(31, (l * 32) | 0)]++;
+      n++;
+    }
+    if (!n) return 0.8;
+    let seen = 0;
+    const want = n * 0.85;
+    for (let i = 0; i < 32; i++) {
+      seen += bins[i];
+      if (seen >= want) return (i + 0.5) / 32;
+    }
+    return 1;
+  }
+
+  /** Paints one creative onto one board's canvas. The only logo-aware code. */
+  function paintCreative(cv, creative) {
+    const x = cv.getContext("2d"), W = cv.width, H = cv.height;
+
+    if (creative.kind === "site") {
+      const g = x.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, "#17171d");
+      g.addColorStop(1, "#08080b");
+      x.fillStyle = g;
+      x.fillRect(0, 0, W, H);
+
+      const wide = W / H >= 1.5;
+      const img = art.get(wide ? "site-wide" : "site-tall");
+      if (img) {
+        const k = Math.min(W * 0.78 / img.width, H * (wide ? 0.46 : 0.6) / img.height);
+        const w = img.width * k, h = img.height * k;
+        x.drawImage(img, (W - w) / 2, H * 0.44 - h / 2, w, h);
+      } else {
+        const face = getComputedStyle(document.body).fontFamily;
+        x.fillStyle = "#f4f4f6";
+        x.textAlign = "center";
+        x.textBaseline = "middle";
+        let size = Math.round(Math.min(H * 0.26, W * 0.13));
+        do { x.font = `700 ${size}px ${face}`; size -= 2; }
+        while (x.measureText("DESIGNER DISTRICT").width > W * 0.84 && size > 10);
+        x.fillText("DESIGNER DISTRICT", W / 2, H * 0.44);
+      }
+
+      const face2 = getComputedStyle(document.body).fontFamily;
+      x.fillStyle = "rgba(244,244,246,.62)";
+      x.textAlign = "center";
+      x.textBaseline = "middle";
+      x.font = `600 ${Math.round(H * 0.072)}px ${face2}`;
+      x.fillText("FIFTEEN DISTRICTS, ONE ADDRESS", W / 2, H * 0.82);
+
+      ledOverlay(x, W, H);
+      return;
+    }
+
+    const b = creative.brand;
+
+    const g = x.createLinearGradient(0, 0, W, H);
+    g.addColorStop(0, b.bg[0]);
+    g.addColorStop(1, b.bg[1]);
+    x.fillStyle = g;
+    x.fillRect(0, 0, W, H);
+
+    if (creative.kind === "product") {
+      /* An advertisement, which is a different object from a logo.
+       *
+       * Three things have to be on it and in this order of size: the thing
+       * itself, whose shop it is, and what it costs. The photographs are
+       * shot on white, so they go in a light tile rather than straight onto
+       * the house's colour -- a cut-out on a dark field reads as a mistake,
+       * and every one of these is a catalogue shot with a white background
+       * baked into it.
+       */
+      const pr = creative.product;
+      const face = getComputedStyle(document.body).fontFamily;
+      const wide = W / H >= 1.4;
+      const pad = Math.round(Math.min(W, H) * 0.07);
+
+      // Knock the ground back so the tile is the brightest thing on the board.
+      x.fillStyle = "rgba(0,0,0,.24)";
+      x.fillRect(0, 0, W, H);
+
+      const tile = wide
+        ? { x: pad, y: pad, w: Math.round(W * 0.40), h: H - pad * 2 }
+        : { x: pad, y: Math.round(H * 0.17), w: W - pad * 2, h: Math.round(H * 0.43) };
+      const r = Math.min(tile.w, tile.h) * 0.06;
+      panelPath(x, tile.x, tile.y, tile.w, tile.h, r);
+      // Not white. A near-white tile is the brightest thing on the street
+      // once the emissive is on it, and it blooms into a slab; this is the
+      // paper the rest of the site is set on anyway.
+      x.fillStyle = "#e9e7e1";
+      x.fill();
+
+      const img = art.get(keyOf(creative));
+      if (img) {
+        const k = Math.min(tile.w * 0.9 / img.width, tile.h * 0.9 / img.height);
+        const iw = img.width * k, ih = img.height * k;
+        x.save();
+        panelPath(x, tile.x, tile.y, tile.w, tile.h, r);
+        x.clip();
+        x.drawImage(img, tile.x + (tile.w - iw) / 2, tile.y + (tile.h - ih) / 2, iw, ih);
+        // A wash over the tile and the photograph together. These are studio
+        // shots on white, and white on an emissive panel clips — which
+        // takes the product with it, because the product is the darker thing
+        // inside the white. Knocking the whole tile back keeps the contrast
+        // that is already in the picture instead of flattening the top of it.
+        x.fillStyle = "rgba(0,0,0,.13)";
+        x.fillRect(tile.x, tile.y, tile.w, tile.h);
+        x.restore();
+      } else {
+        fetchArt(keyOf(creative), pr.image);
+      }
+
+      // Whose shop, in the house's own artwork where we have it.
+      const logo = art.get(b.slug);
+      const cx = wide ? tile.x + tile.w + pad : pad;
+      const cw = wide ? W - cx - pad : W - pad * 2;
+      const logoH = wide ? H * 0.18 : H * 0.12;
+      const logoY = wide ? pad : Math.round(H * 0.045);
+      if (logo) {
+        const k = Math.min(cw * 0.72 / logo.width, logoH / logo.height);
+        x.drawImage(logo, cx, logoY, logo.width * k, logo.height * k);
+      } else {
+        x.fillStyle = b.ink;
+        x.textAlign = "left";
+        x.textBaseline = "top";
+        fitText(x, b.name.toUpperCase(), cw * 0.9, logoH * 0.7, 700, face);
+        x.fillText(b.name.toUpperCase(), cx, logoY);
+      }
+
+      /* The piece, then what it costs.
+       *
+       * A wide board is a strip two or three metres tall seen from a hundred
+       * metres away, so it gets one line and no small print. A portrait
+       * board has the height for two lines and the sizes underneath, which
+       * is the detail that makes this an advertisement for something in a
+       * shop rather than a picture of a shirt.
+       */
+      x.textAlign = "left";
+      x.textBaseline = "alphabetic";
+      x.fillStyle = b.ink;
+
+      const nameSize = wide ? H * 0.15 : H * 0.062;
+      const lines = wrapAt(x, pr.name, cw, nameSize, 700, face, wide ? 1 : 2);
+      let ty = wide ? H * 0.62 : H * 0.70;
+      for (const ln of lines) { x.fillText(ln, cx, ty); ty += nameSize * 1.14; }
+
+      const price = `$${Number(pr.price).toFixed(2)}`;
+      x.globalAlpha = 0.92;
+      x.font = `700 ${Math.round(wide ? H * 0.16 : H * 0.075)}px ${face}`;
+      const priceY = wide ? H * 0.92 : ty + H * 0.035;
+      x.fillText(price, cx, priceY);
+      x.globalAlpha = 1;
+
+      if (!wide && pr.sizes && pr.sizes.length) {
+        const sz = pr.sizes.join("   ");
+        x.globalAlpha = 0.58;
+        fitText(x, sz, cw, H * 0.045, 600, face);
+        x.fillText(sz, cx, priceY + H * 0.058);
+        x.globalAlpha = 1;
+      }
+
+      ledOverlay(x, W, H);
+      return;
+    }
+
+    const img = art.get(b.slug);
+    if (img) {
+      const k = Math.min(W * 0.74 / img.width, H * 0.62 / img.height);
+      const w = img.width * k, h = img.height * k;
+      x.drawImage(img, (W - w) / 2, H * 0.46 - h / 2, w, h);
+    } else {
+      // The same fallback the signs use: type now, artwork when it lands.
+      const face = getComputedStyle(document.body).fontFamily;
+      const label = b.name.toUpperCase();
+      x.fillStyle = b.ink;
+      x.textAlign = "center";
+      x.textBaseline = "middle";
+      let size = Math.round(Math.min(H * 0.30, W * 0.22));
+      do { x.font = `700 ${size}px ${face}`; size -= 2; }
+      while (x.measureText(label).width > W * 0.82 && size > 10);
+      x.fillText(label, W / 2, H * 0.46);
+    }
+
+    // A strapline, because a board with one word on it reads as a logo test.
+    const face = getComputedStyle(document.body).fontFamily;
+    x.fillStyle = b.ink;
+    x.globalAlpha = 0.6;
+    x.textAlign = "center";
+    x.textBaseline = "middle";
+    x.font = `600 ${Math.round(H * 0.075)}px ${face}`;
+    x.fillText(b.note.toUpperCase(), W / 2, H * 0.84);
+    x.globalAlpha = 1;
+
+    ledOverlay(x, W, H);
+  }
+
+  /**
+   * The ticker strip.
+   *
+   * Laid out once, then squeezed so a whole cycle of the houses lands exactly
+   * on the canvas edge. That is the difference between a band that scrolls
+   * forever and one that visibly jumps every time it wraps.
+   */
+  function tickerStrip() {
+    const cv = canvas(2048, 96), x = cv.getContext("2d"), W = cv.width, H = cv.height;
+    x.fillStyle = "#0b0b0e";
+    x.fillRect(0, 0, W, H);
+    const face = getComputedStyle(document.body).fontFamily;
+    const font = `700 ${Math.round(H * 0.5)}px ${face}`;
+    x.font = font;
+
+    /* The district's own words, not a roll-call of the houses.
+     *
+     * This ran every brand name past every shopfront, which put fourteen
+     * other names on the front of whichever shop you happened to be standing
+     * at. A ticker is the building's own voice; it says where you are. */
+    const WORDS = [
+      "DESIGNER DISTRICT", "FIFTEEN DISTRICTS, ONE ADDRESS",
+      "DESIGNER DISTRICT", "OPEN LATE",
+    ];
+    const gap = H * 1.1;
+    let total = 0;
+    for (const w of WORDS) total += x.measureText(w).width + gap;
+
+    x.setTransform(W / total, 0, 0, 1, 0, 0);
+    x.font = font;
+    x.textBaseline = "middle";
+    let px = 0;
+    for (const w of WORDS) {
+      x.fillStyle = "#ffc247";
+      x.fillText(w, px, H * 0.5);
+      px += x.measureText(w).width + gap * 0.5;
+      x.fillStyle = "#4a4a52";
+      x.beginPath();
+      x.arc(px, H * 0.5, H * 0.075, 0, 7);
+      x.fill();
+      px += gap * 0.5;
+    }
+    x.setTransform(1, 0, 0, 1, 0, 0);
+    ledOverlay(x, W, H);
+    return cv;
+  }
+
+  const panels = [];          // every board, for the cycle and the clock
+  const tickers = [];         // the scrolling bands, which cycle differently
+  const frames = [];          // bezels and trusses, merged into one mesh
+  const spill = [];           // the few lights that throw board colour about
+
+  /**
+   * A dark box behind a panel, so it reads as mounted rather than painted on.
+   *
+   * Built at the origin and swung round before it is moved into place, so it
+   * turns about the board's own centre rather than about the building's.
+   */
+  function bezel(spec, depth = 0.34) {
+    const g = new THREE.BoxGeometry(spec.w + 0.28, spec.h + 0.28, depth);
+    g.translate(0, 0, -depth / 2 - 0.02);
+    if (spec.tilt) g.rotateY(spec.tilt);
+    g.translate(spec.x, spec.y, spec.z);
+    return g;
+  }
+
+  /** A leg from `foot` up to the underside of a board, following its tilt. */
+  function strut(spec, lx, thick, back) {
+    const h = spec.y - spec.h / 2 - spec.foot + 0.3;
+    const g = new THREE.BoxGeometry(thick, h, thick);
+    g.translate(lx, (spec.foot + spec.y - spec.h / 2) / 2 + 0.15 - spec.y, -back);
+    if (spec.tilt) g.rotateY(spec.tilt);
+    g.translate(spec.x, spec.y, spec.z);
+    return g;
+  }
+
+  /** Builds one board and hangs it in `parent`'s local space. */
+  function makeBoard(parent, spec, reel) {
+    const aspect = spec.w / spec.h;
+    // Enough pixels to read, sized to the board rather than to a fixed square.
+    // Sized to the board rather than to a constant: a twenty-nine metre
+    // crown and a five metre tower given the same 512 means one of them is
+    // seventeen pixels to the metre and the other is a hundred.
+    const long = spec.ticker ? 2048
+      : clamp(Math.round(Math.max(spec.w, spec.h) * 42), 384, 1024);
+    const cvW = aspect >= 1 ? long : Math.round(long * aspect);
+    const cvH = aspect >= 1 ? Math.round(long / aspect) : long;
+
+    let tex, cv = null;
+    if (spec.ticker) {
+      tex = asTexture(tickerStrip());
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.repeat.x = Math.max(1, Math.round(spec.w / 7));
+    } else {
+      cv = canvas(cvW, cvH);
+      tex = asTexture(cv);
+    }
+
+    const mat = new THREE.MeshStandardMaterial({
+      map: tex,
+      emissiveMap: tex,
+      emissive: 0xffffff,
+      emissiveIntensity: 0.35,
+      color: 0x0c0c0e,          // the panel itself is black; the light is emissive
+      roughness: 0.42,
+      metalness: 0,
+      toneMapped: true,
+    });
+
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(spec.w, spec.h), mat);
+    mesh.position.set(spec.x, spec.y, spec.z);
+    if (spec.tilt) mesh.rotation.y = spec.tilt;
+    parent.add(mesh);
+
+    const b = {
+      mesh, mat, tex, cv,
+      reel: reel || SITE_REEL,
+      ticker: !!spec.ticker,
+      gain: 1,
+      norm: 1,
+      idx: 0,
+      next: Infinity,
+      creative: null,
+    };
+    if (!spec.ticker) panels.push(b);
+    else tickers.push(b);
+    return b;
+  }
+
+  /** Puts creative `i` on board `b` now. */
+  function show(b, i) {
+    const n = b.reel.length;
+    b.idx = ((i % n) + n) % n;
+    b.creative = b.reel[b.idx];
+    paintCreative(b.cv, b.creative);
+    b.tex.needsUpdate = true;
+    /* Aimed at putting the bright part of a board near the top of the
+     * range rather than past it.
+     *
+     * The first pass targeted 0.82 with a floor of 0.78, which was set by
+     * eye against logo cards and fell apart the moment the boards started
+     * carrying photographs: a product tile is a near-white rectangle, so it
+     * came out at an emissive of 1.69 and 9.7% of the frame was pinned at
+     * pure white with the socks in the picture invisible inside it. Aiming
+     * the same statistic at 0.52 lands a white tile just under 1.0, where it
+     * is still the brightest thing on the street but has not thrown away the
+     * photograph to get there. The ceiling is what lets a black board with
+     * white type on it glow. */
+    b.norm = clamp(0.52 / Math.max(peakLuma(b.cv), 0.22), 0.42, 1.30);
+    if (b.light) b.light.color.set(b.creative.brand.bg[0]);
+  }
+
+  // Repaint anything that is currently showing a house whose artwork has just
+  // arrived, rather than making it wait for its next turn in the cycle.
+  waiting.push((key) => {
+    for (const b of panels) {
+      const c = b.creative;
+      if (!c) continue;
+      // A product card carries the house's logo as well as the photograph,
+      // so either arriving is a reason to paint it again.
+      const mine = c.kind === "site" ? key.startsWith("site-")
+                 : key === keyOf(c) || key === c.brand.slug;
+      if (mine) {
+        paintCreative(b.cv, b.creative);
+        b.tex.needsUpdate = true;
+      }
+    }
+  });
+
+  /* ── where they go ────────────────────────────────────────────────────
+   *
+   * Assigned from a written-out plan rather than by dice. Times Square is
+   * not uniform and it is not random either: it is clusters, with gaps you
+   * can see the sky through, and the same treatment twice in a row reads as
+   * wallpaper. Facade boards sit above the sign band; roof signs stand on
+   * scaffolds over the parapet, which is both what that kind of sign
+   * actually does and the only way to get a tall portrait board onto an
+   * eleven-metre building.
+   */
+  /* Weighted toward the roof.
+   *
+   * A roof sign is the only kind that can be turned to face you without
+   * leaning over the street: it sits back on the parapet, so even swung
+   * forty-seven degrees it stays outside the line the palms are planted on.
+   * Since turning them is what made these legible at all, most of the
+   * street gets one. */
+  const PLAN = [
+    "roofTower",  "roofBanner", "ticker", "roofTower",  "twin",
+    "roofBanner", "roofTower",  "ticker", "roofTower",  "roofBanner",
+    "twin",       "roofBanner", "roofTower", "ticker",  "banner",
+  ];
+
+  /* Turned to face the way you are walking, which is the whole difference
+   * between a screen and a stripe.
+   *
+   * These were flat on the facades, and the facades run *parallel* to the
+   * street: measured along the camera path, the average board was presenting
+   * about twenty degrees of itself to the viewer -- a face-on score of 0.35
+   * where 1.0 is square. You saw an edge for the whole approach, then a
+   * moment of board as you drew level with it, by which point it was at the
+   * side of the frame. The one screen that read properly was the crown at
+   * the end of the street, and the only thing different about it is that it
+   * faces you.
+   *
+   * So every board on a building is swung round toward the approach. The
+   * exact angle is a trade: at nought degrees you only ever see it from
+   * beside, at ninety only from the far end of the street, and the sum of
+   * the two is best somewhere near forty-five. Roof signs get more of it
+   * because there is nothing up there to swing into; facade boards get less
+   * and have to stand further off the wall, because half of the panel would
+   * otherwise be inside the building.
+   *
+   * `side` is -1 on the left terrace and +1 on the right, and the sign of
+   * the rotation follows it: both walls turn to look back up the street.
+   */
+  function layout(kind, H, side) {
+    const lo = 7.9, hi = H - 0.45;         // the clear band on the facade
+    const band = hi - lo;
+    // Far enough off the wall that the swung panel clears the building.
+    const clear = (w, tilt) => FACE_Z + Math.abs(Math.sin(tilt)) * w / 2 + 0.25;
+    switch (kind) {
+      case "banner": {
+        /* Flat, and it stays flat.
+         *
+         * Turning a wide panel means standing it off the wall by half its
+         * width times the sine of the angle, and there is nowhere near that
+         * much room. On a portrait viewport the street is only 16.8 metres
+         * across; a 10.4 metre banner at thirty degrees reached to within
+         * 2.4 metres of the centre line, which is two metres past where the
+         * alley palms stand and straight through their crowns. A wide board
+         * on a narrow street can be flat or it can be small. The angled
+         * visibility comes from the roof signs instead, which stand back on
+         * the parapet and cost the street nothing. */
+        const h = clamp(band * 0.8, 1.5, 3.0);
+        return [{ w: 12.4, h, x: 0, y: lo + band / 2, z: FACE_Z }];
+      }
+      case "twin": {
+        // Narrow enough to turn a little without reaching into the street.
+        const h = clamp(band * 0.86, 1.6, 4.0);
+        const w = 5.7, tilt = side * 0.32, z = clear(w, tilt);
+        return [
+          { w, h, x: -3.3, y: lo + h / 2 + 0.1, z, tilt },
+          { w, h, x:  3.3, y: lo + h / 2 + 0.1, z, tilt },
+        ];
+      }
+      case "ticker":
+        // Left flat on purpose. A thirteen-metre strip turned at an angle
+        // stops being a band running along the building and becomes a plank.
+        return [{ w: 13.2, h: 0.95, x: 0, y: lo + 0.62, z: FACE_Z, ticker: true }];
+      case "roofTower":
+        return [{ w: 5.2, h: 7.6, x: -2.4, y: H + 4.2, z: ROOF_Z, foot: H, tilt: side * 0.82 }];
+      case "roofBanner":
+        return [{ w: 11.4, h: 3.6, x: 0, y: H + 2.5, z: ROOF_Z, foot: H, tilt: side * 0.62 }];
+      default:
+        return [];
+    }
+  }
+
+  monoliths.forEach((m, i) => {
+    // -1 on the left terrace, +1 on the right. Which way a board turns to
+    // look back up the street depends on which wall it is bolted to.
+    const side = Math.sign(m.x) || 1;
+    for (const spec of layout(PLAN[i % PLAN.length], m.height, side)) {
+      // The house's own board, or the district's on the tickers.
+      const bd = makeBoard(m.group, spec, spec.ticker ? SITE_REEL : ownReel(m.brand));
+      if (!spec.ticker) bd.house = m.brand;
+      // Bezels and legs are built in the same local space and then baked to
+      // world, so all of them together are one draw call rather than sixty.
+      const bz = bezel(spec);
+      bz.applyMatrix4(m.group.matrixWorld);
+      frames.push(bz);
+      if (spec.foot !== undefined) {
+        // Two legs down to the roof, so the sign is standing on something.
+        for (const lx of [-spec.w * 0.34, spec.w * 0.34]) {
+          const leg = strut(spec, lx, 0.22, 0.2);
+          leg.applyMatrix4(m.group.matrixWorld);
+          frames.push(leg);
+        }
+      }
+    }
+  });
+
+  /* ── the one at the end of the street ─────────────────────────────────
+   *
+   * The end block is what you look at down the whole length of the alley, so
+   * it gets the board that has to carry the view: a wide crown standing over
+   * the parapet with a portrait board either side of it. The five bays below
+   * are left exactly as they were. They are the landmark; this is the light
+   * above it.
+   */
+  const endZ = STREET.from + BRANDS.length * STREET.step - 26;
+  const crownGroup = new THREE.Group();
+  crownGroup.position.set(0, 0, endZ);
+  crownGroup.updateMatrixWorld(true);
+  scene.add(crownGroup);
+
+  /* Inside the width of the alley, not the width of the block.
+   *
+   * These started at x plus and minus twenty-one, which is centred on a
+   * fifty-six metre facade and completely wrong: the terraces either side
+   * only leave about fourteen metres of that facade visible from the street,
+   * so both flankers spent their lives behind a building. They now sit just
+   * inside the kerb lines, where they frame the crown from every point on
+   * the walk down. */
+  const CROWN = [
+    { w: 22.0, h: 8.0,  x: 0,     y: 22.2, z: 1.0, foot: 17.2 },
+    // Outboard of the crown's edge, and set back behind it. At plus and
+    // minus 11.6 with the crown 24 wide these overlapped it by three metres
+    // and stood proud, so the two of them ate the ends of the wordmark: the
+    // sign at the end of the street read "ESIGNER DISTRIC". The gap keeps
+    // them clear, and the setback means any overlap that does happen loses
+    // to the crown rather than covering it.
+    // Toed in a little, so the pair lean into the view down the street
+    // instead of standing parallel to the crown between them.
+    { w: 5.6, h: 11.6, x: -13.2, y: 23.0, z: 0.6, foot: 17.2, tilt:  0.30 },
+    { w: 5.6, h: 11.6, x:  13.2, y: 23.0, z: 0.6, foot: 17.2, tilt: -0.30 },
+  ];
+  CROWN.forEach((spec, i) => {
+    // The crown carries the district; the two flankers are the advertising.
+    makeBoard(crownGroup, spec, i === 0 ? SITE_REEL : BRAND_REEL);
+    const bz = bezel(spec, 0.5);
+    bz.applyMatrix4(crownGroup.matrixWorld);
+    frames.push(bz);
+    for (const lx of [-spec.w * 0.36, spec.w * 0.36]) {
+      const leg = strut(spec, lx, 0.3, 0.35);
+      leg.applyMatrix4(crownGroup.matrixWorld);
+      frames.push(leg);
+    }
+  });
+
+  if (frames.length) {
+    const fm = new THREE.Mesh(
+      mergeGeometries(frames),
+      new THREE.MeshStandardMaterial({ color: 0x1a1b1f, roughness: 0.55, metalness: 0.5 })
+    );
+    fm.castShadow = true;
+    scene.add(fm);
+  }
+
+  /* ── the colour they throw ────────────────────────────────────────────
+   *
+   * The half of this that is not the boards themselves. A lit hoarding puts
+   * its own colour on the wall opposite and on the pavement underneath, and
+   * without that the boards read as stickers on a dark street. Three of
+   * them, not fifteen: every point light is paid for by every lit fragment
+   * in the scene, and three spaced down a hundred and fifty metres is
+   * enough to carry it. */
+  if (!QUALITY.light) {
+    const n = panels.length;
+    const picks = [...new Set([2, Math.floor(n / 3), Math.floor((2 * n) / 3)])];
+    for (const b of picks.map((i) => panels[i])) {
+      if (!b) continue;
+      const w = b.mesh.getWorldPosition(new THREE.Vector3());
+      const l = new THREE.PointLight(0xffffff, 0, 34, 1.7);
+      l.position.set(w.x, w.y, w.z);
+      scene.add(l);
+      b.light = l;
+      spill.push(l);
+    }
+  }
+
+  // Stagger the openers so the street is not fifteen boards all showing the
+  // same house, and so they do not all change on the same frame afterwards.
+  panels.forEach((b, i) => {
+    show(b, i * 3 + (i % 2) * 7);
+    // A board with one thing to show never changes, and must not take a
+    // black frame every eight seconds pretending that it did.
+    b.next = b.reel.length > 1 ? 5 + (i % 7) * 1.35 : Infinity;
+  });
+
+  let night = 0;
+  let lastT = 0;
+
+  /**
+   * Hands the boards the catalogue, which turns every house's board from a
+   * standing logo into a short campaign for that house's own stock.
+   *
+   * Called once when the street first has the catalogue and again on every
+   * refresh, so a photograph replaced in the admin reaches the hoardings on
+   * the same poll that reaches the shelf inside the shop.
+   *
+   * Still per house: a board only ever gets products belonging to the shop
+   * it is bolted to. Two boards on the same building are given different
+   * slices of that shop's stock, so a twin does not show the same jacket
+   * twice side by side.
+   */
+  function setCatalogue(brands) {
+    if (!brands) return;
+    const seen = new Map();
+    for (const b of panels) {
+      if (!b.house) continue;
+      const slug = b.house.slug;
+      const nth = seen.get(slug) || 0;
+      seen.set(slug, nth + 1);
+
+      const all = (brands[slug] || []).filter((q) => q.image);
+      const inStock = all.filter((q) => (q.stock ?? 0) > 0);
+      const pool = inStock.length ? inStock : all;
+      const reel = [{ kind: "brand", brand: b.house, key: slug }];
+      for (let i = 0; i < Math.min(3, pool.length); i++) {
+        const pr = pool[(i + nth * 3) % pool.length];
+        reel.push({ kind: "product", brand: b.house, product: pr, key: pr.id });
+      }
+
+      // Nothing to advertise: leave the board showing the logo it already is.
+      if (reel.length === 1) { b.reel = reel; b.next = Infinity; continue; }
+
+      b.reel = reel;
+      if (b.idx >= reel.length) show(b, 0);
+      // Staggered, so the street does not turn over all at once the moment
+      // the catalogue lands.
+      b.next = lastT + 2.5 + (panels.indexOf(b) % 6) * 1.1;
+    }
+  }
+
+  return {
+    panels, tickers, setCatalogue,
+
+    /** Advances the reel and scrolls the tickers. */
+    update(dt, t) {
+      lastT = t;
+      for (const b of panels) {
+        if (t > b.next) {
+          show(b, b.idx + 1);
+          b.next = t + 7.5 + (b.idx % 5) * 1.1;
+          b.gain = 0;                       // a beat of black, as a panel changes
+        }
+        if (b.gain < 1) b.gain = Math.min(1, b.gain + dt * 5);
+      }
+      if (!QUALITY.still) {
+        for (const b of tickers) b.tex.offset.x = (b.tex.offset.x - dt * 0.055) % 1;
+      }
+      // Not mixNum: that is declared with the clock, a couple of thousand
+      // lines below this, and reaching down for a two-term lerp is a
+      // temporal dead zone waiting to happen the first time this runs early.
+      // Daylight needs more than it looks like it should. Exposure is lower
+      // at noon than at midnight, so the same emissive reads as a grey panel
+      // in the sun and as a lamp after dark. Both ends are set by eye at the
+      // hour they apply to, not derived from one another.
+      const lit = 1.15 + (2.0 - 1.15) * night;
+      for (const b of panels) b.mat.emissiveIntensity = lit * b.gain * (b.norm || 1);
+      for (const b of tickers) b.mat.emissiveIntensity = lit * 1.15;
+      for (const l of spill) l.intensity = night * 9;
+    },
+
+    /** The clock hands the night level down; everything above reads it. */
+    setNight(n) { night = n; },
   };
 })();
 
@@ -5089,6 +6224,7 @@ function step(dt, t, p) {
   waterUniforms.uCam.value.copy(camera.position);
   motes.uniforms.uTime.value = t;
   if (leaves) leaves.update(dt, t);
+  if (boards) boards.update(dt, t);
   fountain.update(dt, t);
   // Before the main pass, so the water samples this frame's dome and not
   // the last one's.
@@ -7078,7 +8214,7 @@ window.DD = { THREE, scene, camera, renderer, composer, C, BRANDS, PATH, LOOK,
               // Place and render the scene at a scroll position without the
               // rAF loop; works in a backgrounded tab, where goTo does not.
               step: (v) => { scrollEased = v; step(0.016, clock.elapsedTime, v); },
-              doors,
+              doors, boards,
               route: { houseInHash, openFromHash },
               // Getters, both: section 27 builds these several thousand
               // lines below this object and a plain reference is a
@@ -7236,6 +8372,9 @@ function applyTimeOfDay(hour) {
   if (canopyStripMat) canopyStripMat.emissiveIntensity = mixNum(0, 0.75, night);
   if (lampHeadMat) lampHeadMat.emissiveIntensity = mixNum(0, 1.5, night);
   if (endBandMat) endBandMat.emissiveIntensity = mixNum(0, 1.3, night);
+  // The boards run their own ramp: they are never off, because an LED
+  // hoarding is not off at two in the afternoon, it is merely losing.
+  if (boards) boards.setNight(night);
   // Tinted glass swallows a lit interior. After dark it opens up, which is
   // also what a real shopfront does once the inside is brighter than the out.
   if (glassMat) {
@@ -8079,10 +9218,21 @@ const storeRoom = (() => {
   const texCache = new Map();
   const CACHE_MAX = QUALITY.light ? 48 : 96;
 
+  /* Keyed by the picture, not by the product.
+   *
+   * This cached on `it.id`, which is the one thing about a product that
+   * does not change when somebody replaces its photograph. Upload a new
+   * image and the row gets a new `image_url` — the uploader names every
+   * file with a fresh UUID — but the id is the same, so the cache answered
+   * with the old texture and the wall kept showing last week's shirt
+   * however many times the catalogue was refetched.
+   */
   function texFor(it, cb) {
-    const hit = texCache.get(it.id);
+    const key = it.image;
+    if (!key) { cb(null); return; }
+    const hit = texCache.get(key);
     if (hit) { cb(hit); return; }
-    loader.load(it.image, (tex) => {
+    loader.load(key, (tex) => {
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.anisotropy = 8;
       if (texCache.size >= CACHE_MAX) {
@@ -8090,9 +9240,17 @@ const storeRoom = (() => {
         texCache.get(oldest).dispose();
         texCache.delete(oldest);
       }
-      texCache.set(it.id, tex);
+      texCache.set(key, tex);
       cb(tex);
     }, undefined, () => cb(null));
+  }
+
+  /** Forgets one picture, so the next ask goes back to the network. */
+  function forgetTex(url) {
+    const t = texCache.get(url);
+    if (!t) return;
+    t.dispose();
+    texCache.delete(url);
   }
 
   // The ring that says a piece is under the pointer or open. One material
@@ -8379,6 +9537,9 @@ const storeRoom = (() => {
       return true;
     },
 
+    /** Drops a picture from the cache, so the next ask goes to the network. */
+    forget: forgetTex,
+
     /** Resolves once a set of pictures is in hand, or gives up trying. */
     preload(items) {
       return Promise.all(items.filter(Boolean).map(
@@ -8563,15 +9724,22 @@ storeMode = (() => {
    * kept. A failure leaves nothing behind, so the next door opened tries
    * again.
    */
-  let catalogue = null, catalogueP = null, catalogueState = "idle";
-  function loadCatalogue() {
-    if (catalogueP) return catalogueP;
-    catalogueState = "loading";
-    catalogueP = fetch("/api/storefront", { headers: { accept: "application/json" } })
+  let catalogue = null, catalogueP = null, catalogueState = "idle", catalogueAt = 0;
+  function loadCatalogue(opts = {}) {
+    if (catalogueP && !opts.fresh) return catalogueP;
+    // A refresh must not blank the shelf into skeletons. Only the first
+    // fetch of a visit has nothing to show while it waits.
+    if (!catalogue) catalogueState = "loading";
+    // The edge holds this for thirty seconds. That is right for a poll and
+    // wrong for the moment somebody comes back from the tab they were
+    // editing in, which is the one time they are certain something changed.
+    const url = opts.bust ? `/api/storefront?v=${Date.now()}` : "/api/storefront";
+    catalogueP = fetch(url, { cache: "no-store", headers: { accept: "application/json" } })
       .then((r) => r.json().then((j) => ({ ok: r.ok && j.ok !== false, j })))
       .then(({ ok, j }) => {
         if (!ok) throw new Error(j && j.error ? j.error : "catalogue unavailable");
         catalogue = j.brands || {};
+        catalogueAt = Date.now();
         catalogueState = j.configured === false ? "unconfigured" : "ready";
         return catalogue;
       })
@@ -9375,6 +10543,130 @@ storeMode = (() => {
     document.body.style.overflow = on ? "hidden" : "";
   }
 
+  /* Keeping up with the shop floor.
+   *
+   * A catalogue fetched once and kept for the session is right for a page
+   * nobody is editing behind. It is wrong here: photographs get replaced
+   * and products get added while somebody is standing in the shop looking
+   * at the wall, and until now the only way to see any of it was a reload.
+   *
+   * So it is asked again — on a timer while the tab is visible, faster
+   * with a shop open than on the street, and immediately on coming back to
+   * the tab, which is the one moment the visitor is certain something has
+   * changed because they are the one who changed it. A refetch that finds
+   * nothing new costs one string comparison and touches no DOM at all.
+   */
+  const POLL = 20000;
+  let pollTimer = 0;
+
+  /** Everything about a house's stock that the room can show. */
+  function signature(list) {
+    return (list || []).map((it) =>
+      `${it.id}\u0001${it.image}\u0001${it.price}\u0001${it.stock}\u0001${it.name}\u0001${it.cat}`
+    ).join("\u0002");
+  }
+
+  /**
+   * Refetches, and if this house changed, puts the change on the wall.
+   *
+   * Everything the visitor is in the middle of is picked up and put back:
+   * which section they are filtered to, which piece is open, where the rail
+   * is scrolled, and which bay the camera is standing at. Done naively this
+   * is a full rebuild, and a full rebuild in front of somebody reading a
+   * price is worse than the stale picture it was fixing.
+   */
+  async function refresh(opts = {}) {
+    if (busy) return false;
+    const b = house >= 0 ? monoliths[house].brand : null;
+    const before = b ? signature(stock) : null;
+    const wasUrls = new Set((stock || []).map((it) => it.image));
+
+    try {
+      await loadCatalogue({ fresh: true, bust: opts.bust });
+      // Whatever just changed, the boards outside are advertising it too.
+      boards.setCatalogue(catalogue);
+    } catch {
+      return false;                       // the shelf already says so
+    }
+    if (!b || house < 0 || !active) return true;
+
+    const now = (catalogue && catalogue[b.slug]) || [];
+    if (signature(now) === before) return true;   // nothing moved
+
+    // Where they were, before any of it is pulled apart.
+    const wasCat = cat;
+    const wasPicked = picked >= 0 && items[picked] ? items[picked].id : null;
+    const wasScroll = gridEl.scrollTop;
+    const wasBay = hereBay ? hereBay.cat : null;
+
+    fill(b);
+
+    // Pictures that are no longer anywhere in this house go back to the
+    // network if they ever return, rather than sitting on the GPU.
+    for (const url of wasUrls) {
+      if (!stock.some((it) => it.image === url)) storeRoom.forget(url);
+    }
+
+    // The filter, if that section still exists.
+    if (wasCat !== "all" && stock.some((it) => it.cat === wasCat)) {
+      cat = wasCat;
+      for (const el of catsEl.children) {
+        const on = el.dataset.key === wasCat;
+        el.dataset.live = on ? "1" : "0";
+        el.setAttribute("aria-pressed", on ? "true" : "false");
+      }
+      items = stock.filter((it) => it.cat === wasCat);
+      buildGrid();
+    }
+
+    hereBay = storeRoom.bayFor(wasBay) || storeRoom.bays[0];
+    gridEl.scrollTop = wasScroll;
+    measureChrome();
+
+    const again = wasPicked != null ? items.findIndex((it) => it.id === wasPicked) : -1;
+    picked = -1;
+    if (again >= 0) choose(again, false);
+    else { clearFocus(); standBack(); }
+
+    announce(`${b.name} updated. ${stock.length} pieces.`);
+    return true;
+  }
+
+  function schedulePoll() {
+    clearTimeout(pollTimer);
+    /* Only with a shop open, and only while the tab is being looked at.
+     *
+     * On the street nothing on screen is fed by the catalogue, so polling
+     * out there is a request every twenty seconds to change nothing — and
+     * the freshness check on the way in already covers anything that
+     * happened while the visitor was outside. */
+    if (document.hidden || !active) return;
+    pollTimer = setTimeout(async () => {
+      await refresh();
+      schedulePoll();
+    }, POLL);
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) { clearTimeout(pollTimer); return; }
+    // Straight past the edge cache: somebody coming back to this tab has
+    // almost certainly just come from the one they were editing in.
+    if (active) refresh({ bust: true });
+    schedulePoll();
+  });
+
+  /* The hoardings outside want this too.
+   *
+   * Nothing fetched the catalogue until somebody walked into a shop, which
+   * was right while the only thing reading it was the shelf. The boards over
+   * the street advertise stock now, so the street itself needs it: one
+   * request on load, shared with whichever shop is entered first, and a
+   * failure leaves every board showing its house's logo, which is exactly
+   * what they showed before this existed. */
+  loadCatalogue()
+    .then((c) => boards.setCatalogue(c))
+    .catch(() => {});
+
   /** Loads a house's stock into the listing, the chips and the sections. */
   function fill(b) {
     stock = (catalogue && catalogue[b.slug]) ? catalogue[b.slug].slice() : [];
@@ -9417,7 +10709,12 @@ storeMode = (() => {
     // seven tenths of a second and then the room opens with the shelf saying
     // what it is waiting for. The cursor carries that seven tenths — it used
     // to be a button that had simply stopped responding.
-    const catalogueReady = catalogueSettled();
+    // If what we are holding is older than the edge would have served
+    // anyway, ask again on the way in rather than opening on last hour's
+    // stock. Fresh enough, and this costs nothing.
+    const stale = Date.now() - catalogueAt > 30000;
+    const catalogueReady = stale ? loadCatalogue({ fresh: true }).catch(() => null)
+                                 : catalogueSettled();
     document.body.dataset.busy = "1";
     shopEl.setAttribute("aria-busy", "true");
     await Promise.race([catalogueReady, wait(700)]);
@@ -9488,6 +10785,7 @@ storeMode = (() => {
     seq = null;
     shopEl.dataset.on = "1";
     shopEl.setAttribute("aria-hidden", "false");
+    schedulePoll();            // there is a wall to keep current now
 
     /* Focus was not merely un-moved before — it was destroyed.
      *
@@ -9563,6 +10861,7 @@ storeMode = (() => {
     readScroll();
     scrollEased = scrollTarget;
     busy = false;
+    schedulePoll();            // which is to say: stop, there is no wall
   }
 
   document.getElementById("shop-out").addEventListener("click", leave);
@@ -9597,6 +10896,8 @@ storeMode = (() => {
     get busy() { return busy; },
     /** Which house is open, or -1. The URL router needs to know. */
     get house() { return house; },
+    /** Asks the catalogue again now. `DD.store.refresh()` from the console. */
+    refresh,
     /** True whenever the camera belongs to this — the walk in included. */
     get controlling() { return active || seq !== null; },
 
