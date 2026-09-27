@@ -5446,6 +5446,9 @@ const boards = (() => {
   const BRAND_REEL = BRANDS.map((brand) => ({ kind: "brand", brand, key: brand.slug }));
   const SITE_REEL = [{ kind: "site", key: "site" }];
 
+  // The campaign artwork, by house, as it last arrived.
+  let LOOKS = {};
+
   /* The district itself, as a house.
    *
    * The group shot has three people in it wearing seven garments from five
@@ -6496,6 +6499,9 @@ const boards = (() => {
   function setCatalogue(brands, looks) {
     if (!brands) return;
     looks = looks || {};
+    // Kept, so the shop interiors can hang the same campaign the street is
+    // running. They are built long after this and cannot see the fetch.
+    LOOKS = looks;
 
     /* Which houses can show their own artwork at all.
      *
@@ -6816,6 +6822,12 @@ const boards = (() => {
 
   return {
     panels, tickers, setCatalogue, preview, endTarget,
+
+    /** This house's campaign artwork, best fit for a given shape first. */
+    looksFor(slug, want) {
+      const mine = LOOKS[slug] || [];
+      return want ? fitFor(mine, want, 4) : mine.slice();
+    },
     pickables: () => panels.map((b) => b.mesh),
     boardOf: (mesh) => panels.find((b) => b.mesh === mesh) || null,
 
@@ -8348,6 +8360,8 @@ function step(dt, t, p) {
 
   if (inside) {
     storeMode.aim(dt, camPos, camLook);
+    // The campaign posters ease in once their picture has landed.
+    storeRoom.stepPosters(dt);
   } else {
     PATH.getPointAt(p, camPos);
     LOOK.getPointAt(p, camLook);
@@ -11356,6 +11370,119 @@ const storeRoom = (() => {
   ];
   for (const bay of bays) layBay(bay);
 
+  /* ── the campaign, inside the shop ───────────────────────────────────
+   *
+   * Above the stock on the side walls, and it took three attempts to find
+   * anywhere it could actually be seen.
+   *
+   * First the side walls by the door, which is where a real shop hangs one.
+   * Measured: the camera stands at room z -5.1 and the posters were at
+   * -5.15 — level with the lens, off to either side, never in frame.
+   *
+   * Then the back wall beside the stock. Also measured: framing the back
+   * bay, the visible strip of that wall runs from x -4.09 to 4.13 (the
+   * shelf list covers everything to the right of that) and the stock run
+   * takes ±3.35 of it. Seventy-five centimetres a side is not a poster.
+   * Scanning both side walls from that camera returned nothing at all: at
+   * the back bay they are entirely out of frame.
+   *
+   * What is in frame is the side wall you are standing at when you browse
+   * its section — z -4.6 to -12.2, floor to ceiling — and its stock is one
+   * row at y 1.7 to 3.5. So the campaign goes in the metre and three
+   * quarters above it, sized for the wide artwork, where it is read while
+   * the section under it is being shopped.
+   *
+   * Lit, but only just: three emissive surfaces are already within two
+   * metres of the lens in here and the bloom takes the frame if a fourth
+   * joins them at full strength.
+   */
+  const POSTER_W = 4.2, POSTER_H = 1.8;      // 21:9, the shape of the banners
+  const posters = [-1, 1].map((sx) => {
+    const g = new THREE.Group();
+    // 4.6 clears most of the section sign, whose pill sits at 4.30; the
+    // wall stops at 5.6, so this is as high as 1.8 of poster will go.
+    g.position.set(sx * (WALL_X - 0.02), 4.60, SIDE_AT);
+    g.rotation.y = sx > 0 ? -Math.PI / 2 : Math.PI / 2;
+
+    const frame = new THREE.Mesh(
+      new THREE.PlaneGeometry(POSTER_W + 0.16, POSTER_H + 0.16),
+      new THREE.MeshStandardMaterial({ color: 0x14141a, roughness: 0.78, metalness: 0 }),
+    );
+    frame.position.z = -0.012;
+    g.add(frame);
+
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0xffffff, roughness: 0.62, metalness: 0,
+      emissive: 0xffffff, emissiveIntensity: 0.28,
+      transparent: true, opacity: 0,
+    });
+    const art = new THREE.Mesh(new THREE.PlaneGeometry(POSTER_W, POSTER_H), mat);
+    g.add(art);
+
+    g.visible = false;
+    group.add(g);
+    return { group: g, art, mat, frame, shown: null };
+  });
+
+  const posterLoader = new THREE.TextureLoader();
+
+  /** Hangs this house's campaign on both side walls, or takes them down. */
+  function hangCampaign(slug) {
+    // Ranked for the frame's own shape, so a portrait tower is not cropped
+    // to a stripe of fabric inside a banner.
+    const picks = (boards.looksFor ? boards.looksFor(slug, POSTER_W / POSTER_H) : []).slice(0, 2);
+
+    posters.forEach((pn, i) => {
+      // With one picture both walls carry it; with none the frames come off
+      // the wall entirely rather than hanging empty.
+      const look = picks.length ? picks[i % picks.length] : null;
+      if (!look) { pn.group.visible = false; pn.shown = null; return; }
+      if (pn.shown === look.image) { pn.group.visible = true; return; }
+      pn.shown = look.image;
+
+      posterLoader.load(look.image, (tex) => {
+        // Between the request and the answer the visitor may have walked
+        // into a different shop; hanging it then would be the wrong picture.
+        if (pn.shown !== look.image) { tex.dispose(); return; }
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.anisotropy = 8;
+
+        /* Cover, not contain. The frame is a fixed portrait and the artwork
+         * is whatever shape it was composed for, so the texture is cropped
+         * to fill it — letterboxing a campaign inside its own frame reads
+         * as a mistake. */
+        const want = POSTER_W / POSTER_H;
+        const has = tex.image.width / tex.image.height;
+        if (has > want) {
+          tex.repeat.set(want / has, 1);
+          tex.offset.set((1 - want / has) / 2, 0);
+        } else {
+          tex.repeat.set(1, has / want);
+          tex.offset.set(0, (1 - has / want) / 2);
+        }
+
+        pn.mat.map = tex;
+        pn.mat.emissiveMap = tex;
+        pn.mat.needsUpdate = true;
+        pn.group.visible = true;
+        // Faded up, because a poster appearing in one frame as the room
+        // dresses itself reads as a glitch.
+        pn.fade = 0;
+      });
+    });
+  }
+
+  /** Eases the posters in once their picture has landed. */
+  function stepPosters(dt) {
+    for (const pn of posters) {
+      if (!pn.group.visible) continue;
+      const want = pn.mat.map ? 1 : 0;
+      const now = pn.mat.opacity;
+      if (Math.abs(now - want) < 0.005) { pn.mat.opacity = want; continue; }
+      pn.mat.opacity = now + (want - now) * Math.min(1, dt * 3);
+    }
+  }
+
   /** Paints a bay's sign: icon, section name, and how many are in it. */
   function paintSign(bay, label, key, n, ink, paper) {
     const c = bay.canvas.getContext("2d");
@@ -11598,6 +11725,7 @@ const storeRoom = (() => {
 
   return {
     group, panels, bays, fixtures, PANEL,
+    posters, hangCampaign, stepPosters,
     mark: markMesh,
     markTop: () => markMesh.position.y + markMesh.geometry.parameters.height / 2,
     // A getter, not a snapshot: the panel meshes are rebuilt when the
@@ -11634,6 +11762,9 @@ const storeRoom = (() => {
       for (const k in fixtures) fixtures[k].visible = (k === conf.kind);
 
       paintMark(b);
+      // The same campaign the street is running, on the wall you pass on
+      // the way in.
+      hangCampaign(b.slug);
       return conf;
     },
 
