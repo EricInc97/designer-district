@@ -744,6 +744,30 @@ body[data-look="1"] .layer {
 body[data-look="1"] .layer {
   transition: opacity .28s ease, visibility 0s linear .28s;
 }
+/* The pager over the picture.
+   Sits on the artwork rather than under it, because the sheet is short on a
+   phone and every row above the pieces is a row of product pushed off. */
+#look .art { position: relative; }
+#look .pager {
+  position: absolute; left: 50%; bottom: .55rem; transform: translateX(-50%);
+  display: flex; align-items: center; gap: .5rem;
+  padding: .25rem .4rem; border-radius: 999px;
+  background: rgba(10,10,10,.55);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+}
+#look .pager button {
+  border: 0; background: none; color: #fff; cursor: pointer;
+  font: inherit; font-size: 1.05rem; line-height: 1;
+  width: 1.7rem; height: 1.7rem; border-radius: 999px;
+}
+#look .pager button:hover, #look .pager button:focus-visible { background: rgba(255,255,255,.18); }
+#look .pager button[disabled] { opacity: .35; cursor: default; }
+#look #look-dots { display: flex; gap: .3rem; }
+#look #look-dots i {
+  width: 5px; height: 5px; border-radius: 999px; background: rgba(255,255,255,.4);
+}
+#look #look-dots i.on { background: #fff; }
+
 #look .dismiss {
   position: absolute; top: .7rem; right: .7rem; z-index: 1;
   border: 1px solid var(--rule-strong); background: var(--paper);
@@ -1191,7 +1215,15 @@ body[data-shopping="1"] .sound[data-state="prompt"]::after { animation: none; op
      aria-labelledby="look-head">
   <div class="sheet">
     <button class="dismiss" id="look-out" type="button">Close</button>
-    <figure class="art"><img id="look-img" alt="" /></figure>
+    <figure class="art">
+      <img id="look-img" alt="" />
+      <!-- Only shown when the house has more than one advert on this board. -->
+      <div class="pager" id="look-pager" hidden>
+        <button type="button" id="look-prev" aria-label="Previous advert">&#8249;</button>
+        <span id="look-dots" aria-hidden="true"></span>
+        <button type="button" id="look-next" aria-label="Next advert">&#8250;</button>
+      </div>
+    </figure>
     <div class="copy">
       <p class="eyebrow" id="look-who">&mdash;</p>
       <h3 id="look-head">&mdash;</h3>
@@ -5934,26 +5966,63 @@ const boards = (() => {
       for (const look of list) orphans.push({ kind: "look", brand, look, key: `l:${look.image}` });
     }
 
-    panels.filter((b) => b.flanker).forEach((b, n) => {
-      /* Ranked for this board's shape, same as any other.
-       *
-       * The first version handed the flankers the orphans in whatever order
-       * they came out of the payload, and promptly hung a 21:9 banner on a
-       * 0.48 portrait board — a crop so severe it is a stripe of fabric.
-       * These are the tallest screens on the street; they want the tall
-       * artwork.
-       */
+    /* The two flankers carry different houses, not the same ones offset.
+     *
+     * They stand side by side at the end of the street, so anything they
+     * share is read as a mistake. The first version gave both the whole
+     * orphan list and rolled the second one step along it, then appended
+     * the same BRAND_REEL to both — so within a turn or two they were
+     * showing the same artwork, and after that the same fifteen logos in
+     * the same order. Rolling a shared list is not the same as not sharing
+     * one.
+     *
+     * So the artwork is dealt out by house: each flanker takes the house
+     * whose work best suits its shape, out of whatever the other one has
+     * not already claimed. The logo reel behind it is turned half a lap so
+     * the two are never on the same house at the same time either.
+     */
+    const flankers = panels.filter((b) => b.flanker);
+    const byHouse = new Map();
+    for (const o of orphans) {
+      if (!byHouse.has(o.brand.slug)) byHouse.set(o.brand.slug, []);
+      byHouse.get(o.brand.slug).push(o);
+    }
+    const claimed = new Set();
+
+    flankers.forEach((b, n) => {
       const want = boardAspect(b);
+
+      /* Pick this flanker's house: the unclaimed one whose best piece fits
+       * this board's shape closest. */
+      let mine = null, best = Infinity;
+      for (const [slug, list] of byHouse) {
+        if (claimed.has(slug)) continue;
+        const m = Math.min(...list.map((o) => aspectMiss(o.look, want)));
+        if (m < best) { best = m; mine = slug; }
+      }
+
+      let pool;
+      if (mine) {
+        claimed.add(mine);
+        pool = byHouse.get(mine);
+      } else {
+        /* Only one house has homeless artwork, so the pair split its
+         * pieces between them rather than both showing all of them. */
+        const all = orphans.slice();
+        pool = all.filter((_, i) => i % flankers.length === n);
+        if (!pool.length) pool = all;
+      }
+
       // Three at most: these are a sideshow to the crown, and a long reel on
       // the two tallest screens is just more to download.
-      const ranked = fitFor(orphans.map((o) => o.look), want, 3)
-        .map((look) => orphans.find((o) => o.look === look));
-      // And the pair should not read as a mirror: the second one starts a
-      // step further down the same list.
-      const rolled = n && ranked.length > 1
-        ? ranked.slice(1).concat(ranked.slice(0, 1))
-        : ranked;
-      const reel = rolled.length ? rolled.concat(BRAND_REEL) : BRAND_REEL;
+      const ranked = fitFor(pool.map((o) => o.look), want, 3)
+        .map((look) => pool.find((o) => o.look === look));
+
+      // Half a lap apart, so the logo cards behind the artwork differ too.
+      const k = Math.round((n * BRAND_REEL.length) / Math.max(1, flankers.length));
+      const logos = BRAND_REEL.slice(k).concat(BRAND_REEL.slice(0, k));
+
+      const reel = ranked.length ? ranked.concat(logos) : logos;
       const sig = reel.map((c) => c.key).join("|");
       if (sig !== b.sig) { b.sig = sig; b.reel = reel; show(b, 0); b.next = lastT + 3; }
     });
@@ -6130,11 +6199,49 @@ const boards = (() => {
     pickables: () => panels.map((b) => b.mesh),
     boardOf: (mesh) => panels.find((b) => b.mesh === mesh) || null,
 
+    /** Stop or restart a board's reel. */
+    hold(b, on) {
+      b.held = !!on;
+      // Coming off hold, give it a few seconds before it moves, so closing
+      // the panel does not immediately blink the thing you were reading.
+      if (!on) b.next = lastT + 6;
+    },
+
+    /** Put a particular creative on a board now. */
+    showAd(b, creative) {
+      const i = b.reel.indexOf(creative);
+      if (i < 0) return false;
+      show(b, i);
+      b.gain = 0;
+      return true;
+    },
+
+    /**
+     * The other adverts on this board for the same house.
+     *
+     * Same house, deliberately: the two boards flanking the crown carry
+     * homeless artwork from several houses, and paging from a Supreme
+     * picture into a Vale one would be a different shop without saying so.
+     */
+    adsFor(b, brand) {
+      if (!b.reel || !brand) return [];
+      return b.reel.filter(
+        (c) => (c.kind === "look" || c.kind === "product") &&
+               c.brand && c.brand.slug === brand.slug,
+      );
+    },
+
     /** Advances the reel and scrolls the tickers. */
     update(dt, t) {
       lastT = t;
       for (const b of panels) {
-        if (t > b.next) {
+        /* A board somebody is reading does not turn over.
+         *
+         * The reel is on a timer, so an advert you had stopped to look at
+         * would swap itself out from under you mid-sentence — and the panel
+         * beside it would swap with it. While one is held open it stays on
+         * what it was opened on, and only the pager moves it. */
+        if (!b.held && t > b.next) {
           show(b, b.idx + 1);
           b.next = t + 7.5 + (b.idx % 5) * 1.1;
           b.gain = 0;                       // a beat of black, as a panel changes
@@ -6181,25 +6288,25 @@ const boards = (() => {
 // nearly a metre of daylight at the jambs — but only because nothing else is
 // spending that budget.
 
-/* Riding high enough to see the street as a street.
+/* Walking the street, not flying over it.
  *
- * The walk used to run at about 5.8 along the terraces, looking five degrees
- * below level. The terraces are eighteen to twenty metres tall and their
- * faces stand 5.6 either side of the centreline, so that is a camera at
- * chest height in an eleven-wide, twenty-tall canyon — and it read as one.
- * Both sides crowded the edges of the frame, the ground disappeared, and
- * there was no way to see that the district has a shape.
+ * This has been up and down. It ran at about 5.8 looking five degrees below
+ * level, which in a street eleven metres wide between the shopfronts and
+ * eighteen to twenty tall read as a corridor. Lifting it to eleven and a
+ * half at nineteen degrees opened that right up and went too far the other
+ * way: from up there you are looking at the district rather than walking
+ * through it, and the shopfronts — which are the product — foreshorten.
  *
- * It now rides at about eleven and a half and looks nineteen degrees down,
- * which is high enough to see the paving, both terraces and the boards
- * above them at once, and still five metres below the lowest roofline, so
- * the buildings go on framing the street rather than becoming a model of
- * it. Raise the street numbers together to tilt it further toward a plan
- * view; the pitch is the gap between these and the LOOK heights below,
- * over a lead of about twenty-four.
+ * It now sits at about six and a half, looking eight degrees down. That is
+ * a person's view of the street with enough lift to keep the paving and
+ * both terraces in frame, rather than either a corridor or a model.
  *
- * The dome is the one part that cannot rise: the dip under the shell is the
+ * The dome is the one part that never moved: the dip under the shell is the
  * height it always was, because the rim allows no more.
+ *
+ * To re-pitch it, move the street heights below together. The angle is
+ * their gap from the LOOK heights over a lead of about twenty-four, so
+ * every extra metre here is roughly two and a third degrees.
  */
 const PATH = new THREE.CatmullRomCurve3([
   new THREE.Vector3(0, 4.95, 30),
@@ -6208,17 +6315,17 @@ const PATH = new THREE.CatmullRomCurve3([
   new THREE.Vector3(0, 3.05, 4),        // the near arch
   new THREE.Vector3(0, 2.90, -1),       // under the shell
   new THREE.Vector3(0, 3.15, -7),       // the far arch
-  new THREE.Vector3(0, 5.10, -13),
-  new THREE.Vector3(0, 7.40, -21),
-  new THREE.Vector3(0, 9.30, -30),
-  new THREE.Vector3(0, 10.70, -42),
-  new THREE.Vector3(0, 11.50, -68),
-  new THREE.Vector3(0, 11.70, -96),
-  new THREE.Vector3(0, 11.90, -124),
-  new THREE.Vector3(0, 13.20, -150),
+  new THREE.Vector3(0, 4.40, -13),
+  new THREE.Vector3(0, 5.30, -21),
+  new THREE.Vector3(0, 6.00, -30),
+  new THREE.Vector3(0, 6.30, -42),
+  new THREE.Vector3(0, 6.45, -68),
+  new THREE.Vector3(0, 6.50, -96),
+  new THREE.Vector3(0, 6.55, -124),
+  new THREE.Vector3(0, 7.40, -150),
   // Stops in the open ground between the last shopfront and the block that
   // closes the street, rather than travelling on through it.
-  new THREE.Vector3(0, 14.60, -162),
+  new THREE.Vector3(0, 8.40, -162),
 ], false, "catmullrom", 0.4);
 
 // Held on the dome at the top of the page, then let go forward so that by
@@ -6641,17 +6748,31 @@ addEventListener("scroll", () => {
 const pinPos = new THREE.Vector3();
 const pinFoot = new THREE.Vector3();
 
+/* How tall a marker is on screen, for the overlap test below. The CSS says
+ * 58 on a phone and rather more on a desktop; this only has to be close
+ * enough to keep two of them from sitting on top of each other. */
+const PIN_H = 58;
+
 /** Places every marker over its shopfront, and hides the ones out of frame. */
 function placePins(active, visible) {
+  /* Two passes, because clutter is an overlap problem, not a count problem.
+   *
+   * Culling by distance alone — which is all this did — thins the far end of
+   * the street and does nothing about the near end, where four shopfronts
+   * across a narrow frame put four markers on the same piece of screen. The
+   * result was a pile of overlapping tags with the tails crossing, and no
+   * single one of them readable.
+   *
+   * So: work out where every marker wants to go, then lay them down in
+   * priority order and drop any that lands on one already placed. The
+   * active house goes down first and so is never the one dropped; after it,
+   * nearest wins, because the near ones are the ones being walked past.
+   */
+  const want = [];
+
   for (let i = 0; i < pins.length; i++) {
-    const { el, stem, tack, m } = pins[i];
-    if (!visible) {
-      if (pins[i].shown) {
-        el.style.display = stem.style.display = tack.style.display = "none";
-        pins[i].shown = false;
-      }
-      continue;
-    }
+    const { m } = pins[i];
+    if (!visible) continue;
 
     // Two points, not one: where the marker floats, and the spot on the
     // shopfront it belongs to. Both are projected, because a vertical line
@@ -6664,9 +6785,6 @@ function placePins(active, visible) {
     pinPos.project(camera);
     pinFoot.project(camera);
 
-    // Fewer at once, now that each is three times the size: past sixty
-    // metres they were a row of overlapping tags down the vanishing point.
-    //
     // The bounds are tighter than the frame on three sides. 1.15 let a
     // marker hang half off the edge with its logo cut in two, and the top
     // of the screen belongs to the header and the sound toggle — a marker
@@ -6675,21 +6793,13 @@ function placePins(active, visible) {
       && Math.abs(pinPos.x) < 1.06
       && pinPos.y < 0.72 && pinPos.y > -1.0
       && dist < 58;
-
-    if (!onScreen) {
-      if (pins[i].shown) {
-        el.style.display = stem.style.display = tack.style.display = "none";
-        pins[i].shown = false;
-      }
-      continue;
-    }
+    if (!onScreen) continue;
 
     // Held inside the frame rather than allowed to hang off it. A marker
-    // is 104 wide and anchored on its own centre, so one belonging to a
-    // shopfront near the edge of the view lost half its logo to the bezel.
-    // Nudging it in costs nothing, because the leader line is still drawn
-    // to the real spot on the building — which is the whole reason the
-    // line is there.
+    // is anchored on its own centre, so one belonging to a shopfront near
+    // the edge of the view lost half its logo to the bezel. Nudging it in
+    // costs nothing, because the leader line is still drawn to the real
+    // spot on the building — which is the whole reason the line is there.
     const half = PIN_W / 2 + 4;
     const x = clamp((pinPos.x * 0.5 + 0.5) * viewW, half, viewW - half);
     const y = (-pinPos.y * 0.5 + 0.5) * viewH;
@@ -6699,27 +6809,56 @@ function placePins(active, visible) {
     const k = clamp(1.2 - dist / 78, 0.52, 1);
     const o = clamp(1.4 - dist / 54, 0.25, 1);
 
-    el.style.transform = `translate3d(${Math.round(x)}px, ${Math.round(y)}px, 0) translate(-50%, -100%) scale(${k.toFixed(2)})`;
-    el.style.opacity = o.toFixed(2);
-    el.dataset.live = i === active ? "1" : "0";
+    want.push({ i, x, y, fx, fy, k, o, dist });
+  }
+
+  // Nearest first, but never at the cost of the house the card is showing.
+  want.sort((a, b) => (a.i === active ? -1 : b.i === active ? 1 : a.dist - b.dist));
+
+  const placed = [];
+  const keep = new Set();
+  for (const w of want) {
+    // The marker's box, anchored bottom-centre, with a little air around it
+    // so two that merely touch still count as colliding.
+    const pw = PIN_W * w.k + 8, ph = PIN_H * w.k + 8;
+    const box = { l: w.x - pw / 2, r: w.x + pw / 2, t: w.y - ph, b: w.y };
+    const hits = placed.some((q) =>
+      box.l < q.r && box.r > q.l && box.t < q.b && box.b > q.t);
+    if (hits) continue;
+    placed.push(box);
+    keep.add(w.i);
+
+    const { el, stem, tack } = pins[w.i];
+    el.style.transform =
+      `translate3d(${Math.round(w.x)}px, ${Math.round(w.y)}px, 0) translate(-50%, -100%) scale(${w.k.toFixed(2)})`;
+    el.style.opacity = w.o.toFixed(2);
+    el.dataset.live = w.i === active ? "1" : "0";
 
     // The line runs foot to marker. Length as a scale on a one-pixel bar,
     // angle as a rotation, both folded into the one transform.
-    const dx = x - fx, dy = y - fy;
+    const dx = w.x - w.fx, dy = w.y - w.fy;
     const len = Math.max(0, Math.hypot(dx, dy) - 5);
     stem.style.transform =
-      `translate3d(${fx.toFixed(1)}px, ${fy.toFixed(1)}px, 0) rotate(${Math.atan2(dy, dx).toFixed(3)}rad) scaleX(${len.toFixed(1)})`;
-    stem.style.opacity = (o * 0.9).toFixed(2);
+      `translate3d(${w.fx.toFixed(1)}px, ${w.fy.toFixed(1)}px, 0) rotate(${Math.atan2(dy, dx).toFixed(3)}rad) scaleX(${len.toFixed(1)})`;
+    stem.style.opacity = (w.o * 0.9).toFixed(2);
 
     tack.style.transform =
-      `translate3d(${fx.toFixed(1)}px, ${fy.toFixed(1)}px, 0) translate(-50%, -50%) scale(${k.toFixed(2)})`;
-    tack.style.opacity = o.toFixed(2);
+      `translate3d(${w.fx.toFixed(1)}px, ${w.fy.toFixed(1)}px, 0) translate(-50%, -50%) scale(${w.k.toFixed(2)})`;
+    tack.style.opacity = w.o.toFixed(2);
 
-    if (!pins[i].shown) {
+    if (!pins[w.i].shown) {
       el.style.display = "grid";
       stem.style.display = tack.style.display = "block";
-      pins[i].shown = true;
+      pins[w.i].shown = true;
     }
+  }
+
+  // Everything else goes away: off screen, too far, or sat on.
+  for (let i = 0; i < pins.length; i++) {
+    if (keep.has(i) || !pins[i].shown) continue;
+    const { el, stem, tack } = pins[i];
+    el.style.display = stem.style.display = tack.style.display = "none";
+    pins[i].shown = false;
   }
 }
 pins.forEach((p) => {
@@ -6952,14 +7091,23 @@ const lookPanel = (() => {
   const empty = document.getElementById("look-empty");
   const shop = document.getElementById("look-shop");
   const out = document.getElementById("look-out");
+  const pager = document.getElementById("look-pager");
+  const prevBtn = document.getElementById("look-prev");
+  const nextBtn = document.getElementById("look-next");
+  const dots = document.getElementById("look-dots");
 
   let house = null, opener = null;
+  // The board being read, and that house's other adverts on it.
+  let board = null, ads = [], at = 0;
 
   function close() {
     if (el.dataset.on !== "1") return;
     el.dataset.on = "0";
     el.setAttribute("aria-hidden", "true");
     delete document.body.dataset.look;
+    // Let it start turning over again, a few seconds from now.
+    if (board) boards.hold(board, false);
+    board = null; ads = []; at = 0;
     lookView.hide();
     if (opener && typeof opener.focus === "function") opener.focus({ preventScroll: true });
     opener = null;
@@ -6975,6 +7123,22 @@ const lookPanel = (() => {
     const slug = house && house.slug;
     close();
     if (slug) storeMode.enterBySlug(slug);
+  });
+
+  /** Move to another of this house's adverts on the same board. */
+  function step(by) {
+    if (ads.length < 2 || !board) return;
+    at = (at + by + ads.length) % ads.length;
+    // Put it on the board too, so the panel and the hoarding behind it agree.
+    boards.showAd(board, ads[at]);
+    fill(ads[at]);
+  }
+  prevBtn.addEventListener("click", () => step(-1));
+  nextBtn.addEventListener("click", () => step(1));
+  addEventListener("keydown", (e) => {
+    if (el.dataset.on !== "1" || ads.length < 2) return;
+    if (e.key === "ArrowLeft") { e.preventDefault(); step(-1); }
+    if (e.key === "ArrowRight") { e.preventDefault(); step(1); }
   });
 
   /** One row: the photograph, the name and sizes, the price. */
@@ -7008,17 +7172,11 @@ const lookPanel = (() => {
     return a;
   }
 
-  function open(board, from) {
-    const c = board && board.creative;
-    if (!c || !c.brand) return false;
-
+  /** What a single creative puts in the sheet. */
+  function fill(c) {
     const look = c.kind === "look" ? c.look : null;
     // A product card is shoppable too; it is simply a look of one garment.
     const items = look ? (look.products || []) : (c.kind === "product" ? [c.product] : []);
-    if (!look && !items.length) return false;
-
-    house = c.brand;
-    opener = from || null;
 
     img.src = look ? look.image : items[0].image;
     img.alt = look ? (look.headline || house.name) : items[0].name;
@@ -7035,6 +7193,42 @@ const lookPanel = (() => {
 
     shop.textContent = "Step inside " + house.name;
 
+    // One dot per advert, so it is obvious there is more than one and how
+    // far through them you are. Hidden entirely when there is only the one.
+    pager.hidden = ads.length < 2;
+    if (ads.length > 1) {
+      dots.textContent = "";
+      for (let i = 0; i < ads.length; i++) {
+        const dot = document.createElement("i");
+        if (i === at) dot.className = "on";
+        dots.append(dot);
+      }
+    }
+  }
+
+  function open(b, from) {
+    const c = b && b.creative;
+    if (!c || !c.brand) return false;
+
+    const look = c.kind === "look" ? c.look : null;
+    const items = look ? (look.products || []) : (c.kind === "product" ? [c.product] : []);
+    if (!look && !items.length) return false;
+
+    house = c.brand;
+    opener = from || null;
+    board = b;
+
+    /* Freeze the board on what was tapped.
+     *
+     * Without this the reel carries on underneath: you open an advert, and
+     * seven seconds later the hoarding is showing something else while the
+     * panel still describes the first one. */
+    boards.hold(board, true);
+    ads = boards.adsFor(board, house);
+    at = Math.max(0, ads.indexOf(c));
+
+    fill(c);
+
     el.dataset.on = "1";
     el.setAttribute("aria-hidden", "false");
     document.body.dataset.look = "1";
@@ -7043,7 +7237,7 @@ const lookPanel = (() => {
     return true;
   }
 
-  return { open, close, get isOpen() { return el.dataset.on === "1"; } };
+  return { open, close, step, get isOpen() { return el.dataset.on === "1"; } };
 })();
 
 // ## 22  FRAME LOOP
