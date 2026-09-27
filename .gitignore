@@ -42,3 +42,6 @@ next-env.d.ts
 
 # editor-local settings
 .cursor/
+
+# generated campaign artwork, before it is installed into public/campaigns
+.campaigns-out/
