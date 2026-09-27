@@ -54,6 +54,9 @@ type Row = {
   stock_count: number | null;
   brands: Rel<{ slug: string }>;
   categories: Rel<{ name: string; slug: string }>;
+  subcategories: Rel<{ name: string; slug: string }>;
+  is_set: boolean | null;
+  set_key: string | null;
 };
 
 export async function GET() {
@@ -81,7 +84,10 @@ export async function GET() {
     supabase
     .from("products")
     .select(
-      "id, name, price, image_url, sizes, stock_count, brands!inner(slug), categories(name, slug)",
+      // One string literal, deliberately: supabase-js reads the select at the
+      // type level, and splitting it over a `+` loses the literal type and
+      // degrades the whole row to GenericStringError.
+      "id, name, price, image_url, sizes, stock_count, is_set, set_key, brands!inner(slug), categories(name, slug), subcategories(name, slug)",
     )
     .eq("is_published", true)
     .not("image_url", "is", null)
@@ -112,6 +118,7 @@ export async function GET() {
     const slug = one(row.brands)?.slug;
     if (!slug) continue;
     const cat = one(row.categories);
+    const sub = one(row.subcategories);
     (brands[slug] ??= []).push({
       id: row.id,
       name: row.name,
@@ -124,6 +131,19 @@ export async function GET() {
       // from a filtered shop floor.
       cat: cat?.slug ?? "other",
       catName: cat?.name ?? "Other",
+      /* The second level, where there is one.
+       *
+       * "accessories" covers beanies, snapbacks and socks alike, so asking a
+       * house for its hats used to mean matching on the product name — a
+       * guess that fails quietly and did. Null means not filed yet, which
+       * is a real answer and not an error. */
+      sub: sub?.slug ?? null,
+      subName: sub?.name ?? null,
+      /* Which co-ordinated set this belongs to, if any. The flag answers
+       * "is it part of one"; the key answers "which one", and only the key
+       * can put the right pants with the right top. */
+      isSet: row.is_set ?? false,
+      setKey: row.set_key ?? null,
     });
   }
 

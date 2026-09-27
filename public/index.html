@@ -4431,19 +4431,20 @@ const streetLamps = [];
    * far distance in every direction was bare ground meeting a hard horizon.
    * Looking down the street you saw the street end and then sky.
    *
-   * This is what is past the end of the street: a couple of hundred towers
-   * ringing the whole district out to four hundred metres, tallest in the
-   * middle distance so the skyline has a crest rather than a flat top.
+   * What is out there now is Miami: pale towers in cream, sand, mint and
+   * flamingo with a lot of pale green glass between them, stepping back in
+   * setbacks as they rise, and a scatter of very slim ones standing proud
+   * of the rest. It is a skyline of a particular place rather than a field
+   * of grey boxes, which is what a generic one looked like from the street.
    *
    * Geometry rather than a painted backdrop, which was the first plan. The
    * scene already carries exponential fog whose colour and density follow
-   * the clock, so real massing out there hazes correctly at noon and goes
-   * to dark shapes at night by itself — where a baked image would have one
-   * sky painted into it and fight every hour but the one it was made for.
+   * the clock, so real massing out there hazes correctly at noon and goes to
+   * dark shapes at night by itself — where a baked image would have one sky
+   * painted into it and fight every hour but the one it was made for.
    *
-   * It is merged into a single mesh, casts and receives no shadows, and
-   * carries no glazing or detail: at this distance it is a silhouette, and
-   * anything finer is vertices nobody can see.
+   * One merged mesh, no shadows, no glazing geometry: at this distance it is
+   * a silhouette with a colour, and anything finer is vertices nobody sees.
    */
   {
     const rc = rng(90210);
@@ -4455,6 +4456,23 @@ const streetLamps = [];
     const MID_Z = -66;              // the middle of the walk, so the ring is centred on it
     const MIN_R = 105, MAX_R = 430;
 
+    /* South Florida, roughly: sun-bleached renders, a lot of green glass,
+     * and the occasional pink one that the city is known for. */
+    const MIAMI = [
+      { h: 0.12, s: 0.16, l: 0.60, w: 30 },   // cream
+      { h: 0.09, s: 0.10, l: 0.54, w: 16 },   // sand
+      { h: 0.45, s: 0.20, l: 0.52, w: 22 },   // mint glass
+      { h: 0.52, s: 0.24, l: 0.48, w: 18 },   // sea glass
+      { h: 0.96, s: 0.26, l: 0.58, w:  8 },   // flamingo
+      { h: 0.58, s: 0.12, l: 0.42, w:  6 },   // slate
+    ];
+    const WSUM = MIAMI.reduce((a, c) => a + c.w, 0);
+    const paletteHit = () => {
+      let r = rc() * WSUM;
+      for (const c of MIAMI) { r -= c.w; if (r <= 0) return c; }
+      return MIAMI[0];
+    };
+
     for (let i = 0; i < 300; i++) {
       const a = rc() * Math.PI * 2;
       // Biased outward, so the inner edge is a scatter and not a wall.
@@ -4463,34 +4481,54 @@ const streetLamps = [];
       const z = MID_Z + Math.sin(a) * r;
       if (clear(x, z)) continue;
 
-      const w = 9 + rc() * 24;
-      const d = 9 + rc() * 24;
       /* Tallest in the middle distance. A skyline that simply falls away
        * with distance reads as a slope; a crest reads as a downtown with
        * suburbs behind it. */
       const t = (r - MIN_R) / (MAX_R - MIN_R);
       const crest = Math.sin(Math.min(1, t * 1.35) * Math.PI);
-      const h = 14 + rc() * 26 + crest * 52;
 
-      // Far things are paler: a cheap aerial perspective on top of the fog,
-      // which keeps the back of the city from reading as a solid mass.
-      const grey = BASE_GREY.clone().offsetHSL(
-        (rc() - 0.5) * 0.02,
-        -0.02,
-        -0.06 + t * 0.10 + (rc() - 0.5) * 0.05,
+      // One in nine is a needle: slim, and half again as tall as its
+      // neighbours. Miami's skyline is mostly mid-rise with spikes in it.
+      const needle = rc() > 0.89;
+      let w = needle ? 5 + rc() * 5 : 9 + rc() * 24;
+      let d = needle ? w * (0.8 + rc() * 0.4) : 9 + rc() * 24;
+      const h = (14 + rc() * 26 + crest * 52) * (needle ? 1.5 : 1);
+
+      const c = paletteHit();
+      // Far things are paler: a cheap aerial perspective over the top of the
+      // fog, which keeps the back of the city from reading as a solid mass.
+      const col = new THREE.Color().setHSL(
+        c.h + (rc() - 0.5) * 0.03,
+        c.s * (0.75 + rc() * 0.5),
+        Math.min(0.92, c.l + t * 0.16 + (rc() - 0.5) * 0.06),
       );
 
-      const body = new THREE.BoxGeometry(w, h, d);
-      body.translate(x, h / 2, z);
-      far.push(paint(body, grey));
+      /* Setbacks. A tower that steps back twice as it rises has a profile;
+       * a single extruded box has a silhouette like a brick, and three
+       * hundred bricks is the thing that read as generic. */
+      const tiers = h > 46 ? (rc() > 0.45 ? 3 : 2) : 1;
+      let y = 0;
+      for (let k = 0; k < tiers; k++) {
+        // The top tier takes what is left, so the tower always reaches h.
+        const share = k === tiers - 1 ? h - y : h * (k === 0 ? 0.52 : 0.28);
+        const body = new THREE.BoxGeometry(w, share, d);
+        body.translate(x, y + share / 2, z);
+        far.push(paint(body, col));
+        y += share;
+        w *= 0.74 + rc() * 0.12;
+        d *= 0.74 + rc() * 0.12;
+      }
 
-      // A cap or a plant box on the taller ones, for a silhouette that is
-      // not two hundred identical flat tops.
-      if (h > 46 && rc() > 0.45) {
-        const cw = w * (0.3 + rc() * 0.3), ch = 3 + rc() * 7;
-        const cap = new THREE.BoxGeometry(cw, ch, d * (0.3 + rc() * 0.3));
-        cap.translate(x + (rc() - 0.5) * w * 0.3, h + ch / 2, z + (rc() - 0.5) * d * 0.3);
-        far.push(paint(cap, grey));
+      // A mast on the needles, a plant box on the broad ones.
+      if (needle && rc() > 0.4) {
+        const mast = new THREE.BoxGeometry(0.8, 6 + rc() * 10, 0.8);
+        mast.translate(x, h + 4, z);
+        far.push(paint(mast, col));
+      } else if (h > 40 && rc() > 0.55) {
+        const cw = w * (0.4 + rc() * 0.3), ch = 2 + rc() * 5;
+        const cap = new THREE.BoxGeometry(cw, ch, d * (0.4 + rc() * 0.3));
+        cap.translate(x, h + ch / 2, z);
+        far.push(paint(cap, col));
       }
     }
 
@@ -4498,7 +4536,7 @@ const streetLamps = [];
       const cityMesh = new THREE.Mesh(
         mergeGeometries(far),
         new THREE.MeshStandardMaterial({
-          vertexColors: true, roughness: 0.96, metalness: 0, envMapIntensity: 0.45,
+          vertexColors: true, roughness: 0.9, metalness: 0, envMapIntensity: 0.55,
         }),
       );
       cityMesh.castShadow = false;
@@ -6303,16 +6341,28 @@ const boards = (() => {
         if (!pool.length) pool = all;
       }
 
-      // Three at most: these are a sideshow to the crown, and a long reel on
-      // the two tallest screens is just more to download.
-      const ranked = fitFor(pool.map((o) => o.look), want, 3)
+      /* Four at most. It was three when the house logos padded the reel out
+       * behind them; now that the artwork is the whole reel, a little more
+       * of it keeps the two end screens from being a two-frame loop. */
+      const ranked = fitFor(pool.map((o) => o.look), want, 4)
         .map((look) => pool.find((o) => o.look === look));
 
-      // Half a lap apart, so the logo cards behind the artwork differ too.
+      /* Artwork only, once there is any.
+       *
+       * These two used to run their artwork and then fall into the reel of
+       * fifteen house logos, so most of the time the screens that close the
+       * street were showing a wordmark — which is the one thing a visitor
+       * standing in the district has already seen fifteen times on the
+       * shopfronts. What they have not seen is the clothes on somebody.
+       *
+       * The logo reel stays only as the fallback for a street whose
+       * catalogue has no artwork at all, because a dark rectangle at the end
+       * of the walk is worse than a wordmark.
+       */
       const k = Math.round((n * BRAND_REEL.length) / Math.max(1, flankers.length));
       const logos = BRAND_REEL.slice(k).concat(BRAND_REEL.slice(0, k));
 
-      const reel = ranked.length ? ranked.concat(logos) : logos;
+      const reel = ranked.length ? ranked : logos;
       const sig = reel.map((c) => c.key).join("|");
       if (sig !== b.sig) { b.sig = sig; b.reel = reel; show(b, 0); b.next = lastT + 3; }
     });
