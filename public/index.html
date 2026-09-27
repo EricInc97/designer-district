@@ -5446,8 +5446,110 @@ const boards = (() => {
   const BRAND_REEL = BRANDS.map((brand) => ({ kind: "brand", brand, key: brand.slug }));
   const SITE_REEL = [{ kind: "site", key: "site" }];
 
+  // Scratch, for measuring how far the crown is from the camera each frame.
+  const vidAt = new THREE.Vector3();
+
   // The campaign artwork, by house, as it last arrived.
   let LOOKS = {};
+
+  /**
+   * The crown's ten-second advert.
+   *
+   * A video texture rather than a canvas, and it is the one thing on this
+   * street that is deliberately not fetched until it is wanted: ten seconds
+   * of 720p is megabytes, and the crown stands at the far end of a walk that
+   * most visitors never finish. It loads when the camera first comes within
+   * range of it and not before.
+   *
+   * Muted, looped and inline, because those are the conditions under which a
+   * browser will start a video by itself, and because it is signage — the
+   * street already has its own ambience and a hoarding talking over it would
+   * be worse than one that does not.
+   *
+   * If the file is missing or the decode fails, `ok` stays false and the
+   * crown simply never puts it in the reel. A board showing a black
+   * rectangle is worse than a board showing the district's mark.
+   */
+  const advert = (() => {
+    const SRC = "/campaigns/crown-advert.mp4";
+    let el = null, tex = null, ok = true, asked = false;
+
+    function build() {
+      if (el) return;
+      asked = true;
+      el = document.createElement("video");
+      el.loop = true;
+      el.muted = true;
+      el.defaultMuted = true;
+      el.playsInline = true;
+      // The attributes as well as the properties: iOS reads the attribute.
+      el.setAttribute("playsinline", "");
+      el.setAttribute("muted", "");
+      el.setAttribute("loop", "");
+      el.preload = "auto";
+      el.addEventListener("error", () => { ok = false; });
+      el.src = SRC;
+
+      /* In the document, though nobody will ever see it.
+       *
+       * A detached <video> decodes happily in Chrome, and Safari has a long
+       * history of refusing to give one up as a texture source. One
+       * off-screen pixel costs nothing and removes the whole question.
+       */
+      el.style.cssText =
+        "position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:-10px;top:-10px";
+      el.setAttribute("aria-hidden", "true");
+      el.tabIndex = -1;
+      document.body.append(el);
+
+      tex = new THREE.VideoTexture(el);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.minFilter = THREE.LinearFilter;   // no mipmaps on a video, ever
+      tex.magFilter = THREE.LinearFilter;
+      tex.generateMipmaps = false;
+    }
+
+    /* Is there a film at all?
+     *
+     * Asked once, up front, and cheaply. Without it the crown puts the
+     * advert in its reel, primes it, the fetch 404s, and the screen that
+     * closes the street shows a black rectangle until the reel moves on.
+     * A HEAD answers before the catalogue does, so by the time the reel is
+     * built the answer is usually already in. */
+    fetch(SRC, { method: "HEAD" })
+      .then((r) => { if (!r.ok) ok = false; })
+      .catch(() => { ok = false; });
+
+    return {
+      get ok() { return ok; },
+      // Null while there is no usable film, so callers fall through to the
+      // card rather than hanging an empty texture on a board.
+      get texture() { return ok ? tex : null; },
+      /** True once there are frames to show. */
+      get live() { return !!(el && el.readyState >= 2 && ok); },
+
+      /** Fetches it, the first time anything asks. */
+      prime() { if (!asked && ok) build(); },
+
+      /** Runs it while it is being looked at, and rests it when it is not. */
+      run(on) {
+        if (!ok) return false;
+        if (on) {
+          build();
+          if (el.paused) {
+            // A rejected play is not a failure worth shouting about: the
+            // visitor simply has not interacted yet, and the next frame asks
+            // again.
+            const q = el.play();
+            if (q && q.catch) q.catch(() => {});
+          }
+        } else if (el && !el.paused) {
+          el.pause();
+        }
+        return this.live;
+      },
+    };
+  })();
 
   /* The district itself, as a house.
    *
@@ -6160,11 +6262,52 @@ const boards = (() => {
     return b;
   }
 
+  /**
+   * How long this creative keeps the board.
+   *
+   * A still gets seven and a half seconds and a stagger, so the street does
+   * not blink in unison. The advert gets long enough to finish: it runs ten
+   * seconds, and a ten-second film cut off at seven and a half is a film
+   * nobody has seen the end of.
+   */
+  function turnFor(b) {
+    if (b.creative && b.creative.kind === "video") return 11.5;
+    return 7.5 + (b.idx % 5) * 1.1;
+  }
+
   /** Puts creative `i` on board `b` now. */
   function show(b, i) {
     const n = b.reel.length;
     b.idx = ((i % n) + n) % n;
     b.creative = b.reel[b.idx];
+
+    /* A film, not a painting.
+     *
+     * The board's material normally carries the canvas this module draws
+     * into. For the advert it carries the video instead, and goes back to
+     * the canvas the moment the reel moves on — the canvas still holds
+     * whatever was painted last, so nothing has to be repainted to swap
+     * back. The normaliser is skipped: it measures a still frame, and a
+     * moving one would have it chasing its own tail every frame. */
+    if (b.creative.kind === "video") {
+      advert.prime();
+      const t = advert.ok ? advert.texture : null;
+      if (t) {
+        b.mat.map = t;
+        b.mat.emissiveMap = t;
+        b.mat.needsUpdate = true;
+        b.norm = 0.92;
+        b.gain = 0;
+        return;
+      }
+      // No film to show; fall through and paint the card instead.
+      b.creative = b.reel.find((c) => c.kind !== "video") || b.reel[0];
+    } else if (b.mat.map !== b.tex) {
+      b.mat.map = b.tex;
+      b.mat.emissiveMap = b.tex;
+      b.mat.needsUpdate = true;
+    }
+
     paintCreative(b.cv, b.creative);
     b.tex.needsUpdate = true;
     /* Aimed at putting the bright part of a board near the top of the
@@ -6544,6 +6687,8 @@ const boards = (() => {
     if (crown) {
       const mine = fitFor(looks.district || [], boardAspect(crown), 2);
       const reel = SITE_REEL.concat(
+        // The ten-second advert, between the mark and the stills.
+        advert.ok ? [{ kind: "video", brand: DISTRICT, key: "advert" }] : [],
         mine.map((look) => ({ kind: "look", brand: DISTRICT, look, key: `l:${look.image}` })),
       );
       const sig = reel.map((c) => c.key).join("|");
@@ -6845,6 +6990,9 @@ const boards = (() => {
       if (i < 0) return false;
       show(b, i);
       b.gain = 0;
+      // A full turn of its own. Without this the turnover loop can be past
+      // its due time already and replace it on the very next frame.
+      b.next = lastT + turnFor(b);
       return true;
     },
 
@@ -6866,6 +7014,22 @@ const boards = (() => {
     /** Advances the reel and scrolls the tickers. */
     update(dt, t) {
       lastT = t;
+
+      /* The advert runs only while the crown is worth looking at.
+       *
+       * It is a video decode on every frame it plays, which is the most
+       * expensive thing on this street, and the crown is at the far end of
+       * a walk most visitors do not finish. Out of range it is paused and
+       * costs nothing; it is not even downloaded until the first time the
+       * camera comes near. */
+      const crown = panels.find((x) => !x.house && !x.flanker);
+      if (crown) {
+        crown.mesh.getWorldPosition(vidAt);
+        const near = vidAt.distanceTo(camera.position) < 120;
+        const showing = crown.creative && crown.creative.kind === "video";
+        advert.run(near && showing && !(storeMode && storeMode.active));
+      }
+
       for (const b of panels) {
         /* A board somebody is reading does not turn over.
          *
@@ -6875,7 +7039,7 @@ const boards = (() => {
          * what it was opened on, and only the pager moves it. */
         if (!b.held && t > b.next) {
           show(b, b.idx + 1);
-          b.next = t + 7.5 + (b.idx % 5) * 1.1;
+          b.next = t + turnFor(b);
           b.gain = 0;                       // a beat of black, as a panel changes
         }
         if (b.gain < 1) b.gain = Math.min(1, b.gain + dt * 5);
