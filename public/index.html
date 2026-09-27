@@ -5265,6 +5265,24 @@ const boards = (() => {
   const BRAND_REEL = BRANDS.map((brand) => ({ kind: "brand", brand, key: brand.slug }));
   const SITE_REEL = [{ kind: "site", key: "site" }];
 
+  /* The district itself, as a house.
+   *
+   * The group shot has three people in it wearing seven garments from five
+   * different shops, so it belongs to none of them — it belongs to the
+   * street. The crown is the one screen wide enough to carry it and the one
+   * screen that is nobody's shopfront, which makes it the right home.
+   *
+   * A stand-in rather than a sixteenth entry in BRANDS, because BRANDS
+   * drives the monoliths, the waypoints and the index: adding a row there
+   * would build the district a shopfront of its own and put a pin on it. */
+  const DISTRICT = {
+    slug: "district",
+    name: "Designer District",
+    bg: ["#17171d", "#08080b"],
+    ink: "#f4f4f6",
+    note: "Fifteen districts, one address.",
+  };
+
   /* Artwork, fetched once and shared by every board.
    *
    * The signs each load their own copy because they are built before this
@@ -6331,6 +6349,22 @@ const boards = (() => {
      * not already claimed. The logo reel behind it is turned half a lap so
      * the two are never on the same house at the same time either.
      */
+    /* The crown: the district's mark first, then the district's campaign.
+     *
+     * Its mark leads, because the screen that closes the street is the one
+     * that has to say where you are. The group shot follows it. */
+    const crown = panels.find((b) => !b.house && !b.flanker);
+    if (crown) {
+      const mine = fitFor(looks.district || [], boardAspect(crown), 2);
+      const reel = SITE_REEL.concat(
+        mine.map((look) => ({ kind: "look", brand: DISTRICT, look, key: `l:${look.image}` })),
+      );
+      const sig = reel.map((c) => c.key).join("|");
+      if (sig !== crown.sig) {
+        crown.sig = sig; crown.reel = reel; show(crown, 0); crown.next = lastT + 4;
+      }
+    }
+
     const flankers = panels.filter((b) => b.flanker);
     const byHouse = new Map();
     for (const o of orphans) {
@@ -7746,7 +7780,16 @@ const lookPanel = (() => {
   shop.addEventListener("click", () => {
     const slug = house && house.slug;
     close();
-    if (slug) storeMode.enterBySlug(slug);
+    if (!slug) return;
+    /* The district's own campaign has no interior to step into.
+     *
+     * The group shot is seven garments from five different shops, so there
+     * is no one door it leads to. The pieces in the list each link to their
+     * own product page; the button opens the whole shop. */
+    // window.open, not open: this closure has its own `open(board, from)`
+    // and the bare call would re-enter the panel instead of the shop.
+    if (slug === "district") { window.open(SITE + "/search", "_blank", "noopener"); return; }
+    storeMode.enterBySlug(slug);
   });
 
   /** Move to another of this house's adverts on the same board. */
@@ -7815,7 +7858,9 @@ const lookPanel = (() => {
      * outlive the things in it. */
     empty.hidden = items.length > 0;
 
-    shop.textContent = "Step inside " + house.name;
+    shop.textContent = house.slug === "district"
+      ? "Shop all fifteen"
+      : "Step inside " + house.name;
 
     // One dot per advert, so it is obvious there is more than one and how
     // far through them you are. Hidden entirely when there is only the one.

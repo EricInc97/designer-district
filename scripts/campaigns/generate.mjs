@@ -1,13 +1,19 @@
-/* Board artwork, third pass: a short one that uses the new columns.
+/* Board artwork.
  *
- * The point of this set is that nothing in it is hand-picked by name. The
- * hats come from the `beanies` and `snapbacks` sub-categories, and the
- * tracksuits come from `set_key`, so a model wears a real hat this shop
- * sells and the pants actually match the top. Before those columns existed
- * both of those were name-matching, which is a guess — and the guess that
- * said Chrome Hearts sold no headwear was wrong by twenty-three.
+ * The rule that matters here: every garment in every picture is resolved
+ * from real stock BEFORE anything is sent, and the bill of items is printed
+ * so it can be read. Nothing is described from memory.
  *
- *   node looks3.mjs
+ * That is what "poll the items first" is for. A prompt that says "a cap"
+ * gets a cap the shop does not sell; a prompt built from a row in the
+ * catalogue gets the cap, its photograph as a reference, and a product id to
+ * link the advert to. Slots that cannot be filled from stock are dropped and
+ * said out loud rather than quietly invented.
+ *
+ *   node scripts/campaigns/generate.mjs             everything missing
+ *   node scripts/campaigns/generate.mjs --poll      bill of items only, no calls
+ *   node scripts/campaigns/generate.mjs crown-group just one
+ *   node scripts/campaigns/generate.mjs --all       redo everything
  */
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -29,36 +35,37 @@ const call = async (path, init) => {
   return { status: r.status, body: await r.text() };
 };
 
-const cat = await (await fetch("http://localhost:3200/api/storefront")).json();
-const live = (slug) => (cat.brands[slug] || []).filter((p) => p.image && (p.stock ?? 0) > 0);
-
-/** The first item a house has in a given sub-category. */
-const bySub = (slug, sub, n = 0) => live(slug).filter((p) => p.sub === sub)[n];
-/** Both halves of a co-ordinated set, top first. */
-const set = (key) => {
-  const both = live("supreme").filter((p) => p.setKey === key);
-  return [both.find((p) => p.cat === "hoodies"), both.find((p) => p.cat === "bottoms")].filter(Boolean);
-};
-const byCat = (slug, c, n = 0) => live(slug).filter((p) => p.cat === c)[n];
-
 /**
- * A reference URL the image API will actually accept.
+ * A reference URL the image API will accept.
  *
- * AVIF originals fail. Not "sometimes fail" — tested head to head, the same
- * prompt with one AVIF reference comes back "Generation failed" every time
- * and the same prompt with a JPEG completes. Two of the six Supreme track
- * photographs happen to be AVIF, which is why exactly one colourway of the
- * tracksuit could never be generated while its siblings were fine.
- *
- * Supabase will transcode on the way out, and its render endpoint answers a
- * plain Accept with image/jpeg, so an AVIF original is routed through it
- * and everything else is passed straight through.
+ * AVIF originals fail — tested head to head, the same prompt with one AVIF
+ * reference returns "Generation failed" every time and the same prompt with
+ * a JPEG completes. Supabase transcodes on the way out and its render
+ * endpoint answers a plain Accept with image/jpeg.
  */
 const refUrl = (u) =>
   /\.avif($|\?)/i.test(u)
     ? u.replace("/storage/v1/object/public/", "/storage/v1/render/image/public/") +
       "?width=1024&quality=90"
     : u;
+
+const cat = await (await fetch(process.env.DD_API || "http://localhost:3200/api/storefront")).json();
+if (!cat.ok) throw new Error("storefront not answering");
+
+const live = (slug) => (cat.brands[slug] || []).filter((p) => p.image && (p.stock ?? 0) > 0);
+
+/* ── the pickers ─────────────────────────────────────────────────────────
+ * Each returns a real row or undefined. Undefined is a dropped slot, never
+ * a licence to describe something generic.
+ */
+const byCat = (slug, c, n = 0) => live(slug).filter((p) => p.cat === c)[n];
+const bySub = (slug, sub, n = 0) => live(slug).filter((p) => p.sub === sub)[n];
+const setHalves = (slug, key) => {
+  const both = live(slug).filter((p) => p.setKey === key);
+  return [both.find((p) => p.cat === "hoodies"), both.find((p) => p.cat === "bottoms")].filter(Boolean);
+};
+
+/* ── the look of the place ───────────────────────────────────────────── */
 
 const STYLE =
   "Anime film still, hand-painted cel animation, 2000s Japanese animated feature " +
@@ -69,146 +76,304 @@ const STREET =
   "a straight open-air pedestrian shopping street paved in pale travertine, lined " +
   "both sides with low concrete shopfronts two and three storeys tall, their " +
   "facades broken by tall narrow vertical fins in saturated crimson, ochre and " +
-  "teal, big bright LED advertising hoardings mounted above the shopfronts, " +
-  "wind-blown coconut palms in square planters down the middle, yellow canvas " +
-  "parasols, deep blue sky with cumulus, and a pale Miami skyline of mint and " +
-  "cream towers far beyond the rooftops";
+  "teal, big bright LED advertising screens mounted on the shopfronts, wind-blown " +
+  "coconut palms in square planters down the middle, yellow canvas parasols, deep " +
+  "blue sky, and far beyond the rooftops a Miami seafront skyline of pale white " +
+  "and mint towers standing shoulder to shoulder";
 
 const PLACES = {
   street: STREET,
-  hoarding:
-    "a low angle looking up past a large bright LED advertising hoarding mounted " +
-    "over a concrete shopfront, coconut palm fronds and deep blue sky behind it",
   crown:
-    "the paved plaza that closes the district, three enormous LED screens standing " +
-    "side by side above a pale diamond-lattice screen wall, palms either side, a " +
-    "pale Miami skyline of mint and cream towers behind them",
+    "the paved plaza that closes the district, three enormous LED screens side by " +
+    "side above a pale diamond-lattice wall, palms either side, and the pale Miami " +
+    "seafront skyline behind them",
   doorway:
     "the deep arched openings of a concrete shopfront colonnade, cool shade inside, " +
     "pale travertine paving and a palm shadow across it",
+  hoarding:
+    "a low angle looking up past a large bright LED screen mounted on a concrete " +
+    "shopfront, palm fronds and deep blue sky behind it",
 };
 
 const HOUSES = "BAPE, CHROME HEARTS, SUPREME, AMIRI, BALENCIAGA, GALLERY DEPT, GODSPEED, " +
   "PURPLE BRAND, OFF-WHITE, CASABLANCA, KSUBI, RHUDE, VALE, HELLSTAR, ESSENTIALS";
 const SIGNAGE =
-  `Any shopfront or hoarding signage may only read from this list: ${HOUSES}, or ` +
+  `Any shopfront or screen signage may only read from this list: ${HOUSES}, or ` +
   "DESIGNER DISTRICT. Everything else blank. No other real fashion brand names.";
 const FIDELITY =
-  "Reproduce the garments exactly as shown in the reference photographs — same " +
-  "colours, same cut, same printed graphics and lettering. Do not restyle or " +
-  "substitute the clothing.";
+  "Reproduce every garment exactly as shown in its reference photograph — same " +
+  "colour, same cut, same printed graphics and lettering. Do not restyle or " +
+  "substitute any of the clothing.";
 const NO_TAGS =
-  "The clothes are being worn, so they have no retail hang tags, no price tags " +
-  "and no swing tickets attached anywhere.";
+  "The clothes are being worn, so they carry no retail hang tags, no price tags " +
+  "and no swing tickets anywhere.";
+const CEL =
+  "Render the entire image as hand-painted 2D anime cel animation. It must not " +
+  "look like a photograph or a 3D render — painted backgrounds, visible linework, " +
+  "flat cel shading.";
 
-const SHOT = {
-  full: "Full length, head to shoes, the complete outfit clearly visible, the " +
-        "figure centred with headroom above and floor below, confident relaxed pose",
-  waist: "Waist-up, three-quarter view, the garment and the headwear both clearly " +
-         "in frame, hands in pockets, looking off camera",
-  detail: "Close crop on the head and shoulders, the cap or beanie and the " +
-          "shoulders of the top filling the frame, the street soft behind",
-};
-
+/* ── the cast ────────────────────────────────────────────────────────────
+ * The women read as tomboys in the last set, which was the prompt's fault:
+ * they were described only by their hair. Femininity here is carried by
+ * styling and bearing rather than by changing a single garment, because the
+ * garments are the product and have to stay exactly as photographed.
+ */
 const CAST = {
-  A: "a young man with tousled black hair",
-  B: "a young woman with long dark box braids and hoop earrings",
-  C: "a young woman with a short dark bob",
+  man:
+    "a young man with tousled black hair, relaxed confident posture",
+  woman1:
+    "a strikingly feminine young woman with long dark box braids swept over one " +
+    "shoulder, gold hoop earrings and a delicate chain, soft makeup with a warm " +
+    "lip, long lashes, slender build, elegant graceful posture with a slight " +
+    "contrapposto and one hip eased out, manicured nails",
+  woman2:
+    "a strikingly feminine young woman with a glossy dark bob tucked behind one " +
+    "ear, small gold studs and a fine necklace, soft natural makeup, delicate " +
+    "features, slender build, poised graceful stance with her weight on one leg " +
+    "and a soft turn of the shoulders",
 };
+const FEM =
+  "Style the women's clothes so they read as feminine without altering the " +
+  "garments themselves: the t-shirt tucked or knotted at the waist so the " +
+  "silhouette is defined, sleeves turned once, clean white trainers or simple " +
+  "sandals, a small shoulder bag. The garments' colours, graphics and cut stay " +
+  "exactly as their reference photographs show.";
 
-/* Everything below names a sub-category or a set key, never a product name. */
+/* ── the plan ────────────────────────────────────────────────────────────
+ * Deliberately mixed across houses. A district where every outfit is head to
+ * toe in one label is a catalogue, not a street; and the shop sells the
+ * jeans of one house and the shirt of another to the same person.
+ */
 const SET = [
   {
-    tag: "chrome-hearts-beanie", slug: "chrome-hearts", aspect: "2:3", shot: "waist",
-    who: CAST.A, place: "street",
-    parts: [bySub("chrome-hearts", "beanies"), byCat("chrome-hearts", "shirts")],
-    wear: (p) => `the Chrome Hearts beanie from the reference photograph worn on the head, ` +
-                 `with ${p[1] ? "the Chrome Hearts t-shirt from the reference photograph" : "a plain black t-shirt"}`,
+    tag: "crown-group", aspect: "21:9", house: "district", place: "crown", board: "the wide crown screen",
+    shot: "The three of them together, full length, side by side and slightly " +
+          "staggered, all clearly in frame with headroom above and paving below, " +
+          "walking toward camera",
+    cast: ["man", "woman1", "woman2"],
+    slots: {
+      "his shirt":   () => byCat("chrome-hearts", "shirts"),
+      "his jeans":   () => byCat("amiri", "denim"),
+      "his cap":     () => bySub("chrome-hearts", "snapbacks"),
+      "her tee":     () => byCat("off-white", "shirts"),
+      "her jeans":   () => byCat("purple-brand", "denim"),
+      "her2 tee":    () => byCat("supreme", "shirts"),
+      "her2 shorts": () => byCat("vale", "bottoms"),
+    },
+    wear: (s) =>
+      `The man wears ${d(s["his shirt"])} with ${d(s["his jeans"])}` +
+      `${s["his cap"] ? ` and ${d(s["his cap"])}` : ""}. ` +
+      `The first woman wears ${d(s["her tee"])} with ${d(s["her jeans"])}. ` +
+      `The second woman wears ${d(s["her2 tee"])} with ${d(s["her2 shorts"])}.`,
   },
   {
-    tag: "chrome-hearts-snapback", slug: "chrome-hearts", aspect: "21:9", shot: "detail",
-    who: CAST.C, place: "hoarding",
-    parts: [bySub("chrome-hearts", "snapbacks")],
-    wear: () => "the Chrome Hearts snapback cap from the reference photograph, worn forwards",
+    tag: "off-white-purple", aspect: "2:3", house: "off-white", place: "street", cast: ["woman1"],
+    shot: "Full length, head to shoes, the whole outfit clearly visible, centred " +
+          "with headroom above and paving below",
+    slots: {
+      tee:   () => byCat("off-white", "shirts"),
+      jeans: () => byCat("purple-brand", "denim"),
+    },
+    wear: (s) => `She wears ${d(s.tee)} with ${d(s.jeans)}.`,
   },
   {
-    tag: "supreme-track-blue", slug: "supreme", aspect: "2:3", shot: "full",
-    who: CAST.B, place: "street",
-    parts: set("supreme-ducati-blue"),
-    wear: () => "the matching light blue Supreme Ducati track jacket and track pants " +
-                "from the reference photographs, worn together as a set",
+    tag: "chrome-amiri", aspect: "2:3", house: "chrome-hearts", place: "doorway", cast: ["man"],
+    shot: "Full length, head to shoes, the whole outfit clearly visible",
+    slots: {
+      shirt:  () => byCat("chrome-hearts", "shirts", 1),
+      jeans:  () => byCat("amiri", "denim", 1),
+      beanie: () => bySub("chrome-hearts", "beanies"),
+    },
+    wear: (s) =>
+      `He wears ${d(s.shirt)} with ${d(s.jeans)}` +
+      `${s.beanie ? ` and ${d(s.beanie)} on his head` : ""}.`,
   },
   {
-    tag: "supreme-track-red", slug: "supreme", aspect: "16:9", shot: "waist",
-    who: CAST.A, place: "crown",
-    parts: set("supreme-ducati-white-red"),
-    wear: () => "the matching cream and red Supreme Ducati track jacket and track " +
-                "pants from the reference photographs, worn together as a set",
+    tag: "supreme-ksubi-her", aspect: "2:3", house: "supreme", place: "street", cast: ["woman2"],
+    shot: "Full length, head to shoes, the whole outfit clearly visible",
+    slots: {
+      tee:   () => byCat("supreme", "shirts"),
+      jeans: () => byCat("ksubi", "denim"),
+    },
+    wear: (s) => `She wears ${d(s.tee)} with ${d(s.jeans)}.`,
   },
   {
-    tag: "essentials-tower", slug: "essentials", aspect: "2:3", shot: "full",
-    who: CAST.C, place: "doorway",
-    parts: [byCat("essentials", "hoodies"), byCat("essentials", "bottoms")],
-    wear: () => "the Essentials hoodie with the Essentials bottoms from the reference photographs",
+    tag: "casablanca-vale", aspect: "16:9", house: "casablanca", place: "street", cast: ["woman1"],
+    shot: "Waist-up, three-quarter view, the shirt's pattern filling much of the frame",
+    slots: {
+      shirt:  () => byCat("casablanca", "shirts"),
+      shorts: () => byCat("vale", "bottoms", 1),
+    },
+    wear: (s) => `She wears ${d(s.shirt)} with ${d(s.shorts)}.`,
+  },
+  {
+    tag: "hellstar-balenciaga", aspect: "2:3", house: "hellstar", place: "hoarding", cast: ["man"],
+    shot: "Full length, head to shoes, the whole outfit clearly visible",
+    slots: {
+      tee:    () => byCat("hellstar", "shirts"),
+      shorts: () => byCat("balenciaga", "bottoms"),
+    },
+    wear: (s) => `He wears ${d(s.tee)} with ${d(s.shorts)}.`,
+  },
+  {
+    /* A back view, because some of these garments carry their design there.
+     *
+     * Gallery Dept. is the case that proves it: the front of this shirt is a
+     * small pocket print reading "DEPT." and the back is the word COACH
+     * across the whole of it. Advertised from the front it is a plain yellow
+     * t-shirt. Both photographs go in as references — given only the front,
+     * a generator will invent whatever it likes back there.
+     *
+     * Rhude was the first choice and had to be dropped: it has no gallery
+     * images at all, which the poll said out loud rather than quietly
+     * filling the slot with something made up. */
+    tag: "gallery-dept-back", aspect: "21:9", house: "gallery-dept", place: "street", cast: ["man"], back: true,
+    shot: "Seen from directly behind, cropped from the hips up, the back of the " +
+          "t-shirt filling the frame so its printed back design reads clearly. " +
+          "The figure faces away from camera, no face in frame",
+    slots: {
+      tee: () => live("gallery-dept").find((q) => q.cat === "shirts" && q.gallery?.length),
+    },
+    wear: (s) =>
+      `He wears ${d(s.tee)}, seen from behind so the large printed design across ` +
+      `the back of it is what fills the frame.`,
+  },
+  {
+    tag: "supreme-track-her", aspect: "2:3", house: "supreme", place: "crown", cast: ["woman2"],
+    shot: "Full length, head to shoes, the whole outfit clearly visible",
+    slots: {
+      "track top":   () => setHalves("supreme", "supreme-ducati-blue")[0],
+      "track pants": () => setHalves("supreme", "supreme-ducati-blue")[1],
+    },
+    wear: (s) =>
+      `She wears ${d(s["track top"])} with ${d(s["track pants"])}, worn together as ` +
+      `the matching set they are sold as.`,
   },
 ];
 
-const manifest = [];
-const jobs = [];
-
-for (const item of SET) {
-  const parts = item.parts.filter(Boolean);
-  if (!parts.length) { console.log(`! ${item.tag}: nothing in stock for it`); continue; }
-  const refs = parts.map((p) => p.image).filter((u) => /^https?:/.test(u)).map(refUrl);
-
-  const prompt =
-    `${STYLE} ${SHOT[item.shot]}. ${item.who} wearing ${item.wear(item.parts)}, ` +
-    `in ${PLACES[item.place]}. ${FIDELITY} ${NO_TAGS} ${SIGNAGE} ` +
-    `Render the entire image as hand-painted 2D anime cel animation. It must not ` +
-    `look like a photograph or a 3D render — painted backgrounds, visible ` +
-    `linework, flat cel shading.`;
-
-  manifest.push({
-    tag: item.tag, slug: item.slug, aspect: item.aspect,
-    productIds: parts.map((p) => p.id),
-    chose: parts.map((p) => `${p.sub || p.cat}:${p.name}`),
-  });
-
-  if (fs.existsSync(`${OUT}/${item.tag}.png`)) { console.log(`${item.tag.padEnd(24)} have it`); continue; }
-
-  const r = await call("/marketing-studio/image", {
-    method: "POST",
-    body: JSON.stringify({ prompt, resolution: "1k", aspect_ratio: item.aspect, image_urls: refs }),
-  });
-  let id = null;
-  try { id = JSON.parse(r.body).request_id; } catch { /* below */ }
-  console.log(
-    `${item.tag.padEnd(24)} ${item.aspect.padEnd(6)} refs:${refs.length} ` +
-    `${id ? "sent" : r.status + " " + scrub(r.body).slice(0, 140)}`,
-  );
-  if (id) jobs.push({ id, ...item });
+/** How a garment is named to the model: its own description plus its name. */
+function d(p) {
+  if (!p) return "";
+  const note = p.note ? p.note.replace(/\.$/, "") : p.name;
+  return `the ${note.toLowerCase()} shown in its reference photograph`;
 }
 
-fs.writeFileSync(`${OUT}/manifest.json`, JSON.stringify(manifest, null, 1));
-console.log("\nwhat it chose, from the new columns:");
-for (const m of manifest) console.log(`  ${m.tag.padEnd(24)} ${m.chose.join("  +  ")}`);
+/* ── the poll ────────────────────────────────────────────────────────────
+ * Resolved and printed before a single call is made.
+ */
+const only = process.argv.slice(2).find((a) => !a.startsWith("-"));
+const plan = SET.filter((s) => !only || s.tag === only);
 
-console.log(`\nwaiting on ${jobs.length}…`);
-const pending = new Map(jobs.map((j) => [j.id, j]));
-for (let t = 0; t < 150 && pending.size; t++) {
+const polled = [];
+for (const item of plan) {
+  const chosen = {};
+  const missing = [];
+  for (const [slot, resolve] of Object.entries(item.slots)) {
+    const p = resolve();
+    if (p) chosen[slot] = p; else missing.push(slot);
+  }
+  polled.push({ item, chosen, missing });
+}
+
+console.log("BILL OF ITEMS — every garment resolved from stock before anything is sent\n");
+for (const { item, chosen, missing } of polled) {
+  console.log(`${item.tag}  (${item.aspect}, ${item.place})`);
+  for (const [slot, p] of Object.entries(chosen)) {
+    const refs = 1 + (item.back && p.gallery?.length ? Math.min(2, p.gallery.length) : 0);
+    console.log(
+      `   ${slot.padEnd(12)} ${(p.sub || p.cat).padEnd(12)} ${p.name.slice(0, 38).padEnd(40)} ` +
+      `${refs} ref${refs > 1 ? "s" : ""}  stock ${p.stock}`,
+    );
+  }
+  for (const slot of missing) console.log(`   ${slot.padEnd(12)} NOTHING IN STOCK — slot dropped`);
+  console.log("");
+}
+
+if (process.argv.includes("--poll")) process.exit(0);
+
+/* ── go ──────────────────────────────────────────────────────────────────
+ * Five in flight at most: the account allows twenty and firing a whole
+ * batch bounces the tail with 429s that read like prompt failures.
+ */
+const CAP = 5;
+const redoAll = process.argv.includes("--all");
+
+const queue = [];
+const manifest = [];
+for (const { item, chosen } of polled) {
+  const parts = Object.values(chosen);
+  if (!parts.length) { console.log(`! ${item.tag}: nothing in stock, skipped`); continue; }
+
+  const refs = [];
+  for (const p of parts) {
+    refs.push(refUrl(p.image));
+    // The back view needs the other photographs, or the model invents a back.
+    if (item.back && p.gallery?.length) for (const g of p.gallery.slice(0, 2)) refs.push(refUrl(g));
+  }
+
+  const who = item.cast.map((k) => CAST[k]).join("; and ");
+  const prompt =
+    `${STYLE} ${item.shot}. ${who}. ${item.wear(chosen)} They are in ${PLACES[item.place]}. ` +
+    `${FIDELITY} ${item.cast.some((k) => k.startsWith("woman")) ? FEM + " " : ""}` +
+    `${NO_TAGS} ${SIGNAGE} ${CEL}`;
+
+  /* Whose board it hangs on, named rather than inferred.
+   *
+   * The first version took it off the lead garment's own row — and the API
+   * does not put a brand slug on a product, so every one of these would
+   * have been filed under null. It is a judgement anyway: an Off-White tee
+   * worn with Purple Brand jeans is Off-White advertising its shirt, and
+   * which house pays for the board is not something to guess from an array
+   * index. */
+  manifest.push({
+    tag: item.tag, aspect: item.aspect, slug: item.house,
+    productIds: parts.map((p) => p.id),
+    chose: Object.entries(chosen).map(([k, p]) => `${k}=${p.name}`),
+  });
+
+  if (!redoAll && fs.existsSync(`${OUT}${item.tag}.png`)) { console.log(`${item.tag.padEnd(22)} have it`); continue; }
+  queue.push({ item, refs, prompt });
+}
+fs.writeFileSync(`${OUT}manifest.json`, JSON.stringify(manifest, null, 1));
+
+const flying = new Map();
+const done = [], bad = [];
+while (queue.length || flying.size) {
+  while (queue.length && flying.size < CAP) {
+    const job = queue[0];
+    const r = await call("/marketing-studio/image", {
+      method: "POST",
+      body: JSON.stringify({
+        prompt: job.prompt, resolution: "1k",
+        aspect_ratio: job.item.aspect, image_urls: job.refs,
+      }),
+    });
+    if (r.status === 429) break;                     // queue full; feed again shortly
+    queue.shift();
+    let id = null;
+    try { id = JSON.parse(r.body).request_id; } catch { /* below */ }
+    if (id) { flying.set(id, job.item); console.log(`${job.item.tag.padEnd(22)} sent (${job.refs.length} refs)`); }
+    else { bad.push(job.item.tag); console.log(`${job.item.tag.padEnd(22)} ${r.status} ${scrub(r.body).slice(0, 140)}`); }
+  }
+
   await new Promise((r) => setTimeout(r, 5000));
-  for (const [id, job] of [...pending]) {
-    const s = await call(`/requests/${id}/status`);
-    let j; try { j = JSON.parse(s.body); } catch { continue; }
+
+  for (const [id, item] of [...flying]) {
+    const st = await call(`/requests/${id}/status`);
+    let j; try { j = JSON.parse(st.body); } catch { continue; }
     if (!["completed", "failed", "nsfw", "canceled"].includes(j.status)) continue;
-    pending.delete(id);
+    flying.delete(id);
     const url = j.images?.[0]?.url;
     if (j.status === "completed" && url) {
-      fs.writeFileSync(`${OUT}/${job.tag}.png`, Buffer.from(await (await fetch(url)).arrayBuffer()));
-      console.log(`  ${job.tag.padEnd(24)} ok`);
+      fs.writeFileSync(`${OUT}${item.tag}.png`, Buffer.from(await (await fetch(url)).arrayBuffer()));
+      done.push(item.tag);
+      console.log(`  ${item.tag.padEnd(22)} ok   (${done.length})`);
     } else {
-      console.log(`  ${job.tag.padEnd(24)} ${j.status} ${scrub(j.error || "")}`.slice(0, 150));
+      bad.push(item.tag);
+      console.log(`  ${item.tag.padEnd(22)} ${j.status} ${scrub(j.error || "")}`.slice(0, 150));
     }
   }
 }
-if (pending.size) console.log("  still running:", [...pending.values()].map((j) => j.tag).join(", "));
+
+console.log(`\n${done.length} written to ${OUT}`);
+if (bad.length) console.log("did not land:", bad.join(", "));

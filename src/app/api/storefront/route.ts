@@ -57,6 +57,8 @@ type Row = {
   subcategories: Rel<{ name: string; slug: string }>;
   is_set: boolean | null;
   set_key: string | null;
+  gallery: string[] | null;
+  description: string | null;
 };
 
 export async function GET() {
@@ -87,7 +89,7 @@ export async function GET() {
       // One string literal, deliberately: supabase-js reads the select at the
       // type level, and splitting it over a `+` loses the literal type and
       // degrades the whole row to GenericStringError.
-      "id, name, price, image_url, sizes, stock_count, is_set, set_key, brands!inner(slug), categories(name, slug), subcategories(name, slug)",
+      "id, name, price, image_url, sizes, stock_count, is_set, set_key, gallery, description, brands!inner(slug), categories(name, slug), subcategories(name, slug)",
     )
     .eq("is_published", true)
     .not("image_url", "is", null)
@@ -144,6 +146,13 @@ export async function GET() {
        * can put the right pants with the right top. */
       isSet: row.is_set ?? false,
       setKey: row.set_key ?? null,
+      /* The other photographs of the same garment.
+       *
+       * Mostly the back of it. Marketing needs them: a shirt whose design is
+       * on the back cannot be advertised from the front, and a generator
+       * given only the front will invent whatever it likes back there. */
+      gallery: row.gallery ?? [],
+      note: row.description ?? null,
     });
   }
 

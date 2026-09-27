@@ -28,6 +28,24 @@ const DEST = fileURLToPath(new URL("../../public/campaigns/", import.meta.url));
 
 const manifest = JSON.parse(fs.readFileSync(path.join(SRC, "manifest.json"), "utf8"));
 
+/* Copy per picture, where a picture has earned its own.
+ *
+ * The house headline was fine while every look was head to toe in one
+ * label. It is not fine for a cross-house look: an Off-White tee worn with
+ * Purple Brand jeans is not "Off-White", it is the two of them together,
+ * and the line on the board should say so. Anything not listed here falls
+ * back to the house copy below. */
+const PER_PICTURE = {
+  "crown-group":        ["Everything, in one place", "Fifteen districts, one address."],
+  "off-white-purple":   ["Off-White x Purple Brand", "The tee and the jeans."],
+  "chrome-amiri":       ["Chrome Hearts x Amiri", "Gothic type, LA denim."],
+  "supreme-ksubi-her":  ["Supreme x Ksubi", "Box logo, Australian denim."],
+  "casablanca-vale":    ["Casablanca x Vale", "Riviera silk, valley denim."],
+  "hellstar-balenciaga":["Hellstar x Balenciaga", "Drip graphic, Paris cut."],
+  "gallery-dept-back":  ["Gallery Dept.", "Read it from behind."],
+  "supreme-track-her":  ["Supreme x Ducati", "The track set, in blue."],
+};
+
 /* Editorial copy. It lives here rather than in the generator because it is
  * what the board says, not what the picture is of. Kept short: a hoarding is
  * read at an angle from thirty metres, and anything longer than about four
@@ -45,6 +63,7 @@ const HEAD = {
   essentials: "Essentials",
   supreme: "Supreme x Ducati",
   "chrome-hearts": "Chrome Hearts",
+  district: "Designer District",
 };
 const SUB = {
   bape: "Camo, since 1993.",
@@ -84,9 +103,10 @@ for (const [i, item] of manifest.entries()) {
 
   if (process.argv.includes("--files")) continue;
 
+  const [head, sub] = PER_PICTURE[item.tag] || [HEAD[item.slug] || item.slug, SUB[item.slug] || null];
   rows.push(
     `  (${q(item.slug)}, ${q("/campaigns/" + item.tag + ".webp")}, ` +
-    `${q(HEAD[item.slug] || item.slug)}, ${q(SUB[item.slug] || null)}, ` +
+    `${q(head)}, ${q(sub)}, ` +
     `${q(item.aspect)}, ${10 + i % 5 * 10}, ` +
     `ARRAY[${item.productIds.map((p) => `${q(p)}::uuid`).join(",")}]::uuid[])`,
   );
