@@ -4397,117 +4397,124 @@ const streetLamps = [];
   }
 
   // ── a city, beyond the district ───────────────────────────────────────
-  /* The plaza blocks stop the opening shot being a set in a field, but they
-   * are only forty metres out; past them there was nothing at all, so the
-   * far distance in every direction was bare ground meeting a hard horizon.
-   * Looking down the street you saw the street end and then sky.
+  /* Miami Beach from the air, which is what the reference photograph is.
    *
-   * What is out there now is Miami: pale towers in cream, sand, mint and
-   * flamingo with a lot of pale green glass between them, stepping back in
-   * setbacks as they rise, and a scatter of very slim ones standing proud
-   * of the rest. It is a skyline of a particular place rather than a field
-   * of grey boxes, which is what a generic one looked like from the street.
+   * The first version of this was a ring of towers scattered evenly around
+   * the district, and evenly scattered is the one thing that skyline is
+   * not. What makes it recognisable is that the tall buildings stand
+   * shoulder to shoulder in a line along the shore — a wall of pale slabs
+   * with their gable ends to you — and everything behind that line drops
+   * away at once into low pastel blocks. So it is built as two things: a
+   * dense front rank, and a wide low fill behind it.
    *
-   * Geometry rather than a painted backdrop, which was the first plan. The
-   * scene already carries exponential fog whose colour and density follow
-   * the clock, so real massing out there hazes correctly at noon and goes to
-   * dark shapes at night by itself — where a baked image would have one sky
-   * painted into it and fight every hour but the one it was made for.
+   * Mostly white and cream, because they are: the colour in that photograph
+   * is the sea and the planting, not the buildings. A few mint and sea-glass
+   * curtain walls and the occasional flamingo block carry the rest.
    *
-   * One merged mesh, no shadows, no glazing geometry: at this distance it is
-   * a silhouette with a colour, and anything finer is vertices nobody sees.
+   * Geometry rather than a painted panorama. The scene already carries
+   * exponential fog whose colour and density follow the clock, so real
+   * massing hazes correctly at noon and goes to silhouettes at night by
+   * itself; a baked image has one sky in it and fights every other hour.
    */
   {
     const rc = rng(90210);
     const far = [];
-
-    // The district's own ground, which nothing may be planted on.
     const clear = (x, z) => Math.abs(x) < 64 && z < 64 && z > -196;
+    const MID_Z = -66;
 
-    const MID_Z = -66;              // the middle of the walk, so the ring is centred on it
-    const MIN_R = 105, MAX_R = 430;
-
-    /* South Florida, roughly: sun-bleached renders, a lot of green glass,
-     * and the occasional pink one that the city is known for. */
-    const MIAMI = [
-      { h: 0.12, s: 0.16, l: 0.60, w: 30 },   // cream
-      { h: 0.09, s: 0.10, l: 0.54, w: 16 },   // sand
-      { h: 0.45, s: 0.20, l: 0.52, w: 22 },   // mint glass
-      { h: 0.52, s: 0.24, l: 0.48, w: 18 },   // sea glass
-      { h: 0.96, s: 0.26, l: 0.58, w:  8 },   // flamingo
-      { h: 0.58, s: 0.12, l: 0.42, w:  6 },   // slate
+    /* South Florida, sun-bleached. Weighted hard toward white. */
+    const PALETTE = [
+      { h: 0.11, s: 0.10, l: 0.74, w: 34 },   // white
+      { h: 0.10, s: 0.16, l: 0.68, w: 22 },   // cream
+      { h: 0.09, s: 0.12, l: 0.60, w: 12 },   // sand
+      { h: 0.45, s: 0.16, l: 0.60, w: 12 },   // mint glass
+      { h: 0.53, s: 0.20, l: 0.55, w: 10 },   // sea glass
+      { h: 0.97, s: 0.22, l: 0.66, w:  6 },   // flamingo
+      { h: 0.58, s: 0.10, l: 0.48, w:  4 },   // slate
     ];
-    const WSUM = MIAMI.reduce((a, c) => a + c.w, 0);
-    const paletteHit = () => {
+    const WSUM = PALETTE.reduce((a, c) => a + c.w, 0);
+    const pick = () => {
       let r = rc() * WSUM;
-      for (const c of MIAMI) { r -= c.w; if (r <= 0) return c; }
-      return MIAMI[0];
+      for (const c of PALETTE) { r -= c.w; if (r <= 0) return c; }
+      return PALETTE[0];
     };
 
-    for (let i = 0; i < 300; i++) {
-      const a = rc() * Math.PI * 2;
-      // Biased outward, so the inner edge is a scatter and not a wall.
-      const r = MIN_R + (MAX_R - MIN_R) * Math.pow(rc(), 0.62);
-      const x = Math.cos(a) * r;
-      const z = MID_Z + Math.sin(a) * r;
-      if (clear(x, z)) continue;
-
-      /* Tallest in the middle distance. A skyline that simply falls away
-       * with distance reads as a slope; a crest reads as a downtown with
-       * suburbs behind it. */
-      const t = (r - MIN_R) / (MAX_R - MIN_R);
-      const crest = Math.sin(Math.min(1, t * 1.35) * Math.PI);
-
-      // One in nine is a needle: slim, and half again as tall as its
-      // neighbours. Miami's skyline is mostly mid-rise with spikes in it.
-      const needle = rc() > 0.89;
-      let w = needle ? 5 + rc() * 5 : 9 + rc() * 24;
-      let d = needle ? w * (0.8 + rc() * 0.4) : 9 + rc() * 24;
-      const h = (14 + rc() * 26 + crest * 52) * (needle ? 1.5 : 1);
-
-      const c = paletteHit();
-      // Far things are paler: a cheap aerial perspective over the top of the
-      // fog, which keeps the back of the city from reading as a solid mass.
+    /** One tower, with setbacks and something on the roof. */
+    function tower(x, z, w0, d0, h, pale) {
+      const c = pick();
       const col = new THREE.Color().setHSL(
-        c.h + (rc() - 0.5) * 0.03,
-        c.s * (0.75 + rc() * 0.5),
-        Math.min(0.92, c.l + t * 0.16 + (rc() - 0.5) * 0.06),
+        c.h + (rc() - 0.5) * 0.02,
+        c.s * (0.7 + rc() * 0.5),
+        Math.min(0.95, c.l + pale * 0.14 + (rc() - 0.5) * 0.05),
       );
-
-      /* Setbacks. A tower that steps back twice as it rises has a profile;
-       * a single extruded box has a silhouette like a brick, and three
-       * hundred bricks is the thing that read as generic. */
-      const tiers = h > 46 ? (rc() > 0.45 ? 3 : 2) : 1;
-      let y = 0;
+      /* Setbacks. A tower that steps back as it rises has a profile; a
+       * single extruded box has the silhouette of a brick, and it was three
+       * hundred bricks that read as a city of nowhere. */
+      let w = w0, d = d0, y = 0;
+      const tiers = h > 44 ? (rc() > 0.5 ? 3 : 2) : 1;
       for (let k = 0; k < tiers; k++) {
-        // The top tier takes what is left, so the tower always reaches h.
-        const share = k === tiers - 1 ? h - y : h * (k === 0 ? 0.52 : 0.28);
-        const body = new THREE.BoxGeometry(w, share, d);
-        body.translate(x, y + share / 2, z);
-        far.push(paint(body, col));
+        const share = k === tiers - 1 ? h - y : h * (k === 0 ? 0.56 : 0.26);
+        const g = new THREE.BoxGeometry(w, share, d);
+        g.translate(x, y + share / 2, z);
+        far.push(paint(g, col));
         y += share;
-        w *= 0.74 + rc() * 0.12;
-        d *= 0.74 + rc() * 0.12;
+        w *= 0.78 + rc() * 0.10;
+        d *= 0.78 + rc() * 0.10;
       }
-
-      // A mast on the needles, a plant box on the broad ones.
-      if (needle && rc() > 0.4) {
-        const mast = new THREE.BoxGeometry(0.8, 6 + rc() * 10, 0.8);
-        mast.translate(x, h + 4, z);
-        far.push(paint(mast, col));
-      } else if (h > 40 && rc() > 0.55) {
-        const cw = w * (0.4 + rc() * 0.3), ch = 2 + rc() * 5;
-        const cap = new THREE.BoxGeometry(cw, ch, d * (0.4 + rc() * 0.3));
+      if (h > 40 && rc() > 0.5) {
+        const ch = 2 + rc() * 6;
+        const cap = new THREE.BoxGeometry(w * 0.6, ch, d * 0.6);
         cap.translate(x, h + ch / 2, z);
         far.push(paint(cap, col));
       }
+    }
+
+    /* The front rank: shoulder to shoulder, narrow face on, tall.
+     *
+     * Walked along each line rather than scattered, with only a little jitter,
+     * because the gaps are what would give it away — a row with holes in it
+     * reads as a suburb and this has to read as a seafront. */
+    const RANKS = [
+      { from: [-330, -300], to: [330, -300], n: 44 },   // straight down the street
+      { from: [-290, -320], to: [-290, 110], n: 26 },   // the left flank
+      { from: [ 290, -320], to: [ 290, 110], n: 26 },   // the right flank
+    ];
+    for (const rank of RANKS) {
+      for (let i = 0; i < rank.n; i++) {
+        const t = i / (rank.n - 1);
+        const x = rank.from[0] + (rank.to[0] - rank.from[0]) * t + (rc() - 0.5) * 16;
+        const z = rank.from[1] + (rank.to[1] - rank.from[1]) * t + (rc() - 0.5) * 16;
+        if (clear(x, z)) continue;
+        // Slab-like: wider across the rank than deep, the way a seafront
+        // block presents its long side to the water.
+        const w = 13 + rc() * 12;
+        const d = 9 + rc() * 8;
+        const h = 44 + rc() * 46;
+        tower(x, z, w, d, h, 0.10);
+      }
+    }
+
+    /* And the low city behind, filling everything the rank does not. */
+    for (let i = 0; i < 240; i++) {
+      const a = rc() * Math.PI * 2;
+      const r = 120 + 300 * Math.pow(rc(), 0.5);
+      const x = Math.cos(a) * r;
+      const z = MID_Z + Math.sin(a) * r;
+      if (clear(x, z)) continue;
+      const far0 = Math.min(1, (r - 120) / 300);
+      const w = 10 + rc() * 22;
+      const d = 10 + rc() * 22;
+      // Mostly low. One in eleven is a needle standing out of the grid.
+      const needle = rc() > 0.91;
+      const h = needle ? 46 + rc() * 40 : 9 + rc() * 20;
+      tower(x, z, needle ? 6 + rc() * 5 : w, needle ? 6 + rc() * 5 : d, h, far0);
     }
 
     if (far.length) {
       const cityMesh = new THREE.Mesh(
         mergeGeometries(far),
         new THREE.MeshStandardMaterial({
-          vertexColors: true, roughness: 0.9, metalness: 0, envMapIntensity: 0.55,
+          vertexColors: true, roughness: 0.88, metalness: 0, envMapIntensity: 0.6,
         }),
       );
       cityMesh.castShadow = false;
