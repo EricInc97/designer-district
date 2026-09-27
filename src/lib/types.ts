@@ -48,7 +48,9 @@ export type Product = {
 export type BrandMedia = {
   id: string;
   brand_id: string;
-  kind: "hero" | "lookbook";
+  /** hero = top of the brand page; lookbook = editorial band; board = a
+ *  hoarding in the 3D district. */
+  kind: "hero" | "lookbook" | "board";
   image_url: string;
   headline: string | null;
   subhead: string | null;

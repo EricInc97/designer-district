@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireStaff } from "@/lib/auth";
-import { MODELS, isModelId, submit, cancel } from "@/lib/higgsfield";
+import { MODELS, REFERENCE_FIELD, isModelId, submit, cancel } from "@/lib/higgsfield";
 import type { AdminResult } from "../actions";
 
 /**
@@ -81,17 +81,16 @@ export async function startCampaign(
       ? resolution
       : spec.resolutions[spec.resolutions.length - 1];
   }
-  /* The one field that was not verifiable.
+  /* The product's own photograph, as the reference.
    *
-   * The model's page documents prompt, quality, moderation, resolution,
-   * aspect_ratio and enhance_prompt, and the catalogue says it takes image
-   * inputs — but no source states the field name for them. The file-upload
-   * guide says a public URL goes in "the model parameter that accepts an
-   * input URL, such as image_url", which is a convention and not this
-   * model's schema. So it is sent under that name and the request is allowed
-   * to fail loudly if it is wrong, rather than a name being invented and the
-   * mismatch being hidden. */
-  if (spec.takesReference && reference) input.image_url = reference;
+   * An array: the documented field is `image_urls`, and passing a bare
+   * string is the mistake that cost a day — the endpoint accepts it and
+   * silently ignores it. No upload round trip is needed, because these are
+   * already public URLs on our own storage and the model takes URLs.
+   */
+  if (spec.takesReference && reference && REFERENCE_FIELD) {
+    input[REFERENCE_FIELD] = [reference];
+  }
 
   let requestId: string;
   try {

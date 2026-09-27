@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireStaff } from "@/lib/auth";
 import CampaignStudio from "@/components/CampaignStudio";
-import { MODELS } from "@/lib/higgsfield";
+import { MODELS, REFERENCE_FIELD } from "@/lib/higgsfield";
 
 export const metadata: Metadata = { title: "Campaigns" };
 
@@ -39,7 +39,10 @@ export default async function AdminCampaignsPage() {
     label: m.label,
     note: m.note,
     resolutions: [...m.resolutions],
-    takesReference: m.takesReference,
+    // What the model is documented to do, AND whether we can actually
+    // address it. Without the parameter name the picker must not promise
+    // the visitor's product will appear, because it will not.
+    takesReference: m.takesReference && REFERENCE_FIELD !== null,
   }));
 
   return (

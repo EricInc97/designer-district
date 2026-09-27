@@ -70,6 +70,30 @@ export const MODELS = {
   },
 } as const;
 
+/**
+ * The parameter that takes reference photographs. An array, not a string.
+ *
+ * This was null for a while on the strength of a wrong conclusion. The model
+ * does accept a scalar `image_url` with a 200 and then ignore it completely:
+ * seeded with a white Chrome Hearts tee and prompted for "the exact garment
+ * from the reference photograph", it returned a woman in a brown wool coat.
+ * I read that as the parameter being undiscoverable, because probing could
+ * not find it either — the validator accepts unknown properties, so a wrong
+ * name is swallowed in silence.
+ *
+ * The real cause was duller: I had read the model's /playground page and
+ * never its /api-reference page, which documents the schema in full. The
+ * field is `image_urls`, an array of strings — empty to generate, one or more
+ * entries to edit from. Verified the same way the failure was: the same
+ * product, the same prompt, and this time the garment on the model is the
+ * garment in the catalogue, chest graphic and all.
+ *
+ * Lesson worth keeping next to the constant: "probing found nothing" is not
+ * evidence a thing does not exist, when the probe cannot distinguish absence
+ * from indifference.
+ */
+export const REFERENCE_FIELD: string | null = "image_urls";
+
 export type ModelId = keyof typeof MODELS;
 export const isModelId = (v: unknown): v is ModelId =>
   typeof v === "string" && Object.prototype.hasOwnProperty.call(MODELS, v);

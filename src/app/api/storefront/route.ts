@@ -34,6 +34,17 @@ export const dynamic = "force-dynamic";
 type Rel<T> = T | T[] | null;
 const one = <T,>(r: Rel<T>): T | null => (Array.isArray(r) ? r[0] ?? null : r);
 
+type ArtRow = {
+  image_url: string | null;
+  headline: string | null;
+  subhead: string | null;
+  cta_label: string | null;
+  ink: string | null;
+  aspect: string | null;
+  product_ids: string[] | null;
+  brands: Rel<{ slug: string }>;
+};
+
 type Row = {
   id: string;
   name: string;
@@ -56,7 +67,18 @@ export async function GET() {
   }
 
   const supabase = await createClient();
-  const { data, error } = await supabase
+
+  /* Two queries, in parallel.
+   *
+   * The second is the campaign artwork for the hoardings in the district.
+   * It rides along with the catalogue rather than getting an endpoint of its
+   * own because the page already refetches this one on a timer, so artwork
+   * published in the admin reaches the boards on the same poll that reaches
+   * the shelf — no second cache to reason about and no second request
+   * from a phone.
+   */
+  const [{ data, error }, { data: art }] = await Promise.all([
+    supabase
     .from("products")
     .select(
       "id, name, price, image_url, sizes, stock_count, brands!inner(slug), categories(name, slug)",
@@ -64,7 +86,14 @@ export async function GET() {
     .eq("is_published", true)
     .not("image_url", "is", null)
     .order("is_featured", { ascending: false })
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: true }),
+    supabase
+      .from("brand_media")
+      .select("image_url, headline, subhead, cta_label, ink, aspect, product_ids, brands!inner(slug)")
+      .eq("kind", "board")
+      .eq("is_published", true)
+      .order("sort_order", { ascending: true }),
+  ]);
 
   // 503, not 200. This used to answer "here are your products: none" to a
   // failed query, which is a different sentence from "the catalogue is
@@ -98,8 +127,45 @@ export async function GET() {
     });
   }
 
+  /* Campaign artwork, by house.
+   *
+   * A failure here is deliberately not fatal: the boards fall back to the
+   * product card they showed before this existed, which is worse-looking but
+   * not broken, and a street with no hoardings at all would be far worse than
+   * one with plain ones.
+   */
+  /* An index over what we already fetched, rather than a second round trip.
+   *
+   * The artwork names the products worn in it, and the panel that opens when
+   * somebody taps a hoarding needs their names, prices and photographs. Every
+   * one of them is already in `brands` — they are published products with
+   * images, which is the same filter — so the join is a lookup, not a query.
+   */
+  const byId = new Map<string, unknown>();
+  for (const list of Object.values(brands)) {
+    for (const item of list as { id: string }[]) byId.set(item.id, item);
+  }
+
+  const looks: Record<string, unknown[]> = {};
+  for (const row of (art ?? []) as ArtRow[]) {
+    const slug = one(row.brands)?.slug;
+    if (!slug || !row.image_url) continue;
+    (looks[slug] ??= []).push({
+      image: row.image_url,
+      headline: row.headline,
+      subhead: row.subhead,
+      cta: row.cta_label,
+      ink: row.ink,
+      // What shape it was composed for, so a board can pick what fits it.
+      aspect: row.aspect,
+      // The pieces actually worn in it, in layering order. Anything that has
+      // since been unpublished or sold out simply drops out of the look.
+      products: (row.product_ids ?? []).map((id) => byId.get(id)).filter(Boolean),
+    });
+  }
+
   return NextResponse.json(
-    { ok: true, configured: true, brands },
+    { ok: true, configured: true, brands, looks },
     {
       headers: {
         /*

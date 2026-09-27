@@ -6,9 +6,11 @@
     "dev": "next dev -p 3200",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seedance": "node --env-file=.env.local --import tsx index.ts"
   },
   "dependencies": {
+    "@higgsfield/client": "^0.2.6",
     "@supabase/ssr": "^0.12.6",
     "@supabase/supabase-js": "^2.115.0",
     "lucide-react": "^1.41.0",
@@ -25,6 +27,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.4",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }

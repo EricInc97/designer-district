@@ -131,6 +131,7 @@ export default function BrandMediaManager({
               >
                 <option value="hero">Hero, at the top of the page</option>
                 <option value="lookbook">Band, between product groups</option>
+                <option value="board">Hoarding, in the 3D district</option>
               </select>
             </div>
 
@@ -302,7 +303,7 @@ export default function BrandMediaManager({
                 {m.headline || <span className="text-ink-faint">No headline</span>}
               </p>
               <p className="mt-0.5 text-xs text-ink-faint">
-                {m.kind === "hero" ? "Hero" : "Band"} · order {m.sort_order} ·{" "}
+                {m.kind === "hero" ? "Hero" : m.kind === "board" ? "Hoarding" : "Band"} · order {m.sort_order} ·{" "}
                 {m.ink === "dark" ? "black type" : "white type"}
               </p>
             </div>

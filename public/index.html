@@ -683,6 +683,159 @@ body[data-busy="1"] .pill, body[data-busy="1"] .pin { opacity: .55; }
   #shop .out .short { display: none; }
 }
 
+/* ---- a hoarding, close up -----------------------------------------------
+   Tap a board and the camera turns to face it. This is the other half of
+   that: the photograph at a size you can actually read, the pieces worn in
+   it, and a way into the shop. It is paper, like the shelf, because it is
+   the storefront's own catalogue rather than another HUD over the street. */
+#look {
+  position: fixed; inset: 0; z-index: 6;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .32s ease, visibility 0s linear .32s;
+}
+#look[data-on="1"] {
+  opacity: 1; visibility: visible;
+  transition: opacity .32s ease .08s, visibility 0s;
+}
+#look .sheet {
+  pointer-events: auto;
+  position: absolute;
+  right: 0; top: var(--bar); bottom: 0;
+  width: min(400px, 38vw);
+  display: flex; flex-direction: column;
+  background: var(--paper);
+  color: var(--ink);
+  border-left: 1px solid var(--rule);
+  overflow: hidden;
+}
+/* The sound toggle sits at the top right of the viewport and the sheet's
+   Close button lands in the same corner, so one covered the other. The
+   toggle is not what anybody opened the panel for: it stands down while the
+   sheet is up and comes back when it closes. */
+body[data-look="1"] .sound {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s ease;
+}
+/* And the same for the rest of the over-scene chrome.
+ *
+ * `.layer` carries the scroll copy, the waypoint pins, the index and the
+ * "Scroll" cue, all of which go on being drawn over the street while the
+ * panel is up — so opening a hoarding put the district's own headline
+ * across the middle of the advert you had just asked to look at. The panel
+ * is its own piece of reading; everything else stands down for it.
+ *
+ * `.layer` only, never #look, which is deliberately outside it. */
+body[data-look="1"] .layer {
+  opacity: 0;
+  /* visibility, not pointer-events.
+   *
+   * `.layer` is already pointer-events:none and its children switch it back
+   * on, so setting it again here changes nothing — the pins and the index
+   * went invisible and stayed clickable, which is worse than leaving them
+   * on screen. visibility inherits, so it takes the children with it, and
+   * transitioning it alongside opacity lets the fade finish first. */
+  visibility: hidden;
+}
+/* Going away: fade, then hide. Coming back: show at once, then fade in. */
+.layer { transition: opacity .28s ease; }
+body[data-look="1"] .layer {
+  transition: opacity .28s ease, visibility 0s linear .28s;
+}
+#look .dismiss {
+  position: absolute; top: .7rem; right: .7rem; z-index: 1;
+  border: 1px solid var(--rule-strong); background: var(--paper);
+  color: var(--ink); border-radius: 999px;
+  padding: .42rem .8rem; font: inherit; font-size: .625rem; font-weight: 500;
+  letter-spacing: .16em; text-transform: uppercase; cursor: pointer;
+}
+#look .art {
+  margin: 0; flex: 0 0 auto;
+  background: #0b0b0d;
+  max-height: 46vh;
+  overflow: hidden;
+}
+#look .art img {
+  display: block; width: 100%; height: 46vh;
+  object-fit: contain; background: #0b0b0d;
+}
+#look .copy { padding: 1.05rem 1.15rem .4rem; }
+#look .copy .eyebrow {
+  margin: 0; font-size: .625rem; font-weight: 500;
+  letter-spacing: .2em; text-transform: uppercase; color: var(--ink-dim);
+}
+#look .copy h3 {
+  margin: .35rem 0 0; font-size: clamp(1.15rem, 2.4vw, 1.55rem);
+  font-weight: 600; letter-spacing: -0.02em; line-height: 1.15;
+}
+#look .copy .sub {
+  margin: .4rem 0 0; font-size: .8rem; line-height: 1.5; color: var(--ink-dim);
+}
+#look .pieces {
+  list-style: none; margin: 0; padding: .2rem 0;
+  flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  overscroll-behavior: contain;
+}
+#look .piece {
+  display: grid; grid-template-columns: 64px 1fr auto;
+  gap: .75rem; align-items: center;
+  padding: .55rem 1.15rem;
+  border-top: 1px solid var(--rule);
+  color: inherit; text-decoration: none;
+}
+#look .piece img {
+  width: 64px; height: 64px; object-fit: cover; display: block;
+  background: var(--paper-sunken);
+}
+#look .piece b {
+  display: block; font-size: .8rem; font-weight: 500; line-height: 1.3;
+}
+#look .piece i {
+  display: block; font-style: normal; font-size: .75rem; color: var(--ink-dim);
+  margin-top: .15rem;
+}
+#look .piece em {
+  font-style: normal; font-size: .8rem; font-weight: 500; white-space: nowrap;
+}
+#look .empty {
+  margin: 0; padding: .9rem 1.15rem 1.2rem;
+  font-size: .8rem; line-height: 1.5; color: var(--ink-dim);
+  border-top: 1px solid var(--rule);
+}
+#look .acts {
+  flex: 0 0 auto;
+  padding: .85rem 1.15rem calc(.9rem + var(--sab));
+  border-top: 1px solid var(--rule);
+  background: var(--paper);
+}
+#look .acts .pill { width: 100%; justify-content: center; }
+
+@media (max-width: 720px) {
+  #look .sheet {
+    left: 0; right: 0; top: auto; bottom: 0;
+    width: auto;
+    max-height: min(62vh, 560px);
+    border-left: 0; border-top: 1px solid var(--rule);
+    border-radius: 18px 18px 0 0;
+    padding-bottom: var(--sab);
+  }
+  #look .art { max-height: 28vh; }
+  #look .art img { height: 28vh; }
+  #look .copy { padding: .85rem 1rem .2rem; }
+  #look .piece { padding: .5rem 1rem; }
+  #look .acts { padding: .75rem 1rem calc(.75rem + var(--sab)); }
+}
+@media (pointer: coarse) {
+  #look .dismiss { min-height: 44px; padding: .5rem 1rem; }
+  #look .piece { min-height: 44px; }
+}
+body[data-looking="1"] .sound[data-state="prompt"] .lbl {
+  max-width: 0; opacity: 0; padding-left: 0;
+}
+body[data-looking="1"] .sound[data-state="prompt"]::after { animation: none; opacity: .25; }
+
 
 /* The running order down the street. */
 .index {
@@ -1033,6 +1186,25 @@ body[data-shopping="1"] .sound[data-state="prompt"]::after { animation: none; op
   </aside>
 </div>
 
+<!-- A hoarding, close up. Hidden until one is tapped. -->
+<div id="look" aria-hidden="true" role="dialog" aria-modal="true"
+     aria-labelledby="look-head">
+  <div class="sheet">
+    <button class="dismiss" id="look-out" type="button">Close</button>
+    <figure class="art"><img id="look-img" alt="" /></figure>
+    <div class="copy">
+      <p class="eyebrow" id="look-who">&mdash;</p>
+      <h3 id="look-head">&mdash;</h3>
+      <p class="sub" id="look-sub"></p>
+    </div>
+    <ul class="pieces" id="look-pieces"></ul>
+    <p class="empty" id="look-empty" hidden>Nothing in this picture is on the floor right now.</p>
+    <div class="acts">
+      <button class="pill" id="look-shop" type="button">Shop</button>
+    </div>
+  </div>
+</div>
+
 
 <!-- ## 05  IMPORT MAP -->
 <script type="importmap">
@@ -1121,7 +1293,7 @@ const QUALITY = (() => {
      * about a street with buildings down both sides, not a budget one. */
     palmsRow:  light ? 4   : 6,
     palmsRing: light ? 6   : 9,
-    frondsPer: light ? 11  : 17,
+    frondsPer: light ? 12  : 20,
     bloom:     !light,
     holeSeg:   light ? 16  : 26,   // radial segments on each dome rim
     texScale:  light ? 0.6 : 1,
@@ -1471,14 +1643,22 @@ function texFrond() {
       const L = len * (0.92 + Math.random() * 0.16);
       const tipX = px + L * sweep;
       const tipY = mid + dir * L + wob;
-      const shade = 0.74 + 0.26 * Math.random();
+      /* Lifted, because these were reading as near-black cut-outs.
+       *
+       * The old ramp started at 52,84,30 and then multiplied by a shade that
+       * ran as low as 0.74, so the darkest leaflets landed around 38,62,22 —
+       * which against a bright sky is a silhouette, not a leaf. A palm frond
+       * in daylight is a mid green that goes almost yellow at the tip, and it
+       * is half lit from behind. Raising the whole ramp and narrowing the
+       * shade range gets that without any new geometry. */
+      const shade = 0.84 + 0.16 * Math.random();
       const g = x.createLinearGradient(px, mid, tipX, tipY);
-      // Dark where it leaves the rachis, bleached at the tip, which is the
+      // Deeper where it leaves the rachis, bleached at the tip, which is the
       // way round a leaf in full sun actually is.
-      g.addColorStop(0,    ink(52, 84, 30, shade));
-      g.addColorStop(0.45, ink(96, 142, 46, shade));
-      g.addColorStop(0.85, ink(148, 190, 72, shade));
-      g.addColorStop(1,    ink(186, 214, 104, shade));
+      g.addColorStop(0,    ink(74, 112, 44, shade));
+      g.addColorStop(0.45, ink(126, 174, 62, shade));
+      g.addColorStop(0.85, ink(176, 214, 92, shade));
+      g.addColorStop(1,    ink(208, 232, 130, shade));
       x.fillStyle = g;
       x.beginPath();
       x.moveTo(px - wide, mid);
@@ -1854,8 +2034,8 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(C.fog.getHex(), C.fogDensity);
 
-const camera = new THREE.PerspectiveCamera(46, viewW / viewH, 0.25, 900);
-camera.position.set(0, 3.2, 30);
+const camera = new THREE.PerspectiveCamera(50, viewW / viewH, 0.25, 900);
+camera.position.set(0, 4.2, 30);
 
 // ## 10  SKY — gradient, sun, clouds, environment
 // A shader on the inside of a very large sphere. The same function that paints
@@ -3337,8 +3517,15 @@ const crowns = [];   // world positions of every crown, for the leaf spawner
     alphaTest: 0.26,
     transparent: false,
     side: THREE.DoubleSide,
-    roughness: 0.72,
+    /* Smoother and more responsive to the sky than a leaf strictly is.
+     * A real frond is part translucent, lit through from behind as much as
+     * off the front, and this material cannot do that at any sensible cost.
+     * Letting the environment contribute more is the cheap approximation:
+     * the crowns pick up the blue overhead and the warm ground bounce, which
+     * is most of what made the reference photographs look alive. */
+    roughness: 0.58,
     metalness: 0,
+    envMapIntensity: 1.35,
     color: 0xffffff,
   }));
   const fronds = new THREE.Mesh(mergeGeometries(frondGeos), frondMat);
@@ -4846,6 +5033,7 @@ const boards = (() => {
 
   /** What piece of artwork a creative wants. Also its cache key. */
   const keyOf = (c) => c.kind === "product" ? `p:${c.product.id}`
+                     : c.kind === "look"    ? `l:${c.look.image}`
                      : c.kind === "site"    ? "site"
                      : c.brand.slug;
 
@@ -5063,6 +5251,83 @@ const boards = (() => {
     x.fillStyle = g;
     x.fillRect(0, 0, W, H);
 
+    if (creative.kind === "look") {
+      /* A campaign image, full bleed, with three words on it.
+       *
+       * This is the creative the boards wanted all along. They are turned to
+       * face the approach, so they are read at an angle and from thirty
+       * metres or more, and at that size the product card was illegible: the
+       * name truncated to "Balenc…" and the tile of folded shirt was a grey
+       * smudge. One picture and a short line survive the distance; a
+       * specification does not.
+       */
+      const art_ = art.get(keyOf(creative));
+      const look = creative.look;
+      const face = getComputedStyle(document.body).fontFamily;
+
+      if (art_) {
+        // Cover, not contain: a board is a crop of a campaign image, and
+        // letterboxing one inside a hoarding looks like a mistake.
+        const k = Math.max(W / art_.width, H / art_.height);
+        const iw = art_.width * k, ih = art_.height * k;
+        x.drawImage(art_, (W - iw) / 2, (H - ih) / 2, iw, ih);
+      } else {
+        fetchArt(keyOf(creative), thumbFor(look.image), look.image);
+        const g0 = x.createLinearGradient(0, 0, W, H);
+        g0.addColorStop(0, b.bg[0]);
+        g0.addColorStop(1, b.bg[1]);
+        x.fillStyle = g0;
+        x.fillRect(0, 0, W, H);
+      }
+
+      /* A scrim, so the type is legible whatever the photograph is doing
+       * underneath it. Cheaper and more reliable than picking a colour per
+       * image, and it is what every poster does. */
+      const dark = (look.ink || "light") !== "dark";
+      const scrim = x.createLinearGradient(0, H * 0.45, 0, H);
+      scrim.addColorStop(0, dark ? "rgba(0,0,0,0)" : "rgba(255,255,255,0)");
+      scrim.addColorStop(1, dark ? "rgba(0,0,0,.82)" : "rgba(255,255,255,.86)");
+      x.fillStyle = scrim;
+      x.fillRect(0, H * 0.45, W, H * 0.55);
+
+      const ink = dark ? "#ffffff" : "#0b0b0b";
+      const pad = Math.round(Math.min(W, H) * 0.07);
+      x.textAlign = "left";
+      x.textBaseline = "alphabetic";
+
+      // The house, then the line, then the instruction. Largest to smallest,
+      // because that is the order somebody walking past reads them in.
+      const logo = art.get(b.slug);
+      let y = H - pad;
+
+      const cta = (look.cta || "SHOP THE LOOK").toUpperCase();
+      x.fillStyle = ink;
+      x.globalAlpha = 0.82;
+      fitText(x, cta, W - pad * 2, H * 0.058, 700, face);
+      x.fillText(cta, pad, y);
+      x.globalAlpha = 1;
+      y -= H * 0.085;
+
+      const line = look.headline || b.name;
+      const lines = wrapAt(x, line, W - pad * 2, H * 0.11, 700, face, 2);
+      for (let i = lines.length - 1; i >= 0; i--) {
+        x.fillText(lines[i], pad, y);
+        y -= H * 0.125;
+      }
+
+      if (logo) {
+        const lk = Math.min((W - pad * 2) * 0.32 / logo.width, H * 0.085 / logo.height);
+        x.save();
+        // The house's mark reads as a mark whatever it is sitting on.
+        if (dark) x.filter = "brightness(0) invert(1)";
+        x.drawImage(logo, pad, y - H * 0.085, logo.width * lk, logo.height * lk);
+        x.restore();
+      }
+
+      ledOverlay(x, W, H);
+      return;
+    }
+
     if (creative.kind === "product") {
       /* An advertisement, which is a different object from a logo.
        *
@@ -5200,7 +5465,13 @@ const boards = (() => {
     x.globalAlpha = 0.6;
     x.textAlign = "center";
     x.textBaseline = "middle";
-    x.font = `600 ${Math.round(H * 0.075)}px ${face}`;
+    /* Fitted, not fixed.
+     * This was a flat 7.5% of the board height with no measurement, so
+     * "Los Angeles tailoring." ran off both edges of a portrait tower and
+     * read as "S ANGELES TAILORI". The board preview found it in seconds;
+     * from the street it just looked like a board.
+     */
+    fitText(x, b.note.toUpperCase(), W * 0.86, H * 0.075, 600, face);
     x.fillText(b.note.toUpperCase(), W / 2, H * 0.84);
     x.globalAlpha = 1;
 
@@ -5319,6 +5590,8 @@ const boards = (() => {
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(spec.w, spec.h), mat);
     mesh.position.set(spec.x, spec.y, spec.z);
     if (spec.tilt) mesh.rotation.y = spec.tilt;
+    // Picked as a hoarding, not as the shopfront it is bolted to.
+    mesh.userData.hoarding = true;
     parent.add(mesh);
 
     const b = {
@@ -5526,7 +5799,8 @@ const boards = (() => {
   ];
   CROWN.forEach((spec, i) => {
     // The crown carries the district; the two flankers are the advertising.
-    makeBoard(crownGroup, spec, i === 0 ? SITE_REEL : BRAND_REEL);
+    const cb = makeBoard(crownGroup, spec, i === 0 ? SITE_REEL : BRAND_REEL);
+    if (i > 0) cb.flanker = true;
     const bz = bezel(spec, 0.5);
     bz.applyMatrix4(crownGroup.matrixWorld);
     frames.push(bz);
@@ -5580,6 +5854,51 @@ const boards = (() => {
   let night = 0;
   let lastT = 0;
 
+  /** A board's own width over its height. */
+  const boardAspect = (b) => {
+    const g = b.mesh.geometry.parameters;
+    return g.width / g.height;
+  };
+
+  /**
+   * How badly a piece of artwork fits a board, 0 being perfect.
+   *
+   * Measured on the log of the ratio so the penalty is symmetric: artwork
+   * half as wide as the board scores the same as artwork twice as wide.
+   * Artwork with no recorded aspect sits in the middle rather than winning
+   * or losing by default.
+   */
+  const aspectMiss = (look, want) => {
+    const parts = String(look.aspect || "").split(":");
+    const a = parts.length === 2 ? Number(parts[0]) / Number(parts[1]) : NaN;
+    if (!Number.isFinite(a) || a <= 0) return 0.75;
+    return Math.abs(Math.log(a / want));
+  };
+
+  /* Ranking alone is not enough: something has to be allowed to lose.
+   *
+   * Sorting by miss only decides the order, so a board whose house owns one
+   * badly-shaped piece still hangs it, and a reel built from a whole ranked
+   * list still cycles onto the worst of them. That is how a 21:9 banner
+   * reached a 0.48 portrait flanker: it was last in the reel, not first, and
+   * the reel came round.
+   *
+   * MISS_MAX is a factor of about 1.7 either way, in the same log units.
+   * Beyond that a cover-fit is not a crop but a stripe. The best piece is
+   * always kept even if it misses, because one imperfect advert beats a
+   * house advertising nothing — but the rest have to earn their place.
+   */
+  const MISS_MAX = 0.55;
+
+  /** The pieces worth hanging on a board of this shape, best first. */
+  function fitFor(list, want, cap) {
+    const ranked = list.slice().sort(
+      (p, q) => aspectMiss(p, want) - aspectMiss(q, want),
+    );
+    const good = ranked.filter((x) => aspectMiss(x, want) <= MISS_MAX);
+    return (good.length ? good : ranked.slice(0, 1)).slice(0, cap);
+  }
+
   /**
    * Hands the boards the catalogue, which turns every house's board from a
    * standing logo into a short campaign for that house's own stock.
@@ -5593,8 +5912,51 @@ const boards = (() => {
    * slices of that shop's stock, so a twin does not show the same jacket
    * twice side by side.
    */
-  function setCatalogue(brands) {
+  function setCatalogue(brands, looks) {
     if (!brands) return;
+    looks = looks || {};
+
+    /* Which houses can show their own artwork at all.
+     *
+     * Not every house has a picture board: the street plan gives some of them
+     * a scrolling ticker instead, and a house with a ticker has nowhere to
+     * hang a campaign. Supreme is one of them, which is an odd place for a
+     * headline brand's artwork to die quietly. The two boards flanking the
+     * crown stand on the block that closes the street and belong to nobody,
+     * so they are exactly the right place to carry the homeless work.
+     */
+    const housed = new Set(panels.filter((b) => b.house).map((b) => b.house.slug));
+    const orphans = [];
+    for (const [slug, list] of Object.entries(looks)) {
+      if (housed.has(slug)) continue;
+      const brand = BRANDS.find((x) => x.slug === slug);
+      if (!brand) continue;
+      for (const look of list) orphans.push({ kind: "look", brand, look, key: `l:${look.image}` });
+    }
+
+    panels.filter((b) => b.flanker).forEach((b, n) => {
+      /* Ranked for this board's shape, same as any other.
+       *
+       * The first version handed the flankers the orphans in whatever order
+       * they came out of the payload, and promptly hung a 21:9 banner on a
+       * 0.48 portrait board — a crop so severe it is a stripe of fabric.
+       * These are the tallest screens on the street; they want the tall
+       * artwork.
+       */
+      const want = boardAspect(b);
+      // Three at most: these are a sideshow to the crown, and a long reel on
+      // the two tallest screens is just more to download.
+      const ranked = fitFor(orphans.map((o) => o.look), want, 3)
+        .map((look) => orphans.find((o) => o.look === look));
+      // And the pair should not read as a mirror: the second one starts a
+      // step further down the same list.
+      const rolled = n && ranked.length > 1
+        ? ranked.slice(1).concat(ranked.slice(0, 1))
+        : ranked;
+      const reel = rolled.length ? rolled.concat(BRAND_REEL) : BRAND_REEL;
+      const sig = reel.map((c) => c.key).join("|");
+      if (sig !== b.sig) { b.sig = sig; b.reel = reel; show(b, 0); b.next = lastT + 3; }
+    });
     const seen = new Map();
     for (const b of panels) {
       if (!b.house) continue;
@@ -5605,7 +5967,28 @@ const boards = (() => {
       const all = (brands[slug] || []).filter((q) => q.image);
       const inStock = all.filter((q) => (q.stock ?? 0) > 0);
       const pool = inStock.length ? inStock : all;
-      const reel = [{ kind: "brand", brand: b.house, key: slug }];
+      /* Campaign artwork leads.
+       *
+       * A house with artwork opens on it rather than on its logo: it is the
+       * thing that actually sells, and it is the only creative that survives
+       * being read at an angle from the far end of the street. The logo card
+       * stays in the rotation behind it, and a house with no artwork is
+       * exactly as it was. */
+      const reel = [];
+      /* Closest shape first.
+       *
+       * There are eight aspect classes on this street and a board draws its
+       * artwork to cover, so the wrong shape is not a small imperfection: a
+       * 21:9 image on a 3.17 banner loses a quarter of its height, which on
+       * a full-length figure is the head. Ranking by how far the artwork is
+       * from the board, in log space so that being half as wide counts the
+       * same as being twice as wide, means each hoarding takes the piece
+       * that was composed for something like it. */
+      const mine = fitFor(looks[slug] || [], boardAspect(b), 2);
+      for (const look of mine) {
+        reel.push({ kind: "look", brand: b.house, look, key: `l:${look.image}` });
+      }
+      reel.push({ kind: "brand", brand: b.house, key: slug });
       // Two rather than three on the light tier. The bytes are small now,
       // but each one is still a request, and a phone on a cellular link
       // pays for the round trip more than for the payload.
@@ -5615,19 +5998,137 @@ const boards = (() => {
         reel.push({ kind: "product", brand: b.house, product: pr, key: pr.id });
       }
 
-      // Nothing to advertise: leave the board showing the logo it already is.
-      if (reel.length === 1) { b.reel = reel; b.next = Infinity; continue; }
-
+      /* Only restart when the reel actually changed.
+       *
+       * The poll runs every twenty seconds; resetting to the first creative
+       * each time would pin every board on its opening frame forever and
+       * nothing would ever rotate. Comparing the keys means a board jumps to
+       * the front exactly when there is something new to jump to — which
+       * is what publishing campaign artwork in the admin should feel like —
+       * and otherwise carries on where it was.
+       */
+      const sig = reel.map((c) => c.key).join("|");
+      const changed = sig !== b.sig;
+      b.sig = sig;
       b.reel = reel;
-      if (b.idx >= reel.length) show(b, 0);
+
+      // Nothing to advertise: leave the board showing the logo it already is.
+      if (reel.length === 1) { b.next = Infinity; if (changed) show(b, 0); continue; }
+      if (changed || b.idx >= reel.length) show(b, 0);
       // Staggered, so the street does not turn over all at once the moment
       // the catalogue lands.
       b.next = lastT + 2.5 + (panels.indexOf(b) % 6) * 1.1;
     }
   }
 
+
+  /**
+   * Every hoarding, flat, side by side.
+   *
+   * Judging artwork by flying down the street is slow and unreliable: a board
+   * is read at an angle, half of them are behind you, and a palm is usually in
+   * the way. This lays the actual canvases out in a grid — not a
+   * reconstruction of them, the very textures that are on the boards — so
+   * what you see here is exactly what the street is showing.
+   *
+   * Open it with ?boards on the URL, or DD.boards.preview() from the console.
+   */
+  function preview(on) {
+    let el = document.getElementById("board-preview");
+    if (on === false || (on === undefined && el)) {
+      if (el) el.remove();
+      return false;
+    }
+    if (el) el.remove();
+
+    el = document.createElement("div");
+    el.id = "board-preview";
+    el.style.cssText =
+      "position:fixed;inset:0;z-index:100000;background:#0b0b0d;color:#f4f4f6;" +
+      "overflow:auto;padding:20px;font:13px/1.4 system-ui,sans-serif";
+
+    const head = document.createElement("div");
+    head.style.cssText =
+      "display:flex;align-items:baseline;gap:16px;margin-bottom:16px;" +
+      "position:sticky;top:-20px;background:#0b0b0d;padding:8px 0";
+    head.innerHTML =
+      `<strong style="font-size:16px">Hoardings</strong>` +
+      `<span style="opacity:.6">${panels.length + tickers.length} screens ` +
+      `— what each one is showing right now</span>`;
+
+    const refresh = document.createElement("button");
+    refresh.textContent = "Refresh";
+    const close = document.createElement("button");
+    close.textContent = "Close";
+    for (const btn of [refresh, close]) {
+      btn.style.cssText =
+        "margin-left:auto;background:#f4f4f6;color:#0b0b0d;border:0;border-radius:99px;" +
+        "padding:6px 14px;font:inherit;font-weight:600;cursor:pointer";
+    }
+    close.style.marginLeft = "8px";
+    refresh.onclick = () => preview(true);
+    close.onclick = () => preview(false);
+    head.append(refresh, close);
+    el.append(head);
+
+    const grid = document.createElement("div");
+    grid.style.cssText =
+      "display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))";
+
+    for (const b of panels.concat(tickers)) {
+      const cell = document.createElement("figure");
+      cell.style.cssText = "margin:0;background:#17171b;border-radius:8px;padding:10px";
+
+      const src = b.tex.image;
+      const shot = document.createElement("canvas");
+      // A board is not square. Preserve its real aspect so the preview shows
+      // the crop the street actually gets.
+      const g = b.mesh.geometry.parameters;
+      const aspect = g.width / g.height;
+      shot.width = 420;
+      shot.height = Math.round(420 / aspect);
+      shot.style.cssText = "width:100%;height:auto;display:block;border-radius:4px;background:#000";
+      try {
+        shot.getContext("2d").drawImage(src, 0, 0, shot.width, shot.height);
+      } catch {
+        // A tainted canvas cannot be read back. Not fatal: label it and move on.
+        shot.getContext("2d").fillStyle = "#333";
+        shot.getContext("2d").fillRect(0, 0, shot.width, shot.height);
+      }
+
+      const c = b.creative;
+      const what = b.ticker ? "ticker"
+        : c && c.kind === "look" ? `look — ${c.look.headline || ""}`
+        : c && c.kind === "product" ? `product — ${c.product.name}`
+        : c && c.kind === "site" ? "district"
+        : c ? `logo — ${c.brand.name}` : "";
+
+      const cap = document.createElement("figcaption");
+      cap.style.cssText = "margin-top:8px;display:grid;gap:2px";
+      cap.innerHTML =
+        `<span style="font-weight:600">${b.house ? b.house.name : "District"}</span>` +
+        `<span style="opacity:.65">${what}</span>` +
+        `<span style="opacity:.4">${g.width.toFixed(1)}m x ${g.height.toFixed(1)}m ` +
+        `— ${src.width || 0}x${src.height || 0}px</span>`;
+
+      cell.append(shot, cap);
+      grid.append(cell);
+    }
+
+    el.append(grid);
+    document.body.append(el);
+    return true;
+  }
+
+  // ?boards on the URL opens it on load, which is the quickest way in.
+  if (new URLSearchParams(location.search).has("boards")) {
+    requestAnimationFrame(() => preview(true));
+  }
+
   return {
-    panels, tickers, setCatalogue,
+    panels, tickers, setCatalogue, preview,
+    pickables: () => panels.map((b) => b.mesh),
+    boardOf: (mesh) => panels.find((b) => b.mesh === mesh) || null,
 
     /** Advances the reel and scrolls the tickers. */
     update(dt, t) {
@@ -5681,42 +6182,46 @@ const boards = (() => {
 // spending that budget.
 
 const PATH = new THREE.CatmullRomCurve3([
-  // Opens close in on the dome, the way the reference frames it, rather than
-  // from across an empty apron.
-  new THREE.Vector3(0, 3.05, 22),
-  new THREE.Vector3(0, 3.05, 16),
-  new THREE.Vector3(0, 3.00, 10),
-  new THREE.Vector3(0, 2.95, 4),        // the near arch
+  // Opens a little further back and a little higher than it used to, so the
+  // plaza reads as a place rather than a close-up of the shell. The dip
+  // under the dome is the same height it always was — there is no room to
+  // raise that without clipping the rim.
+  new THREE.Vector3(0, 4.20, 26),
+  new THREE.Vector3(0, 3.85, 18),
+  new THREE.Vector3(0, 3.35, 11),
+  new THREE.Vector3(0, 3.00, 4),        // the near arch
   new THREE.Vector3(0, 2.90, -1),       // under the shell
-  new THREE.Vector3(0, 2.95, -7),       // the far arch
-  new THREE.Vector3(0, 3.00, -13),
-  new THREE.Vector3(0, 2.95, -21),
-  new THREE.Vector3(0, 2.90, -30),
-  new THREE.Vector3(0, 2.90, -42),
-  new THREE.Vector3(0, 2.90, -68),
-  new THREE.Vector3(0, 2.90, -96),
-  new THREE.Vector3(0, 3.10, -124),
-  new THREE.Vector3(0, 4.40, -150),
+  new THREE.Vector3(0, 3.10, -7),       // the far arch
+  new THREE.Vector3(0, 4.20, -13),
+  new THREE.Vector3(0, 5.35, -21),
+  new THREE.Vector3(0, 5.70, -30),
+  new THREE.Vector3(0, 5.80, -42),
+  new THREE.Vector3(0, 5.80, -68),
+  new THREE.Vector3(0, 5.80, -96),
+  new THREE.Vector3(0, 5.95, -124),
+  new THREE.Vector3(0, 7.10, -150),
   // Stops in the open ground between the last shopfront and the block that
   // closes the street, rather than travelling on through it.
-  new THREE.Vector3(0, 6.50, -162),
+  new THREE.Vector3(0, 8.60, -162),
 ], false, "catmullrom", 0.4);
 
 // Held on the dome at the top of the page, then let go forward so that by
 // the time the camera is at the arch it is already looking through it.
+// Along the street the look sits below the camera, so the extra height
+// reads as seeing more of both terraces rather than staring at a fascia.
 const LOOK = new THREE.CatmullRomCurve3([
-  new THREE.Vector3(0, 5.2, 0),
+  new THREE.Vector3(0, 5.3, 0),
   new THREE.Vector3(0, 5.0, -3),
   new THREE.Vector3(0, 4.4, -9),
   new THREE.Vector3(0, 3.7, -17),
-  new THREE.Vector3(0, 3.2, -27),
-  new THREE.Vector3(0, 3.0, -40),
-  new THREE.Vector3(0, 3.0, -56),
-  new THREE.Vector3(0, 3.0, -84),
-  new THREE.Vector3(0, 3.0, -112),
-  new THREE.Vector3(0, 3.0, -140),
-  new THREE.Vector3(0, 3.4, -172),
-  new THREE.Vector3(0, 3.6, -184),
+  new THREE.Vector3(0, 3.5, -27),
+  new THREE.Vector3(0, 3.35, -40),
+  new THREE.Vector3(0, 3.35, -56),
+  new THREE.Vector3(0, 3.35, -84),
+  new THREE.Vector3(0, 3.35, -112),
+  new THREE.Vector3(0, 3.55, -140),
+  new THREE.Vector3(0, 3.9, -172),
+  new THREE.Vector3(0, 4.2, -184),
 ], false, "catmullrom", 0.4);
 
 let scrollTarget = 0;    // 0..1, straight off the scrollbar
@@ -5761,20 +6266,44 @@ function aimRay(e) {
   ray.setFromCamera(ndc, camera);
 }
 
+/** Boards worth tapping: the ones showing something that can be bought. */
+function shoppableBoards() {
+  if (!boards) return [];
+  return boards.panels
+    .filter((b) => b.creative && (b.creative.kind === "look" || b.creative.kind === "product"))
+    .map((b) => b.mesh);
+}
+
 /** What is under the pointer: a garment if we are inside, a house if not. */
 function under() {
   if (storeMode && storeMode.active) {
     return ray.intersectObjects(storeMode.arts(), false)[0] || null;
   }
-  return ray.intersectObjects(faces, false)[0] || null;
+  /* Boards first, and by distance.
+   *
+   * A hoarding hangs in front of the building it advertises, so a ray that
+   * hits the board hits the shopfront behind it too. Sorting by distance and
+   * taking the nearest means tapping the picture opens the picture, and
+   * tapping the door still opens the door. */
+  const hits = ray.intersectObjects(faces.concat(shoppableBoards()), false);
+  return hits.length ? hits[0] : null;
+}
+
+/** The board a mesh belongs to, or null. */
+function boardOf(mesh) {
+  if (!boards) return null;
+  return boards.panels.find((b) => b.mesh === mesh) || null;
 }
 
 function pick(e) {
   aimRay(e);
   const hit = under();
   if (!hit) return;
-  if (storeMode && storeMode.active) storeMode.pickPanel(hit.object);
-  else storeMode.enterBySlug(hit.object.userData.brand.slug);
+  if (storeMode && storeMode.active) { storeMode.pickPanel(hit.object); return; }
+
+  const board = boardOf(hit.object);
+  if (board) { lookPanel.open(board); return; }
+  if (hit.object.userData.brand) storeMode.enterBySlug(hit.object.userData.brand.slug);
 }
 canvasEl.addEventListener("click", pick);
 
@@ -6055,6 +6584,14 @@ let settleTimer = 0;
 function settle() {
   if (storeMode && (storeMode.active || storeMode.busy)) return;
   if (travelling && performance.now() - travelStarted < 900) return;
+  /* Only where the problem actually exists.
+   *
+   * This was written for flick momentum on a phone, where letting go carries
+   * you half a shop past the one you aimed at. A wheel or a trackpad does not
+   * do that: it stops where you stopped it, so moving the page afterwards is
+   * the software overruling you. On a desktop it read as the district shoving
+   * you toward Bape the moment its card appeared. */
+  if (!matchMedia("(pointer: coarse)").matches) return;
 
   const p = scrollTarget;
   if (p < BEATS.brands[0] || p > BEATS.brands[1]) return;
@@ -6069,7 +6606,14 @@ function settle() {
   const target = TRAVEL(monoliths[best].z + LEAD);
   // A hair's difference is not worth a tween, and if the nearest house is
   // somehow a third of the journey away this is not the tool for it.
-  if (bestD < 0.004 || bestD > 0.12) return;
+  /* A nudge, not a journey.
+   *
+   * 0.12 is twelve per cent of the entire scroll — measured, that let the
+   * page travel 687 pixels on its own, which is not settling onto a shop, it
+   * is being taken somewhere. Just over four per cent is about half a
+   * shopfront: enough to rescue an overshoot, too little to feel like a
+   * decision made on your behalf. */
+  if (bestD < 0.004 || bestD > 0.045) return;
   travelTo(target);
 }
 
@@ -6196,6 +6740,296 @@ function showBrand(i) {
   });
 }
 
+// ## 21B  LOOK — tap a hoarding, shop what is on it
+//
+// The artwork is fifteen metres up and read at an angle, which is exactly
+// right for advertising and useless for buying. A tap brings the camera round
+// to face the board and opens what is on it: the picture at a size you can
+// actually see, the exact garments worn in it, and a way into the shop that
+// sells them.
+//
+// The camera move is a blend laid over the scroll path, not a takeover. The
+// path keeps driving the base position every frame and this leans it toward
+// the board by `k`; closing lets `k` fall back to nothing. So there is no
+// saved position to restore, scrolling while the panel is open is not fought,
+// and walking into a shop from here needs no special case.
+
+const lookView = (() => {
+  let board = null, want = 0, k = 0;
+  const pos = new THREE.Vector3(), look = new THREE.Vector3();
+  const w = new THREE.Vector3(), n = new THREE.Vector3();
+  const fwd = new THREE.Vector3(), right = new THREE.Vector3(), up = new THREE.Vector3();
+  const UP = new THREE.Vector3(0, 1, 0);
+  const q = new THREE.Quaternion();
+
+  /** The rectangle of screen the panel is not sitting on, in pixels. */
+  function visible() {
+    const sheet = document.querySelector("#look .sheet");
+    const r = sheet && sheet.getBoundingClientRect();
+    const full = { x: 0, y: 0, w: innerWidth, h: innerHeight };
+    if (!r || !r.width || !r.height) return full;
+    /* Measured, not assumed.
+     *
+     * The first version guessed the panel from the same numbers the CSS uses
+     * — min(62vh, 560px) and so on — and guessed 62% where the real sheet
+     * was 57%, so it shoved the board twenty pixels off the top of the
+     * screen. The sheet is in the document and knows its own size, including
+     * the safe-area inset and whatever the cap worked out to, so ask it.
+     *
+     * Whichever way it is docked, the band is what is left beside it.
+     */
+    if (r.height / innerHeight > 0.8) {
+      // Docked to a side: take the wider of the two columns beside it.
+      const leftW = r.left, rightW = innerWidth - r.right;
+      return leftW >= rightW
+        ? { x: 0, y: 0, w: leftW, h: innerHeight }
+        : { x: r.right, y: 0, w: rightW, h: innerHeight };
+    }
+    // Docked to an edge: take the taller of the two bands.
+    const topH = r.top, botH = innerHeight - r.bottom;
+    return topH >= botH
+      ? { x: 0, y: 0, w: innerWidth, h: topH }
+      : { x: 0, y: r.bottom, w: innerWidth, h: botH };
+  }
+
+  /* Scratch for solving the framing. A second camera rather than the real
+   * one, because this projects the board several times per frame to find out
+   * what a given distance actually shows, and the real camera is mid-blend. */
+  const probe = new THREE.PerspectiveCamera();
+  const corner = new THREE.Vector3();
+  const CORNERS = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]];
+  const box = { x: 0, y: 0, w: 0, h: 0 };
+  // Fill the band to here and no further, leaving a margin either side.
+  const FILL = 0.88;
+
+  /** Stand `dist` back, aiming so the board lands at NDC (cx, cy). */
+  function place(b, g, dist, cx, cy) {
+    pos.copy(w).addScaledVector(n, dist);
+    // Slightly above centre, so it reads as rising to meet the board rather
+    // than hovering in front of it.
+    pos.y = w.y + g.height * 0.08;
+
+    const half = Math.tan((camera.fov * Math.PI) / 360);
+    const viewH = 2 * dist * half;
+    const viewW = viewH * camera.aspect;
+
+    /* Aiming at the board puts it dead centre, so to move it to (cx, cy) the
+     * aim goes the other way by the same amount — in the camera's own basis,
+     * because the tilt above means the world axes are not the screen axes. */
+    look.copy(w);
+    fwd.copy(w).sub(pos).normalize();
+    right.crossVectors(fwd, UP).normalize();
+    up.crossVectors(right, fwd).normalize();
+    look.addScaledVector(right, -cx * viewW * 0.5);
+    look.addScaledVector(up, -cy * viewH * 0.5);
+  }
+
+  /** Where the board's corners actually land on screen, from pos/look. */
+  function project(b, g) {
+    probe.fov = camera.fov;
+    probe.aspect = camera.aspect;
+    probe.near = camera.near;
+    probe.far = camera.far;
+    probe.position.copy(pos);
+    probe.up.copy(UP);
+    probe.lookAt(look);
+    probe.updateMatrixWorld(true);
+    probe.updateProjectionMatrix();
+
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const [u, t] of CORNERS) {
+      corner.set(u * g.width, t * g.height, 0);
+      b.mesh.localToWorld(corner);
+      corner.project(probe);
+      const x = (corner.x * 0.5 + 0.5) * innerWidth;
+      const y = (-corner.y * 0.5 + 0.5) * innerHeight;
+      if (x < x0) x0 = x;
+      if (x > x1) x1 = x;
+      if (y < y0) y0 = y;
+      if (y > y1) y1 = y;
+    }
+    box.x = x0; box.y = y0; box.w = x1 - x0; box.h = y1 - y0;
+  }
+
+  /**
+   * Where to stand to see a board square on, whole, and beside the panel.
+   *
+   * Solved by projection rather than arithmetic, because the arithmetic is
+   * wrong in a way that is hard to see coming. Pushing the board above a
+   * bottom sheet tilts the camera about sixteen degrees, and a plane viewed
+   * off-axis keystones: it projects wider than its own width divided by the
+   * field of view says it should. A closed form with a fudge factor gave a
+   * board that filled the phone edge to edge with no margin at all.
+   *
+   * So each pass places the camera, projects the four corners, and reads off
+   * how much of the band the board really covers and where it really landed.
+   * Three passes is plenty — the distance term converges geometrically —
+   * and the answer is exact whatever the tilt does.
+   */
+  function framing(b) {
+    b.mesh.getWorldPosition(w);
+    b.mesh.getWorldQuaternion(q);
+    n.set(0, 0, 1).applyQuaternion(q);
+    const g = b.mesh.geometry.parameters;
+
+    const v = visible();
+    const fracW = Math.max(0.3, v.w / innerWidth);
+    const fracH = Math.max(0.3, v.h / innerHeight);
+    const half = Math.tan((camera.fov * Math.PI) / 360);
+
+    // Where the middle of the band is, in normalised device coordinates.
+    const cx0 = (2 * (v.x + v.w / 2)) / innerWidth - 1;
+    const cy0 = 1 - (2 * (v.y + v.h / 2)) / innerHeight;
+
+    // A first guess, square on, which the passes below correct.
+    let dist = Math.max(g.height / fracH, (g.width / camera.aspect) / fracW) / (2 * half);
+    let cx = cx0, cy = cy0;
+
+    for (let i = 0; i < 3; i++) {
+      place(b, g, dist, cx, cy);
+      project(b, g);
+      const fill = Math.max(box.w / v.w, box.h / v.h);
+      if (!(fill > 0.0001)) break;
+      // Landed off the mark: take the error out of the aim.
+      cx -= (2 * (box.x + box.w / 2)) / innerWidth - 1 - cx0;
+      cy -= 1 - (2 * (box.y + box.h / 2)) / innerHeight - cy0;
+      dist *= fill / FILL;
+    }
+    place(b, g, dist, cx, cy);
+  }
+
+  return {
+    get open() { return !!board; },
+    show(b) { board = b; want = 1; framing(b); },
+    hide() { want = 0; board = null; },
+    aim(dt, outPos, outLook) {
+      if (!board && k <= 0.001) return;
+      k += (want - k) * Math.min(1, dt * 3.2);
+      // Boards turn over while you are looking at one; re-aim every frame so
+      // the framing stays true rather than drifting off the panel.
+      if (board) framing(board);
+      outPos.lerp(pos, k);
+      outLook.lerp(look, k);
+    },
+  };
+})();
+
+const lookPanel = (() => {
+  /* The markup and the styles for this are already in the document: #look,
+   * the sheet, the picture, the list of pieces, the shop button. Somebody
+   * scaffolded it and never wired it up.
+   *
+   * So this drives that, rather than building a second panel over the top.
+   * The first attempt did the latter and appended its own <aside id="look">,
+   * which collided with the real one — getElementById returned the inert
+   * original, the visible panel was the wrong one, and none of the existing
+   * styling applied. Worth remembering: an id in the markup is an interface.
+   */
+  const el = document.getElementById("look");
+  if (!el) return { open: () => false, close() {}, get isOpen() { return false; } };
+
+  const img = document.getElementById("look-img");
+  const who = document.getElementById("look-who");
+  const head = document.getElementById("look-head");
+  const sub = document.getElementById("look-sub");
+  const pieces = document.getElementById("look-pieces");
+  const empty = document.getElementById("look-empty");
+  const shop = document.getElementById("look-shop");
+  const out = document.getElementById("look-out");
+
+  let house = null, opener = null;
+
+  function close() {
+    if (el.dataset.on !== "1") return;
+    el.dataset.on = "0";
+    el.setAttribute("aria-hidden", "true");
+    delete document.body.dataset.look;
+    lookView.hide();
+    if (opener && typeof opener.focus === "function") opener.focus({ preventScroll: true });
+    opener = null;
+  }
+
+  out.addEventListener("click", close);
+  // The scrim is the rest of the screen: clicking the street closes it.
+  el.addEventListener("click", (e) => { if (e.target === el) close(); });
+  addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && el.dataset.on === "1") { e.preventDefault(); close(); }
+  });
+  shop.addEventListener("click", () => {
+    const slug = house && house.slug;
+    close();
+    if (slug) storeMode.enterBySlug(slug);
+  });
+
+  /** One row: the photograph, the name and sizes, the price. */
+  function row(item) {
+    const a = document.createElement("a");
+    a.className = "piece";
+    a.href = SITE + "/products/" + item.id;
+    a.target = "_blank";
+    a.rel = "noopener";
+
+    const thumb = document.createElement("img");
+    thumb.src = item.image;
+    thumb.alt = "";
+    thumb.loading = "lazy";
+
+    const text = document.createElement("span");
+    const name = document.createElement("b");
+    // textContent, not innerHTML: these names come from the admin, and a
+    // product called "Tee <3" should render, not execute.
+    name.textContent = item.name;
+    const note = document.createElement("i");
+    note.textContent = (item.sizes && item.sizes.length)
+      ? item.sizes.join("  ")
+      : (item.catName || "");
+    text.append(name, note);
+
+    const price = document.createElement("em");
+    price.textContent = "$" + Number(item.price).toFixed(2);
+
+    a.append(thumb, text, price);
+    return a;
+  }
+
+  function open(board, from) {
+    const c = board && board.creative;
+    if (!c || !c.brand) return false;
+
+    const look = c.kind === "look" ? c.look : null;
+    // A product card is shoppable too; it is simply a look of one garment.
+    const items = look ? (look.products || []) : (c.kind === "product" ? [c.product] : []);
+    if (!look && !items.length) return false;
+
+    house = c.brand;
+    opener = from || null;
+
+    img.src = look ? look.image : items[0].image;
+    img.alt = look ? (look.headline || house.name) : items[0].name;
+    who.textContent = house.name;
+    head.textContent = look ? (look.headline || house.name) : items[0].name;
+    sub.textContent = look ? (look.subhead || house.note || "") : (house.note || "");
+
+    pieces.textContent = "";
+    for (const item of items) pieces.append(row(item));
+    /* Sold out is a real answer, not an empty list. Products drop out of a
+     * look when they are unpublished or out of stock, so the picture can
+     * outlive the things in it. */
+    empty.hidden = items.length > 0;
+
+    shop.textContent = "Step inside " + house.name;
+
+    el.dataset.on = "1";
+    el.setAttribute("aria-hidden", "false");
+    document.body.dataset.look = "1";
+    lookView.show(board);
+    out.focus({ preventScroll: true });
+    return true;
+  }
+
+  return { open, close, get isOpen() { return el.dataset.on === "1"; } };
+})();
+
 // ## 22  FRAME LOOP
 
 const clock = new THREE.Clock();
@@ -6233,6 +7067,9 @@ function step(dt, t, p) {
   } else {
     PATH.getPointAt(p, camPos);
     LOOK.getPointAt(p, camLook);
+    // Laid over the path rather than replacing it, so closing the panel
+    // simply unwinds and a scroll mid-view is never fought.
+    lookView.aim(dt, camPos, camLook);
   }
 
   if (!QUALITY.still) {
@@ -6392,6 +7229,22 @@ document.addEventListener("visibilitychange", () => {
 }
 
 // ## 24  STARTUP
+
+/* The district always opens at the dome.
+ *
+ * The browser's default is `scrollRestoration = "auto"`, which puts a
+ * returning visitor back at the pixel offset they left on. For an ordinary
+ * document that is a kindness. Here the scroll offset *is* the camera, so a
+ * reload silently teleported you into the middle of the street — landing
+ * beside Bape and Chrome Hearts, which reads as the page shoving you
+ * somewhere you did not ask to go. Reproduced at y=1138 on reload.
+ *
+ * A deep link is different: /index.html#godspeed is a request for a specific
+ * shop, and the router in section 21 handles that after boot. Only the
+ * restore-by-accident case is suppressed.
+ */
+if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+if (!location.hash) scrollTo(0, 0);
 
 readScroll();
 scrollEased = scrollTarget;
@@ -8255,7 +9108,7 @@ window.DD = { THREE, scene, camera, renderer, composer, C, BRANDS, PATH, LOOK,
               // Place and render the scene at a scroll position without the
               // rAF loop; works in a backgrounded tab, where goTo does not.
               step: (v) => { scrollEased = v; step(0.016, clock.elapsedTime, v); },
-              doors, boards,
+              doors, boards, lookPanel, lookView,
               route: { houseInHash, openFromHash },
               // Getters, both: section 27 builds these several thousand
               // lines below this object and a plain reference is a
@@ -9766,6 +10619,7 @@ storeMode = (() => {
    * again.
    */
   let catalogue = null, catalogueP = null, catalogueState = "idle", catalogueAt = 0;
+  let catalogueLooks = {};
   function loadCatalogue(opts = {}) {
     if (catalogueP && !opts.fresh) return catalogueP;
     // A refresh must not blank the shelf into skeletons. Only the first
@@ -9780,6 +10634,9 @@ storeMode = (() => {
       .then(({ ok, j }) => {
         if (!ok) throw new Error(j && j.error ? j.error : "catalogue unavailable");
         catalogue = j.brands || {};
+        // Campaign artwork for the hoardings, published from Brand artwork in
+        // the admin. Absent on an older deployment, which is why it defaults.
+        catalogueLooks = j.looks || {};
         catalogueAt = Date.now();
         catalogueState = j.configured === false ? "unconfigured" : "ready";
         return catalogue;
@@ -10625,7 +11482,7 @@ storeMode = (() => {
     try {
       await loadCatalogue({ fresh: true, bust: opts.bust });
       // Whatever just changed, the boards outside are advertising it too.
-      boards.setCatalogue(catalogue);
+      boards.setCatalogue(catalogue, catalogueLooks);
     } catch {
       return false;                       // the shelf already says so
     }
@@ -10705,7 +11562,7 @@ storeMode = (() => {
    * failure leaves every board showing its house's logo, which is exactly
    * what they showed before this existed. */
   loadCatalogue()
-    .then((c) => boards.setCatalogue(c))
+    .then((c) => boards.setCatalogue(c, catalogueLooks))
     .catch(() => {});
 
   /** Loads a house's stock into the listing, the chips and the sections. */

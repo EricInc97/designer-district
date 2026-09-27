@@ -260,7 +260,13 @@ export async function saveBrandMedia(
 
   const payload = {
     brand_id: brandId,
-    kind: formData.get("kind") === "hero" ? "hero" : "lookbook",
+    /* Whitelist, not a two-way switch.
+     * This read `=== "hero" ? "hero" : "lookbook"`, which silently turned
+     * every other value into a band — so adding the hoarding option to
+     * the form would have looked like it worked and saved the wrong kind. */
+    kind: ["hero", "board"].includes(String(formData.get("kind")))
+      ? String(formData.get("kind"))
+      : "lookbook",
     image_url: imageUrl,
     headline: text(formData, "headline"),
     subhead: text(formData, "subhead"),
