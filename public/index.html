@@ -355,92 +355,63 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
    a tap target is a real button with a real focus ring. */
 .pins { position: fixed; inset: 0; pointer-events: none; }
 
-/* The cue that a hoarding opens.
+/* The cue that a hoarding is advertising, and the way to go and look at it.
  *
- * The brief was a "click here" that is not in your face, which rules out a
- * label: words on the artwork compete with the artwork, and there is no
- * wording that is honest on a phone and on a desktop at once. So it is a
- * ring with a dot in it, the size of a fingertip, sitting on the board it
- * belongs to. It reads as a hotspot without saying anything, and it stops
- * appearing once the visitor has opened one, because by then they know.
+ * This started as a hint — a ring that said "this opens" and then retired
+ * itself once the visitor had opened one. That was the wrong shape for the
+ * job. The screens are fifteen metres up and read at an angle, so the thing
+ * a visitor needs is not to be told once that boards are tappable; it is a
+ * standing, visible way to get to whichever board is advertising right now.
+ *
+ * So it is a control, it carries the name of the house, and it stays. A
+ * fingertip-sized target on the board itself, dark glass so it reads over a
+ * bright advert and a pale sky alike.
  */
 .hots { position: fixed; inset: 0; pointer-events: none; }
-
-/* "There is something above you."
- *
- * The screens closing the street sit twenty-two metres up and project a
- * third of a frame off the top of the phone, so from the pavement they do
- * not exist. This is the way to be shown them, and the brief for it was a
- * cue that is not in your face: so it is the same ring the hoardings use,
- * with three words beside it, low-contrast on glass, at the bottom of the
- * screen where it cannot cover what it is pointing at. */
-.uplook {
-  position: fixed; left: 50%; transform: translateX(-50%);
-  bottom: calc(18px + var(--sab));
-  z-index: 3;
-  display: flex; align-items: center; gap: .55rem;
-  padding: .5rem .95rem .5rem .6rem;
-  border: 0; border-radius: 999px;
-  background: rgba(14,14,16,.52);
-  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-  color: rgba(255,255,255,.92);
-  font: inherit; font-size: .72rem; letter-spacing: .08em; text-transform: uppercase;
-  cursor: pointer; pointer-events: auto;
-  opacity: 0; transition: opacity .5s ease;
-}
-.uplook[data-on="1"] { opacity: 1; }
-.uplook:hover, .uplook:focus-visible { background: rgba(14,14,16,.72); }
-.uplook .ring {
-  width: 22px; height: 22px; border-radius: 999px;
-  border: 1.5px solid rgba(255,255,255,.8);
-  display: grid; place-items: center; position: relative;
-}
-/* A chevron in the ring, pointing the way the camera is about to go. */
-.uplook .ring::before {
-  content: ""; width: 6px; height: 6px;
-  border-left: 1.5px solid #fff; border-top: 1.5px solid #fff;
-  transform: rotate(45deg) translate(1px, 1px);
-}
-.uplook .ring::after {
-  content: ""; position: absolute; inset: -1.5px;
-  border-radius: 999px; border: 1.5px solid rgba(255,255,255,.5);
-  animation: hotRing 2.6s ease-out infinite;
-}
-.uplook[data-up="1"] .ring::before { transform: rotate(-135deg) translate(-1px, -1px); }
-.uplook[data-up="1"] .ring::after { animation: none; opacity: 0; }
-@media (prefers-reduced-motion: reduce) {
-  .uplook .ring::after { animation: none; opacity: .35; }
-}
 .hot {
   position: absolute; top: 0; left: 0;
-  width: 34px; height: 34px; margin: -17px 0 0 -17px;
-  border-radius: 999px;
-  border: 1.5px solid rgba(255,255,255,.82);
-  box-shadow: 0 0 0 1px rgba(0,0,0,.28), 0 2px 10px rgba(0,0,0,.3);
+  transform-origin: 0 0;
+  display: flex; align-items: center; gap: .45rem;
+  padding: .3rem .7rem .3rem .32rem;
+  border: 0; border-radius: 999px;
+  background: rgba(10,10,12,.62);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 2px 14px rgba(0,0,0,.34), inset 0 0 0 1px rgba(255,255,255,.18);
+  color: #fff; font: inherit; font-size: .62rem; font-weight: 600;
+  letter-spacing: .1em; text-transform: uppercase; white-space: nowrap;
+  cursor: pointer; pointer-events: auto;
+  opacity: 0; transition: opacity .4s ease, background .2s ease;
+}
+.hot:hover, .hot:focus-visible { background: rgba(10,10,12,.86); }
+.hot .dot {
+  position: relative; flex: none;
+  width: 18px; height: 18px; border-radius: 999px;
+  border: 1.5px solid rgba(255,255,255,.9);
   display: grid; place-items: center;
-  opacity: 0; transition: opacity .45s ease;
-  will-change: transform, opacity;
 }
-.hot::before {
-  content: ""; width: 6px; height: 6px; border-radius: 999px;
-  background: rgba(255,255,255,.95);
-  box-shadow: 0 0 0 1px rgba(0,0,0,.25);
+.hot .dot::before {
+  content: ""; width: 5px; height: 5px; border-radius: 999px; background: #fff;
 }
-/* The slow part: one breath every two and a half seconds, on the ring only.
-   A pulse on the whole marker reads as an alert; on the ring it reads as a
-   surface waiting to be touched. */
-.hot::after {
+/* One slow breath. On the ring only: a pulse on the whole chip reads as an
+   alert, on the ring it reads as a surface waiting to be touched. */
+.hot .dot::after {
   content: ""; position: absolute; inset: -1.5px;
-  border-radius: 999px; border: 1.5px solid rgba(255,255,255,.55);
+  border-radius: 999px; border: 1.5px solid rgba(255,255,255,.6);
   animation: hotRing 2.6s ease-out infinite;
 }
 @keyframes hotRing {
-  0%   { transform: scale(1);    opacity: .55; }
-  70%  { transform: scale(1.45); opacity: 0; }
-  100% { transform: scale(1.45); opacity: 0; }
+  0%   { transform: scale(1);    opacity: .6; }
+  70%  { transform: scale(1.5);  opacity: 0; }
+  100% { transform: scale(1.5);  opacity: 0; }
+}
+/* On a phone the name is dropped: there is no room for it beside the
+   artwork, and the ring alone is still a target. */
+@media (max-width: 720px) {
+  .hot { padding: .3rem; }
+  .hot .lbl { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .hot::after { animation: none; opacity: .4; }
+  .hot .dot::after { animation: none; opacity: .4; }
 }
 
 .pin {
@@ -5899,6 +5870,9 @@ const boards = (() => {
   function bezel(spec, depth = 0.34) {
     const g = new THREE.BoxGeometry(spec.w + 0.28, spec.h + 0.28, depth);
     g.translate(0, 0, -depth / 2 - 0.02);
+    // Tip first, then turn: the same order the panel itself uses, or the
+    // frame parts company with the screen it is supposed to be holding.
+    if (spec.pitch) g.rotateX(-spec.pitch);
     if (spec.tilt) g.rotateY(spec.tilt);
     g.translate(spec.x, spec.y, spec.z);
     return g;
@@ -5909,6 +5883,7 @@ const boards = (() => {
     const h = spec.y - spec.h / 2 - spec.foot + 0.3;
     const g = new THREE.BoxGeometry(thick, h, thick);
     g.translate(lx, (spec.foot + spec.y - spec.h / 2) / 2 + 0.15 - spec.y, -back);
+    if (spec.pitch) g.rotateX(-spec.pitch);
     if (spec.tilt) g.rotateY(spec.tilt);
     g.translate(spec.x, spec.y, spec.z);
     return g;
@@ -5949,7 +5924,14 @@ const boards = (() => {
 
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(spec.w, spec.h), mat);
     mesh.position.set(spec.x, spec.y, spec.z);
+    /* Yaw first, then tip. YXZ, because the tip has to happen about the
+     * board's own horizontal after it has been turned toward the approach;
+     * in the default order it would happen about the world axis and skew
+     * the panel instead of leaning it. */
+    mesh.rotation.order = "YXZ";
     if (spec.tilt) mesh.rotation.y = spec.tilt;
+    // Leaning down at the pavement rather than out at the horizon.
+    if (spec.pitch) mesh.rotation.x = -spec.pitch;
     // Picked as a hoarding, not as the shopfront it is bolted to.
     mesh.userData.hoarding = true;
     parent.add(mesh);
@@ -6026,10 +6008,26 @@ const boards = (() => {
    * forty-seven degrees it stays outside the line the palms are planted on.
    * Since turning them is what made these legible at all, most of the
    * street gets one. */
+  /* Where each house hangs its screens.
+   *
+   * This used to be mostly roof signs, and measured from the walk that was
+   * the reason the advertising could not be seen: a roof tower sits twenty
+   * metres up, which at the twenty-metre distance you pass it is thirty-four
+   * degrees above the horizon, and the top of the frame is twenty-six. All
+   * sixteen shoppable boards sat above the eye line, fourteen had their top
+   * edge off the top of the screen at their best moment, and five had their
+   * *centre* off it. They were not hard to see; they were out of shot.
+   *
+   * So the advertising is on the facades now, in the band from about seven
+   * to thirteen metres, which is fifteen degrees up rather than thirty-four.
+   * Roof signs stay on four buildings, where they do the job they are
+   * actually good at — giving the street a skyline from a long way off —
+   * and carry the house logo rather than a campaign.
+   */
   const PLAN = [
-    "roofTower",  "roofBanner", "ticker", "roofTower",  "twin",
-    "roofBanner", "roofTower",  "ticker", "roofTower",  "roofBanner",
-    "twin",       "roofBanner", "roofTower", "ticker",  "banner",
+    "facadeTower", "banner",      "ticker",      "facadeTower", "twin",
+    "banner",      "facadeTower", "ticker",      "twin",        "roofBanner",
+    "twin",        "banner",      "facadeTower", "ticker",      "banner",
   ];
 
   /* Turned to face the way you are walking, which is the whole difference
@@ -6056,7 +6054,10 @@ const boards = (() => {
    * the rotation follows it: both walls turn to look back up the street.
    */
   function layout(kind, H, side) {
-    const lo = 7.9, hi = H - 0.45;         // the clear band on the facade
+    // Starts lower than it did. 7.9 cleared the shopfront glazing with room
+    // to spare; 6.6 still clears it and buys a metre and a third of
+    // legibility on every board in the band.
+    const lo = 6.6, hi = H - 0.45;         // the clear band on the facade
     const band = hi - lo;
     // Far enough off the wall that the swung panel clears the building.
     const clear = (w, tilt) => FACE_Z + Math.abs(Math.sin(tilt)) * w / 2 + 0.25;
@@ -6089,6 +6090,20 @@ const boards = (() => {
         // Left flat on purpose. A thirteen-metre strip turned at an angle
         // stops being a band running along the building and becomes a plank.
         return [{ w: 13.2, h: 0.95, x: 0, y: lo + 0.62, z: FACE_Z, ticker: true }];
+      case "facadeTower": {
+        /* A pair of portrait screens on the wall itself.
+         *
+         * This is the roof tower brought down to where it can be read: same
+         * shape, mounted in the facade band, turned toward the approach and
+         * tipped down so it faces the pavement rather than the far horizon.
+         * Narrow enough that the turn does not reach into the street. */
+        const h = clamp(band * 0.62, 3.6, 6.4);
+        const w = 4.6, tilt = side * 0.34, z = clear(w, tilt);
+        return [
+          { w, h, x: -3.6, y: lo + h / 2 + 0.4, z, tilt, pitch: 0.12 },
+          { w, h, x:  3.6, y: lo + h / 2 + 0.4, z, tilt, pitch: 0.12 },
+        ];
+      }
       case "roofTower":
         return [{ w: 5.2, h: 7.6, x: -2.4, y: H + 4.2, z: ROOF_Z, foot: H, tilt: side * 0.82 }];
       case "roofBanner":
@@ -7192,22 +7207,54 @@ const endLook = (() => {
  */
 const boardHints = (() => {
   const wrap = document.getElementById("hots");
-  if (!wrap) return { place() {} };
+  if (!wrap) return { place() {}, learn() {} };
 
-  const MAX = 3;
+  /* Two, not three. These share the screen with the waypoint markers, and
+   * six labels over one street is the clutter that was just taken out of
+   * it. Two is enough to show that more than one advert is running. */
+  const MAX = 2;
   const pool = [];
-  let learned = false;
+  // Where the chips landed this frame, so the waypoints can keep off them.
+  let boxes = [];
 
   const pos = new THREE.Vector3();
   const nrm = new THREE.Vector3();
   const toCam = new THREE.Vector3();
   const quat = new THREE.Quaternion();
+  const hop = new THREE.Vector3();
 
-  function marker(i) {
+  /** One chip, reused. Each carries the board it currently points at. */
+  function chipAt(i) {
     while (pool.length <= i) {
-      const el = document.createElement("div");
+      const el = document.createElement("button");
+      el.type = "button";
       el.className = "hot";
       el.style.display = "none";
+      el.innerHTML = '<span class="dot" aria-hidden="true"></span><span class="lbl"></span>';
+      /* Going to a board is two moves: travel down the street to where it
+       * is, then open it. Travelling first matters — opening from the far
+       * end of the street would blend the camera across sixty metres and
+       * arrive with the street smeared behind the panel. */
+      el.addEventListener("click", () => {
+        const b = el._board;
+        if (!b) return;
+        sound.click();
+        /* Where on the walk that board stands. TRAVEL turns a world z into a
+         * scroll position and LEAD is the same offset the waypoints use, so
+         * this stops in front of the board rather than level with it. */
+        b.mesh.getWorldPosition(hop);
+        const p = TRAVEL(hop.z + LEAD);
+        /* Travel first, then open. Opening from the far end of the street
+         * would blend the camera across sixty metres with the panel already
+         * up, which arrives with the street smeared behind it. Close enough
+         * already and there is nothing to travel. */
+        if (Math.abs(p - scrollTarget) > 0.012) {
+          travelTo(p);
+          setTimeout(() => lookPanel.open(b, el), 820);
+        } else {
+          lookPanel.open(b, el);
+        }
+      });
       wrap.append(el);
       pool.push(el);
     }
@@ -7215,15 +7262,16 @@ const boardHints = (() => {
   }
 
   return {
-    /** Called once the visitor has opened a board; the cues never return. */
-    learn() {
-      if (learned) return;
-      learned = true;
-      for (const el of pool) { el.style.display = "none"; el.style.opacity = "0"; }
-    },
+    // Kept so older callers do not throw; the cues no longer retire, because
+    // they are the way to reach a board rather than a one-off hint.
+    learn() {},
+
+    /** The chips' screen boxes this frame. The waypoints defer to these. */
+    rects() { return boxes; },
 
     place(visible) {
-      if (learned || !visible || !boards) {
+      boxes = [];
+      if (!visible || !boards) {
         for (const el of pool) if (el.style.display !== "none") el.style.display = "none";
         return;
       }
@@ -7239,46 +7287,65 @@ const boardHints = (() => {
         toCam.copy(camera.position).sub(pos);
         const dist = toCam.length();
         // Edge-on boards are not worth pointing at: you cannot read them and
-        // the ring would sit on a sliver.
+        // the chip would sit on a sliver.
         const facing = toCam.normalize().dot(nrm);
-        if (facing < 0.35) continue;
+        if (facing < 0.3) continue;
 
         pos.project(camera);
         if (pos.z <= -1 || pos.z >= 1) continue;
-        if (Math.abs(pos.x) > 0.86 || Math.abs(pos.y) > 0.78) continue;
+        if (Math.abs(pos.x) > 0.9 || Math.abs(pos.y) > 0.86) continue;
 
-        /* How big it is on screen, roughly: the board's height against the
-         * frame's at this distance. Below about a twelfth of the screen a
-         * ring is pointing at something too small to be worth the trip. */
+        // How big it is on screen, roughly: the board's height against the
+        // frame's at this distance.
         const g = b.mesh.geometry.parameters;
         const frameH = 2 * dist * Math.tan((camera.fov * Math.PI) / 360);
         const share = g.height / frameH;
-        if (share < 0.085) continue;
+        if (share < 0.06) continue;
 
         want.push({
+          b,
           x: (pos.x * 0.5 + 0.5) * viewW,
           y: (-pos.y * 0.5 + 0.5) * viewH,
           score: share * facing,
+          name: (b.house && b.house.name) || (c.brand && c.brand.name) || "",
         });
       }
 
-      // Biggest and squarest-on first.
-      want.sort((a, b) => b.score - a.score);
-      const take = want.slice(0, MAX);
+      // Biggest and squarest-on first, and never two on the same spot.
+      want.sort((p, q) => q.score - p.score);
+      const taken = [];
+      const shown = [];
+      for (const w of want) {
+        if (shown.length >= MAX) break;
+        if (taken.some((t) => Math.abs(t.x - w.x) < 130 && Math.abs(t.y - w.y) < 44)) continue;
+        taken.push(w);
+        shown.push(w);
+      }
 
-      take.forEach((w, i) => {
-        const el = marker(i);
-        el.style.transform = `translate3d(${Math.round(w.x)}px, ${Math.round(w.y)}px, 0)`;
+      shown.forEach((w, i) => {
+        const el = chipAt(i);
+        el._board = w.b;
+        const lbl = el.querySelector(".lbl");
+        if (lbl.textContent !== w.name) lbl.textContent = w.name;
+        el.setAttribute("aria-label", `Shop the ${w.name} advert`);
+        // Anchored on its own middle, so it sits on the board rather than
+        // hanging off the corner of it.
+        el.style.transform =
+          `translate3d(${Math.round(w.x)}px, ${Math.round(w.y)}px, 0) translate(-50%, -50%)`;
+        // Measured after placing, so the box is the real one including the
+        // label, which is only as wide as the house name it happens to hold.
+        const r = el.getBoundingClientRect();
+        if (r.width) boxes.push({ l: r.left - 6, r: r.right + 6, t: r.top - 6, b: r.bottom + 6 });
         if (el.style.display === "none") {
-          el.style.display = "grid";
-          // Next frame, so the transition has something to run from.
+          el.style.display = "flex";
           requestAnimationFrame(() => { el.style.opacity = "1"; });
         }
       });
-      for (let i = take.length; i < pool.length; i++) {
+      for (let i = shown.length; i < pool.length; i++) {
         if (pool[i].style.display !== "none") {
           pool[i].style.opacity = "0";
           pool[i].style.display = "none";
+          pool[i]._board = null;
         }
       }
     },
@@ -7352,7 +7419,12 @@ function placePins(active, visible) {
   // Nearest first, but never at the cost of the house the card is showing.
   want.sort((a, b) => (a.i === active ? -1 : b.i === active ? 1 : a.dist - b.dist));
 
-  const placed = [];
+  /* Seeded with the advert chips, which are placed first and win.
+   *
+   * A waypoint says "this is Amiri"; a chip says "Amiri is advertising
+   * this, and here is the way to it". When only one of the two fits, the
+   * chip is the more useful thing to keep. */
+  const placed = boardHints.rects().slice();
   const keep = new Set();
   for (const w of want) {
     // The marker's box, anchored bottom-centre, with a little air around it
@@ -7890,10 +7962,12 @@ function step(dt, t, p) {
     hintEl.style.opacity = p < 0.02 ? "0.75" : "0";
 
     if (inStreet) showBrand(readableBrand());
-    placePins(shownBrand, inStreet);
-    // Not gated on `inStreet`: the end screens stand past the last
-    // shopfront, which is exactly where the visitor is told to look.
+    /* Chips first, then waypoints: the waypoints read the chips' boxes to
+     * keep off them, so the order here is load-bearing. Not gated on
+     * `inStreet` either — the end screens stand past the last shopfront,
+     * which is exactly where the visitor is told to look. */
     boardHints.place(true);
+    placePins(shownBrand, inStreet);
     // The last stretch of the walk, where the crown block is what is left
     // to see. Slightly before the end copy, so it is already there.
     endLook.sync(p >= BEATS.end[0] - 0.04);
