@@ -355,6 +355,94 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
    a tap target is a real button with a real focus ring. */
 .pins { position: fixed; inset: 0; pointer-events: none; }
 
+/* The cue that a hoarding opens.
+ *
+ * The brief was a "click here" that is not in your face, which rules out a
+ * label: words on the artwork compete with the artwork, and there is no
+ * wording that is honest on a phone and on a desktop at once. So it is a
+ * ring with a dot in it, the size of a fingertip, sitting on the board it
+ * belongs to. It reads as a hotspot without saying anything, and it stops
+ * appearing once the visitor has opened one, because by then they know.
+ */
+.hots { position: fixed; inset: 0; pointer-events: none; }
+
+/* "There is something above you."
+ *
+ * The screens closing the street sit twenty-two metres up and project a
+ * third of a frame off the top of the phone, so from the pavement they do
+ * not exist. This is the way to be shown them, and the brief for it was a
+ * cue that is not in your face: so it is the same ring the hoardings use,
+ * with three words beside it, low-contrast on glass, at the bottom of the
+ * screen where it cannot cover what it is pointing at. */
+.uplook {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(18px + var(--sab));
+  z-index: 3;
+  display: flex; align-items: center; gap: .55rem;
+  padding: .5rem .95rem .5rem .6rem;
+  border: 0; border-radius: 999px;
+  background: rgba(14,14,16,.52);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  color: rgba(255,255,255,.92);
+  font: inherit; font-size: .72rem; letter-spacing: .08em; text-transform: uppercase;
+  cursor: pointer; pointer-events: auto;
+  opacity: 0; transition: opacity .5s ease;
+}
+.uplook[data-on="1"] { opacity: 1; }
+.uplook:hover, .uplook:focus-visible { background: rgba(14,14,16,.72); }
+.uplook .ring {
+  width: 22px; height: 22px; border-radius: 999px;
+  border: 1.5px solid rgba(255,255,255,.8);
+  display: grid; place-items: center; position: relative;
+}
+/* A chevron in the ring, pointing the way the camera is about to go. */
+.uplook .ring::before {
+  content: ""; width: 6px; height: 6px;
+  border-left: 1.5px solid #fff; border-top: 1.5px solid #fff;
+  transform: rotate(45deg) translate(1px, 1px);
+}
+.uplook .ring::after {
+  content: ""; position: absolute; inset: -1.5px;
+  border-radius: 999px; border: 1.5px solid rgba(255,255,255,.5);
+  animation: hotRing 2.6s ease-out infinite;
+}
+.uplook[data-up="1"] .ring::before { transform: rotate(-135deg) translate(-1px, -1px); }
+.uplook[data-up="1"] .ring::after { animation: none; opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .uplook .ring::after { animation: none; opacity: .35; }
+}
+.hot {
+  position: absolute; top: 0; left: 0;
+  width: 34px; height: 34px; margin: -17px 0 0 -17px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(255,255,255,.82);
+  box-shadow: 0 0 0 1px rgba(0,0,0,.28), 0 2px 10px rgba(0,0,0,.3);
+  display: grid; place-items: center;
+  opacity: 0; transition: opacity .45s ease;
+  will-change: transform, opacity;
+}
+.hot::before {
+  content: ""; width: 6px; height: 6px; border-radius: 999px;
+  background: rgba(255,255,255,.95);
+  box-shadow: 0 0 0 1px rgba(0,0,0,.25);
+}
+/* The slow part: one breath every two and a half seconds, on the ring only.
+   A pulse on the whole marker reads as an alert; on the ring it reads as a
+   surface waiting to be touched. */
+.hot::after {
+  content: ""; position: absolute; inset: -1.5px;
+  border-radius: 999px; border: 1.5px solid rgba(255,255,255,.55);
+  animation: hotRing 2.6s ease-out infinite;
+}
+@keyframes hotRing {
+  0%   { transform: scale(1);    opacity: .55; }
+  70%  { transform: scale(1.45); opacity: 0; }
+  100% { transform: scale(1.45); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hot::after { animation: none; opacity: .4; }
+}
+
 .pin {
   position: absolute;
   left: 0; top: 0;
@@ -727,7 +815,13 @@ body[data-look="1"] .sound {
  * across the middle of the advert you had just asked to look at. The panel
  * is its own piece of reading; everything else stands down for it.
  *
- * `.layer` only, never #look, which is deliberately outside it. */
+ * The same goes for raising the view to the end screens: the whole point
+ * of that move is to look at those boards, and "EVERYTHING, IN ONE PLACE."
+ * was landing across the middle of the crown.
+ *
+ * `.layer` only, never #look or the uplook control, both of which are
+ * deliberately outside it. */
+body[data-uplook="1"] .layer,
 body[data-look="1"] .layer {
   opacity: 0;
   /* visibility, not pointer-events.
@@ -741,6 +835,7 @@ body[data-look="1"] .layer {
 }
 /* Going away: fade, then hide. Coming back: show at once, then fade in. */
 .layer { transition: opacity .28s ease; }
+body[data-uplook="1"] .layer,
 body[data-look="1"] .layer {
   transition: opacity .28s ease, visibility 0s linear .28s;
 }
@@ -1147,6 +1242,11 @@ body[data-shopping="1"] .sound[data-state="prompt"]::after { animation: none; op
        house's colourway and mark. -->
   <div class="pins" id="pins" aria-label="Jump to a district"></div>
 
+  <!-- Quiet "this one opens" cues over the hoardings. Built in script,
+       one per board on screen, and never more than a few at a time. -->
+  <div class="hots" id="hots" aria-hidden="true"></div>
+
+
   <nav class="index" id="index" aria-label="Districts on this street"></nav>
   <p class="hint halo" id="hint">Scroll</p>
 
@@ -1211,6 +1311,17 @@ body[data-shopping="1"] .sound[data-state="prompt"]::after { animation: none; op
 </div>
 
 <!-- A hoarding, close up. Hidden until one is tapped. -->
+<!--
+  Outside `.layer`, like #look and for the same reason: raising the camera to
+  the end screens stands the over-scene copy down, and a control that lives
+  inside the thing it hides cannot be pressed again to come back. It was, and
+  it could not.
+-->
+<button class="uplook" id="uplook" type="button" hidden>
+  <span class="ring" aria-hidden="true"></span>
+  <span class="say">See the screens</span>
+</button>
+
 <div id="look" aria-hidden="true" role="dialog" aria-modal="true"
      aria-labelledby="look-head">
   <div class="sheet">
@@ -5164,6 +5275,49 @@ const boards = (() => {
     if (x.roundRect) x.roundRect(px, py, w, h, r);
     else x.rect(px, py, w, h);
   }
+
+  /**
+   * A rounded chip with a word in it, returning the width it took.
+   *
+   * Used for the size run and the scarcity flag on a product board. A size
+   * run set as plain grey text — "S   M   L   XL" — is the thing a price
+   * tag does, and at board scale it reads as four smudges; as chips it
+   * reads as a row of options, which is what it is.
+   */
+  function chip(x, label, px, py, h, face, opts) {
+    const o = opts || {};
+    const size = Math.round(h * 0.56);
+    x.font = `${o.weight || 700} ${size}px ${face}`;
+    const padX = Math.round(h * 0.42);
+    const w = Math.ceil(x.measureText(label).width) + padX * 2;
+    panelPath(x, px, py, w, h, h * 0.34);
+    if (o.fill) { x.fillStyle = o.fill; x.fill(); }
+    if (o.stroke) {
+      x.strokeStyle = o.stroke;
+      x.lineWidth = Math.max(1, h * 0.07);
+      x.stroke();
+    }
+    x.fillStyle = o.ink || "#111";
+    x.textAlign = "left";
+    x.textBaseline = "middle";
+    x.fillText(label, px + padX, py + h * 0.54);
+    return w;
+  }
+
+  /**
+   * What the stock number is worth saying out loud.
+   *
+   * Only when it is genuinely short. A chip reading "IN STOCK" on everything
+   * is wallpaper, and inventing a rarity tier for a sock would be a lie
+   * printed three metres tall. Null means draw nothing.
+   */
+  function scarcity(pr) {
+    const n = pr.stock;
+    if (!Number.isFinite(n) || n <= 0) return { text: "SOLD OUT", hot: true };
+    if (n === 1) return { text: "LAST ONE", hot: true };
+    if (n <= 4) return { text: `ONLY ${n} LEFT`, hot: true };
+    return null;
+  }
   for (const b of BRANDS) fetchArt(b.slug, logoFor(b.slug));
   // The on-dark cuts, because a board is a black panel. The wordmark for
   // anything wider than it is tall and the square mark for the towers, which
@@ -5410,6 +5564,23 @@ const boards = (() => {
         fetchArt(keyOf(creative), thumbFor(pr.image), pr.image);
       }
 
+      /* A flag across the corner of the tile when the shelf is nearly out.
+       *
+       * This is the one number on the board that changes by itself, and it
+       * is the one that makes a hoarding worth a second look rather than
+       * wallpaper. It is drawn from the real stock column and only when the
+       * stock is genuinely short — see `scarcity`. */
+      const flag = scarcity(pr);
+      if (flag) {
+        const ch = Math.max(12, Math.round(tile.h * 0.13));
+        x.save();
+        chip(x, flag.text, tile.x + tile.h * 0.06, tile.y + tile.h * 0.06, ch, face, {
+          fill: flag.hot ? "#b3261e" : "#1b1b1b",
+          ink: "#fff",
+        });
+        x.restore();
+      }
+
       // Whose shop, in the house's own artwork where we have it.
       const logo = art.get(b.slug);
       const cx = wide ? tile.x + tile.w + pad : pad;
@@ -5449,6 +5620,24 @@ const boards = (() => {
        * it was four grey pixels pretending to be information.
        */
       const small = QUALITY.light;
+
+      /* What kind of thing it is, over the name.
+       *
+       * One short word in the house's colour, which tells a passer-by
+       * whether this board is selling a jacket or a pair of socks before
+       * they have read the name. Portrait boards only: a wide strip has one
+       * line to spend and the name has to have it. */
+      if (!wide && !small && pr.catName) {
+        x.save();
+        x.globalAlpha = 0.62;
+        x.textAlign = "left";
+        x.textBaseline = "alphabetic";
+        const es = fitText(x, pr.catName.toUpperCase(), cw * 0.9, H * 0.042, 700, face);
+        x.fillText(pr.catName.toUpperCase(), cx, H * 0.645);
+        x.restore();
+        void es;
+      }
+
       const nameSize = wide ? H * (small ? 0.17 : 0.15) : H * (small ? 0.085 : 0.062);
       const lines = wrapAt(x, pr.name, cw, nameSize, 700, face, (wide || small) ? 1 : 2);
       let ty = wide ? H * 0.62 : H * (small ? 0.72 : 0.70);
@@ -5461,12 +5650,28 @@ const boards = (() => {
       x.fillText(price, cx, priceY);
       x.globalAlpha = 1;
 
+      /* The size run as chips, not as grey text.
+       *
+       * "S   M   L   XL" set small and faint was four smudges at board
+       * distance and told nobody anything. A row of outlined chips reads as
+       * a rack of options from much further away, and it is the detail that
+       * makes this an advertisement for something in a shop rather than a
+       * picture of a shirt. */
       if (!wide && !small && pr.sizes && pr.sizes.length) {
-        const sz = pr.sizes.join("   ");
-        x.globalAlpha = 0.58;
-        fitText(x, sz, cw, H * 0.045, 600, face);
-        x.fillText(sz, cx, priceY + H * 0.058);
-        x.globalAlpha = 1;
+        const ch = Math.max(11, Math.round(H * 0.052));
+        const gap = Math.round(ch * 0.28);
+        let sx = cx;
+        x.save();
+        for (const sz of pr.sizes) {
+          const w = chip(x, String(sz).toUpperCase(), sx, priceY + H * 0.022, ch, face, {
+            stroke: b.ink,
+            ink: b.ink,
+          });
+          sx += w + gap;
+          // Stop at the edge rather than running off it.
+          if (sx > cx + cw - ch) break;
+        }
+        x.restore();
       }
 
       ledOverlay(x, W, H);
@@ -6189,13 +6394,56 @@ const boards = (() => {
     return true;
   }
 
+  /**
+   * A stand-in plane covering the crown and its two flankers.
+   *
+   * The screens that close the street are twenty-two metres up, and from
+   * street level they project a third of a frame above the top of the
+   * screen and nearly two frames out to either side — measured. You cannot
+   * see them by looking, which is why there has to be a way to be shown
+   * them.
+   *
+   * Rather than write a second camera-framing routine for a group of
+   * boards, this is one invisible plane the size of all three, which the
+   * existing per-board framing then handles as if it were a single very
+   * wide hoarding. It is never rendered; it exists to be aimed at.
+   */
+  function endTarget() {
+    /* The crown carries no flag of its own — only the flankers are marked,
+     * and what the three have in common is belonging to no house. */
+    const group = panels.filter((b) => !b.house);
+    if (!group.length) return null;
+
+    const box = new THREE.Box3();
+    const tmp = new THREE.Box3();
+    for (const b of group) {
+      tmp.setFromObject(b.mesh);
+      box.union(tmp);
+    }
+    const mid = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+
+    const proxy = new THREE.Mesh(
+      new THREE.PlaneGeometry(Math.max(size.x, 1), Math.max(size.y, 1)),
+    );
+    proxy.position.copy(mid);
+    // Same way round as the boards it stands for.
+    proxy.quaternion.copy(group[0].mesh.getWorldQuaternion(new THREE.Quaternion()));
+    proxy.visible = false;
+    proxy.matrixAutoUpdate = false;
+    proxy.updateMatrix();
+    proxy.updateMatrixWorld(true);
+    scene.add(proxy);
+    return { mesh: proxy };
+  }
+
   // ?boards on the URL opens it on load, which is the quickest way in.
   if (new URLSearchParams(location.search).has("boards")) {
     requestAnimationFrame(() => preview(true));
   }
 
   return {
-    panels, tickers, setCatalogue, preview,
+    panels, tickers, setCatalogue, preview, endTarget,
     pickables: () => panels.map((b) => b.mesh),
     boardOf: (mesh) => panels.find((b) => b.mesh === mesh) || null,
 
@@ -6748,6 +6996,160 @@ addEventListener("scroll", () => {
 const pinPos = new THREE.Vector3();
 const pinFoot = new THREE.Vector3();
 
+/**
+ * The lift up to the screens that close the street.
+ *
+ * Reuses the board framing rather than writing a second one: the target is
+ * one invisible plane the size of the crown and both flankers, so "show me
+ * the end screens" is the same operation as "show me that hoarding".
+ *
+ * It rides the same blend as the look panel, which means it does not fight
+ * the scroll, and scrolling back up the street releases it on its own.
+ */
+const endLook = (() => {
+  const btn = document.getElementById("uplook");
+  if (!btn) return { sync() {}, get up() { return false; } };
+
+  let target = null, up = false;
+
+  function raise(on) {
+    if (on === up) return;
+    up = on;
+    btn.dataset.up = on ? "1" : "0";
+    btn.querySelector(".say").textContent = on ? "Back to the street" : "See the screens";
+    if (on) {
+      if (!target) target = boards.endTarget();
+      if (target) lookView.show(target);
+      document.body.dataset.uplook = "1";
+    } else {
+      lookView.hide();
+      delete document.body.dataset.uplook;
+    }
+  }
+
+  btn.addEventListener("click", () => raise(!up));
+
+  return {
+    get up() { return up; },
+    /** Shown only at the end of the walk, and never over an open panel. */
+    sync(atEnd) {
+      const want = atEnd && !lookPanel.isOpen;
+      if (!want && up) raise(false);
+      if (btn.hidden === want) btn.hidden = !want;
+      btn.dataset.on = want ? "1" : "0";
+    },
+  };
+})();
+
+/**
+ * The quiet cue that a hoarding can be opened.
+ *
+ * A board is a picture on a wall; nothing about it says it is a control.
+ * This puts a small ring on the ones that are worth opening — big enough on
+ * screen to be aimed at, facing the camera rather than edge-on, and
+ * carrying something that can actually be bought.
+ *
+ * It is deliberately self-effacing. Three at a time at most, so the street
+ * is not measles; and the whole thing retires for good the first time the
+ * visitor opens a board, because the cue has done its job and after that it
+ * is clutter. That is remembered for the session only — a returning
+ * visitor gets the hint again, which is cheaper than being confused.
+ */
+const boardHints = (() => {
+  const wrap = document.getElementById("hots");
+  if (!wrap) return { place() {} };
+
+  const MAX = 3;
+  const pool = [];
+  let learned = false;
+
+  const pos = new THREE.Vector3();
+  const nrm = new THREE.Vector3();
+  const toCam = new THREE.Vector3();
+  const quat = new THREE.Quaternion();
+
+  function marker(i) {
+    while (pool.length <= i) {
+      const el = document.createElement("div");
+      el.className = "hot";
+      el.style.display = "none";
+      wrap.append(el);
+      pool.push(el);
+    }
+    return pool[i];
+  }
+
+  return {
+    /** Called once the visitor has opened a board; the cues never return. */
+    learn() {
+      if (learned) return;
+      learned = true;
+      for (const el of pool) { el.style.display = "none"; el.style.opacity = "0"; }
+    },
+
+    place(visible) {
+      if (learned || !visible || !boards) {
+        for (const el of pool) if (el.style.display !== "none") el.style.display = "none";
+        return;
+      }
+
+      const want = [];
+      for (const b of boards.panels) {
+        const c = b.creative;
+        if (!c || (c.kind !== "look" && c.kind !== "product")) continue;
+
+        b.mesh.getWorldPosition(pos);
+        b.mesh.getWorldQuaternion(quat);
+        nrm.set(0, 0, 1).applyQuaternion(quat);
+        toCam.copy(camera.position).sub(pos);
+        const dist = toCam.length();
+        // Edge-on boards are not worth pointing at: you cannot read them and
+        // the ring would sit on a sliver.
+        const facing = toCam.normalize().dot(nrm);
+        if (facing < 0.35) continue;
+
+        pos.project(camera);
+        if (pos.z <= -1 || pos.z >= 1) continue;
+        if (Math.abs(pos.x) > 0.86 || Math.abs(pos.y) > 0.78) continue;
+
+        /* How big it is on screen, roughly: the board's height against the
+         * frame's at this distance. Below about a twelfth of the screen a
+         * ring is pointing at something too small to be worth the trip. */
+        const g = b.mesh.geometry.parameters;
+        const frameH = 2 * dist * Math.tan((camera.fov * Math.PI) / 360);
+        const share = g.height / frameH;
+        if (share < 0.085) continue;
+
+        want.push({
+          x: (pos.x * 0.5 + 0.5) * viewW,
+          y: (-pos.y * 0.5 + 0.5) * viewH,
+          score: share * facing,
+        });
+      }
+
+      // Biggest and squarest-on first.
+      want.sort((a, b) => b.score - a.score);
+      const take = want.slice(0, MAX);
+
+      take.forEach((w, i) => {
+        const el = marker(i);
+        el.style.transform = `translate3d(${Math.round(w.x)}px, ${Math.round(w.y)}px, 0)`;
+        if (el.style.display === "none") {
+          el.style.display = "grid";
+          // Next frame, so the transition has something to run from.
+          requestAnimationFrame(() => { el.style.opacity = "1"; });
+        }
+      });
+      for (let i = take.length; i < pool.length; i++) {
+        if (pool[i].style.display !== "none") {
+          pool[i].style.opacity = "0";
+          pool[i].style.display = "none";
+        }
+      }
+    },
+  };
+})();
+
 /* How tall a marker is on screen, for the overlap test below. The CSS says
  * 58 on a phone and rather more on a desktop; this only has to be close
  * enough to keep two of them from sitting on top of each other. */
@@ -6919,9 +7321,17 @@ const lookView = (() => {
 
   /** The rectangle of screen the panel is not sitting on, in pixels. */
   function visible() {
+    const full = { x: 0, y: 0, w: innerWidth, h: innerHeight };
+    /* A hidden panel still has a box.
+     *
+     * visibility:hidden keeps layout, so the sheet reports its full
+     * rectangle even when nothing is on screen, and framing would dodge a
+     * panel that is not there — which matters now that the camera can be
+     * sent to a board with no panel at all. */
+    const host = document.getElementById("look");
+    if (!host || host.dataset.on !== "1") return full;
     const sheet = document.querySelector("#look .sheet");
     const r = sheet && sheet.getBoundingClientRect();
-    const full = { x: 0, y: 0, w: innerWidth, h: innerHeight };
     if (!r || !r.width || !r.height) return full;
     /* Measured, not assumed.
      *
@@ -7224,6 +7634,8 @@ const lookPanel = (() => {
      * seven seconds later the hoarding is showing something else while the
      * panel still describes the first one. */
     boards.hold(board, true);
+    // They have found it; the cues have nothing left to say.
+    boardHints.learn();
     ads = boards.adsFor(board, house);
     at = Math.max(0, ads.indexOf(c));
 
@@ -7330,6 +7742,8 @@ function step(dt, t, p) {
     indexEl.dataset.on = "0";
     hintEl.style.opacity = "0";
     placePins(shownBrand, false);
+    boardHints.place(false);
+    endLook.sync(false);
   } else {
     const within = ([a, b]) => (p >= a && p <= b ? "1" : "0");
     panels.hero.dataset.on  = within(BEATS.hero);
@@ -7342,6 +7756,12 @@ function step(dt, t, p) {
 
     if (inStreet) showBrand(readableBrand());
     placePins(shownBrand, inStreet);
+    // Not gated on `inStreet`: the end screens stand past the last
+    // shopfront, which is exactly where the visitor is told to look.
+    boardHints.place(true);
+    // The last stretch of the walk, where the crown block is what is left
+    // to see. Slightly before the end copy, so it is already there.
+    endLook.sync(p >= BEATS.end[0] - 0.04);
   }
   sound.update(camera);
 
