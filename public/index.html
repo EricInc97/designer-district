@@ -6181,28 +6181,44 @@ const boards = (() => {
 // nearly a metre of daylight at the jambs — but only because nothing else is
 // spending that budget.
 
+/* Riding high enough to see the street as a street.
+ *
+ * The walk used to run at about 5.8 along the terraces, looking five degrees
+ * below level. The terraces are eighteen to twenty metres tall and their
+ * faces stand 5.6 either side of the centreline, so that is a camera at
+ * chest height in an eleven-wide, twenty-tall canyon — and it read as one.
+ * Both sides crowded the edges of the frame, the ground disappeared, and
+ * there was no way to see that the district has a shape.
+ *
+ * It now rides at about eleven and a half and looks nineteen degrees down,
+ * which is high enough to see the paving, both terraces and the boards
+ * above them at once, and still five metres below the lowest roofline, so
+ * the buildings go on framing the street rather than becoming a model of
+ * it. Raise the street numbers together to tilt it further toward a plan
+ * view; the pitch is the gap between these and the LOOK heights below,
+ * over a lead of about twenty-four.
+ *
+ * The dome is the one part that cannot rise: the dip under the shell is the
+ * height it always was, because the rim allows no more.
+ */
 const PATH = new THREE.CatmullRomCurve3([
-  // Opens a little further back and a little higher than it used to, so the
-  // plaza reads as a place rather than a close-up of the shell. The dip
-  // under the dome is the same height it always was — there is no room to
-  // raise that without clipping the rim.
-  new THREE.Vector3(0, 4.20, 26),
-  new THREE.Vector3(0, 3.85, 18),
-  new THREE.Vector3(0, 3.35, 11),
-  new THREE.Vector3(0, 3.00, 4),        // the near arch
+  new THREE.Vector3(0, 4.95, 30),
+  new THREE.Vector3(0, 4.55, 21),
+  new THREE.Vector3(0, 3.80, 12),
+  new THREE.Vector3(0, 3.05, 4),        // the near arch
   new THREE.Vector3(0, 2.90, -1),       // under the shell
-  new THREE.Vector3(0, 3.10, -7),       // the far arch
-  new THREE.Vector3(0, 4.20, -13),
-  new THREE.Vector3(0, 5.35, -21),
-  new THREE.Vector3(0, 5.70, -30),
-  new THREE.Vector3(0, 5.80, -42),
-  new THREE.Vector3(0, 5.80, -68),
-  new THREE.Vector3(0, 5.80, -96),
-  new THREE.Vector3(0, 5.95, -124),
-  new THREE.Vector3(0, 7.10, -150),
+  new THREE.Vector3(0, 3.15, -7),       // the far arch
+  new THREE.Vector3(0, 5.10, -13),
+  new THREE.Vector3(0, 7.40, -21),
+  new THREE.Vector3(0, 9.30, -30),
+  new THREE.Vector3(0, 10.70, -42),
+  new THREE.Vector3(0, 11.50, -68),
+  new THREE.Vector3(0, 11.70, -96),
+  new THREE.Vector3(0, 11.90, -124),
+  new THREE.Vector3(0, 13.20, -150),
   // Stops in the open ground between the last shopfront and the block that
   // closes the street, rather than travelling on through it.
-  new THREE.Vector3(0, 8.60, -162),
+  new THREE.Vector3(0, 14.60, -162),
 ], false, "catmullrom", 0.4);
 
 // Held on the dome at the top of the page, then let go forward so that by
@@ -6213,15 +6229,15 @@ const LOOK = new THREE.CatmullRomCurve3([
   new THREE.Vector3(0, 5.3, 0),
   new THREE.Vector3(0, 5.0, -3),
   new THREE.Vector3(0, 4.4, -9),
-  new THREE.Vector3(0, 3.7, -17),
-  new THREE.Vector3(0, 3.5, -27),
-  new THREE.Vector3(0, 3.35, -40),
-  new THREE.Vector3(0, 3.35, -56),
-  new THREE.Vector3(0, 3.35, -84),
-  new THREE.Vector3(0, 3.35, -112),
-  new THREE.Vector3(0, 3.55, -140),
-  new THREE.Vector3(0, 3.9, -172),
-  new THREE.Vector3(0, 4.2, -184),
+  new THREE.Vector3(0, 3.6, -17),
+  new THREE.Vector3(0, 3.2, -27),
+  new THREE.Vector3(0, 3.05, -40),
+  new THREE.Vector3(0, 3.05, -56),
+  new THREE.Vector3(0, 3.05, -84),
+  new THREE.Vector3(0, 3.05, -112),
+  new THREE.Vector3(0, 3.25, -140),
+  new THREE.Vector3(0, 3.70, -172),
+  new THREE.Vector3(0, 4.00, -184),
 ], false, "catmullrom", 0.4);
 
 let scrollTarget = 0;    // 0..1, straight off the scrollbar
