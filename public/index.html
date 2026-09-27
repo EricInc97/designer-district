@@ -834,6 +834,128 @@ body[data-look="1"] .layer {
 }
 #look #look-dots i.on { background: #fff; }
 
+/* ── the way up to the end screens ──────────────────────────────────────
+ *
+ * These rules were lost once already: they used to sit inside the block of
+ * cue styles, and rewriting that block from its opening comment to its
+ * closing media query took them with it. The control kept working and
+ * rendered as a bare browser button, which is the kind of breakage a test
+ * that checks behaviour never notices. They live down here now, next to
+ * the panel they belong with, with their own heading.
+ */
+.uplook {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(18px + var(--sab));
+  z-index: 3;
+  display: flex; align-items: center; gap: .55rem;
+  padding: .5rem .95rem .5rem .6rem;
+  border: 0; border-radius: 999px;
+  background: rgba(14,14,16,.52);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  color: rgba(255,255,255,.92);
+  font: inherit; font-size: .72rem; letter-spacing: .08em; text-transform: uppercase;
+  cursor: pointer; pointer-events: auto;
+  opacity: 0; transition: opacity .5s ease;
+}
+.uplook[data-on="1"] { opacity: 1; }
+.uplook:hover, .uplook:focus-visible { background: rgba(14,14,16,.72); }
+.uplook .ring {
+  width: 22px; height: 22px; border-radius: 999px;
+  border: 1.5px solid rgba(255,255,255,.8);
+  display: grid; place-items: center; position: relative;
+}
+.uplook .ring::before {
+  content: ""; width: 6px; height: 6px;
+  border-left: 1.5px solid #fff; border-top: 1.5px solid #fff;
+  transform: rotate(45deg) translate(1px, 1px);
+}
+.uplook .ring::after {
+  content: ""; position: absolute; inset: -1.5px;
+  border-radius: 999px; border: 1.5px solid rgba(255,255,255,.5);
+  animation: hotRing 2.6s ease-out infinite;
+}
+.uplook[data-up="1"] .ring::before { transform: rotate(-135deg) translate(-1px, -1px); }
+.uplook[data-up="1"] .ring::after { animation: none; opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .uplook .ring::after { animation: none; opacity: .35; }
+}
+
+/* ── the bag ────────────────────────────────────────────────────────────
+ * Under the sound toggle, in the same column of controls, and only there
+ * once something is in it: an empty bag badge on a page nobody has shopped
+ * is furniture.
+ */
+.bagbtn {
+  position: fixed; right: 16px; top: calc(var(--bar) + 16px + 56px);
+  z-index: 4;
+  width: 44px; height: 44px; border-radius: 999px; border: 0;
+  background: rgba(14,14,16,.62); color: #fff;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  display: grid; place-items: center; cursor: pointer;
+  box-shadow: 0 2px 14px rgba(0,0,0,.3);
+}
+.bagbtn:hover { background: rgba(14,14,16,.82); }
+.bagbtn .glyph {
+  width: 15px; height: 13px; border: 1.6px solid currentColor;
+  border-top: 0; border-radius: 0 0 3px 3px; position: relative;
+}
+.bagbtn .glyph::before {
+  content: ""; position: absolute; left: 50%; top: -7px; transform: translateX(-50%);
+  width: 9px; height: 8px; border: 1.6px solid currentColor; border-bottom: 0;
+  border-radius: 5px 5px 0 0;
+}
+.bagbtn .n {
+  position: absolute; top: -3px; right: -3px;
+  min-width: 18px; height: 18px; padding: 0 4px; border-radius: 999px;
+  background: var(--paper); color: var(--ink);
+  font-size: .62rem; font-weight: 700; line-height: 18px; text-align: center;
+}
+
+.bagdrawer {
+  position: fixed; z-index: 61; right: 0; top: 0; bottom: 0;
+  width: min(380px, 92vw);
+  display: flex; flex-direction: column;
+  background: var(--paper); color: var(--ink);
+  border-left: 1px solid var(--rule);
+  box-shadow: -18px 0 60px rgba(0,0,0,.24);
+  transform: translateX(101%);
+  transition: transform .3s cubic-bezier(.4,0,.2,1), visibility 0s linear .3s;
+  visibility: hidden;
+}
+.bagdrawer[data-on="1"] { transform: none; visibility: visible; transition-delay: 0s; }
+.bagdrawer header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: calc(.9rem + var(--sat)) 1.15rem .9rem;
+  border-bottom: 1px solid var(--rule);
+}
+.bagdrawer header strong { font-size: .95rem; }
+.bagdrawer header button {
+  font: inherit; font-size: .62rem; letter-spacing: .1em; text-transform: uppercase;
+  background: none; border: 1px solid var(--rule-strong); border-radius: 999px;
+  padding: .4rem .8rem; cursor: pointer; color: inherit; min-height: 34px;
+}
+.bagdrawer ul { list-style: none; margin: 0; padding: 0; flex: 1 1 auto; overflow-y: auto; }
+.bagdrawer li {
+  display: grid; grid-template-columns: 52px 1fr auto auto; gap: .7rem;
+  align-items: center; padding: .7rem 1.15rem; border-bottom: 1px solid var(--rule);
+}
+.bagdrawer li img { width: 52px; height: 52px; object-fit: cover; background: var(--paper-sunken); }
+.bagdrawer li b { display: block; font-size: .78rem; font-weight: 500; }
+.bagdrawer li i { font-style: normal; font-size: .72rem; color: var(--ink-dim); }
+.bagdrawer li em { font-style: normal; font-size: .78rem; white-space: nowrap; }
+.bagdrawer li .x {
+  background: none; border: 0; color: var(--ink-faint); font-size: 1.1rem;
+  cursor: pointer; padding: .2rem .35rem; min-height: 34px;
+}
+.bagdrawer .none { margin: 0; padding: 1.1rem 1.15rem; color: var(--ink-dim); font-size: .82rem; }
+.bagdrawer footer {
+  display: flex; align-items: center; gap: .8rem;
+  padding: .9rem 1.15rem calc(1rem + var(--sab));
+  border-top: 1px solid var(--rule);
+}
+.bagdrawer footer span { font-size: .95rem; font-weight: 600; }
+.bagdrawer footer .pill { margin-left: auto; text-decoration: none; }
+
 #look .dismiss {
   position: absolute; top: .7rem; right: .7rem; z-index: 1;
   border: 1px solid var(--rule-strong); background: var(--paper);
@@ -889,6 +1011,44 @@ body[data-look="1"] .layer {
 #look .piece em {
   font-style: normal; font-size: .8rem; font-weight: 500; white-space: nowrap;
 }
+/* A row is no longer one link.
+ *
+ * It used to be a single <a> over the whole thing, which cannot hold a
+ * button: an interactive control inside a link is invalid, and on a phone
+ * the tap target for "add" and the tap target for "open the product page"
+ * would have been the same pixel. The photograph and the name still
+ * navigate; the size and the add button are their own controls.
+ */
+#look .piece { position: relative; }
+#look .piece .open {
+  display: contents; color: inherit; text-decoration: none;
+}
+#look .piece .buy {
+  grid-column: 1 / -1;
+  display: flex; align-items: center; gap: .4rem;
+  padding-top: .1rem;
+}
+#look .piece select {
+  font: inherit; font-size: .72rem; color: var(--ink);
+  background: var(--paper); border: 1px solid var(--rule-strong);
+  border-radius: 999px; padding: .28rem .5rem; min-height: 32px;
+}
+#look .piece .add {
+  font: inherit; font-size: .68rem; font-weight: 600;
+  letter-spacing: .08em; text-transform: uppercase;
+  background: var(--ink); color: var(--paper);
+  border: 0; border-radius: 999px; padding: .42rem .9rem; min-height: 32px;
+  cursor: pointer; white-space: nowrap;
+}
+#look .piece .add:hover { opacity: .86; }
+#look .piece .add[disabled] { opacity: .4; cursor: default; }
+/* Says what happened, in the place it happened, and then goes away. */
+#look .piece .said {
+  font-size: .7rem; color: var(--ink-dim);
+  opacity: 0; transition: opacity .2s ease;
+}
+#look .piece .said[data-on="1"] { opacity: 1; }
+
 #look .empty {
   margin: 0; padding: .9rem 1.15rem 1.2rem;
   font-size: .8rem; line-height: 1.5; color: var(--ink-dim);
@@ -1288,6 +1448,27 @@ body[data-shopping="1"] .sound[data-state="prompt"]::after { animation: none; op
   inside the thing it hides cannot be pressed again to come back. It was, and
   it could not.
 -->
+<!-- The bag. Outside `.layer` for the same reason as the rest of the
+     chrome: it has to stay reachable while the look panel stands the
+     street down. -->
+<button class="bagbtn" id="bagbtn" type="button" aria-label="Open your bag" hidden>
+  <span class="glyph" aria-hidden="true"></span>
+  <span class="n" id="bagn">0</span>
+</button>
+
+<aside class="bagdrawer" id="bagdrawer" aria-hidden="true" aria-label="Your bag">
+  <header>
+    <strong>Your bag</strong>
+    <button type="button" id="bagclose">Close</button>
+  </header>
+  <ul id="baglines"></ul>
+  <p class="none" id="bagnone">Nothing in it yet.</p>
+  <footer>
+    <span id="bagtotal">$0.00</span>
+    <a class="pill" id="bagcheckout" href="#">Checkout</a>
+  </footer>
+</aside>
+
 <button class="uplook" id="uplook" type="button" hidden>
   <span class="ring" aria-hidden="true"></span>
   <span class="say">See the screens</span>
@@ -7727,6 +7908,175 @@ const lookView = (() => {
   };
 })();
 
+/**
+ * The shopping bag.
+ *
+ * Not a second basket. The storefront keeps its cart in a zustand store
+ * persisted to localStorage under "dd-cart", and this page is served from
+ * the same origin as the storefront — so it writes that key, in that
+ * shape, and the shop rehydrates it on the next page load. Add a t-shirt
+ * from a hoarding, walk into the checkout, and it is already in the basket.
+ *
+ * The shape is copied exactly from `src/store/cart.ts`: `{ state: { lines },
+ * version: 0 }`, and a line is keyed on `productId::size` so one product in
+ * two sizes is two lines. Writing a different shape would not fail loudly;
+ * it would silently lose somebody's basket, which is why it is spelled out
+ * here rather than guessed.
+ */
+const bag = (() => {
+  const KEY = "dd-cart";
+  const listeners = new Set();
+
+  function read() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      const lines = parsed && parsed.state && parsed.state.lines;
+      return Array.isArray(lines) ? lines : [];
+    } catch {
+      // A private window, blocked storage, or somebody else's JSON. An empty
+      // bag is the right answer to all three; throwing here would take the
+      // whole street down with it.
+      return [];
+    }
+  }
+
+  function write(lines) {
+    try {
+      localStorage.setItem(KEY, JSON.stringify({ state: { lines }, version: 0 }));
+    } catch { /* full, or blocked. The in-memory answer is still correct. */ }
+    for (const fn of listeners) fn(lines);
+  }
+
+  const keyOf = (id, size) => `${id}::${size ?? "OS"}`;
+
+  return {
+    lines: read,
+    count: () => read().reduce((n, l) => n + (l.quantity || 0), 0),
+    on(fn) { listeners.add(fn); return () => listeners.delete(fn); },
+
+    /** Adds one, or one more, and answers how many of it are now in there. */
+    add(item, size, house) {
+      const lines = read();
+      const key = keyOf(item.id, size);
+      const stock = Math.max(1, Number(item.stock) || 1);
+      const at = lines.findIndex((l) => l.key === key);
+      if (at >= 0) {
+        lines[at] = { ...lines[at], quantity: Math.min(stock, (lines[at].quantity || 0) + 1) };
+      } else {
+        lines.push({
+          key,
+          productId: item.id,
+          name: item.name,
+          brandName: house || null,
+          price: Number(item.price),
+          imageUrl: item.image || null,
+          size: size ?? null,
+          quantity: 1,
+          // The stock at the moment it went in, which is what caps the
+          // quantity stepper in the shop.
+          stock,
+        });
+      }
+      write(lines);
+      return lines.find((l) => l.key === key).quantity;
+    },
+
+    remove(key) { write(read().filter((l) => l.key !== key)); },
+    clear() { write([]); },
+  };
+})();
+
+/** The bag button, its count, and the drawer behind it. */
+const bagUI = (() => {
+  const btn = document.getElementById("bagbtn");
+  const drawer = document.getElementById("bagdrawer");
+  if (!btn || !drawer) return { sync() {}, open() {}, close() {} };
+
+  const nEl = document.getElementById("bagn");
+  const list = document.getElementById("baglines");
+  const none = document.getElementById("bagnone");
+  const total = document.getElementById("bagtotal");
+  const checkout = document.getElementById("bagcheckout");
+  // The shop's own cart page, which rehydrates the very lines written here.
+  checkout.href = SITE + "/search";
+
+  function money(n) { return "$" + Number(n).toFixed(2); }
+
+  function paint() {
+    const lines = bag.lines();
+    const count = lines.reduce((a, l) => a + (l.quantity || 0), 0);
+
+    nEl.textContent = String(count);
+    // Hidden until it has something in it.
+    btn.hidden = count === 0;
+
+    list.textContent = "";
+    for (const l of lines) {
+      const li = document.createElement("li");
+
+      const img = document.createElement("img");
+      img.src = l.imageUrl || "";
+      img.alt = "";
+      img.loading = "lazy";
+
+      const text = document.createElement("span");
+      const b = document.createElement("b");
+      // textContent: these names come from the admin.
+      b.textContent = l.name;
+      const i = document.createElement("i");
+      i.textContent = [l.size, l.quantity > 1 ? `x${l.quantity}` : null]
+        .filter(Boolean).join("  ");
+      text.append(b, i);
+
+      const em = document.createElement("em");
+      em.textContent = money(l.price * (l.quantity || 1));
+
+      const x = document.createElement("button");
+      x.type = "button";
+      x.className = "x";
+      x.setAttribute("aria-label", "Remove " + l.name);
+      x.textContent = "×";
+      x.addEventListener("click", () => bag.remove(l.key));
+
+      li.append(img, text, em, x);
+      list.append(li);
+    }
+
+    none.hidden = lines.length > 0;
+    total.textContent = money(lines.reduce((a, l) => a + l.price * (l.quantity || 1), 0));
+  }
+
+  function open() {
+    paint();
+    drawer.dataset.on = "1";
+    drawer.setAttribute("aria-hidden", "false");
+  }
+  function close() {
+    drawer.dataset.on = "0";
+    drawer.setAttribute("aria-hidden", "true");
+  }
+
+  btn.addEventListener("click", open);
+  document.getElementById("bagclose").addEventListener("click", close);
+  addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && drawer.dataset.on === "1") { e.preventDefault(); close(); }
+  });
+
+  // Anything that changes the bag repaints it, wherever the change came from.
+  bag.on(paint);
+  paint();
+
+  return { sync: paint, open, close };
+})();
+
+/* Another tab put something in the bag, or took it out. Guarded, because a
+ * storage event can in principle arrive before this module has run. */
+addEventListener("storage", (e) => {
+  if (e.key === "dd-cart" && typeof bagUI !== "undefined") bagUI.sync();
+});
+
 const lookPanel = (() => {
   /* The markup and the styles for this are already in the document: #look,
    * the sheet, the picture, the list of pieces, the shop button. Somebody
@@ -7808,13 +8158,26 @@ const lookPanel = (() => {
     if (e.key === "ArrowRight") { e.preventDefault(); step(1); }
   });
 
-  /** One row: the photograph, the name and sizes, the price. */
+  /**
+   * One row: the photograph, the name, the price, and a way to buy it.
+   *
+   * The row used to be a single <a> over the whole thing, which cannot hold
+   * a button — an interactive control inside a link is invalid markup, and
+   * on a phone the target for "add" and the target for "open the product
+   * page" would have been the same pixel. The picture and the name navigate;
+   * the size and the add button are their own controls underneath.
+   */
   function row(item) {
-    const a = document.createElement("a");
-    a.className = "piece";
-    a.href = SITE + "/products/" + item.id;
-    a.target = "_blank";
-    a.rel = "noopener";
+    const li = document.createElement("li");
+    li.className = "piece";
+
+    /* The part that navigates. `display: contents` so the link does not
+     * become a grid item itself and break the three-column row. */
+    const go = document.createElement("a");
+    go.className = "open";
+    go.href = SITE + "/products/" + item.id;
+    go.target = "_blank";
+    go.rel = "noopener";
 
     const thumb = document.createElement("img");
     thumb.src = item.image;
@@ -7827,16 +8190,56 @@ const lookPanel = (() => {
     // product called "Tee <3" should render, not execute.
     name.textContent = item.name;
     const note = document.createElement("i");
-    note.textContent = (item.sizes && item.sizes.length)
-      ? item.sizes.join("  ")
-      : (item.catName || "");
+    note.textContent = item.note || item.catName || "";
     text.append(name, note);
 
     const price = document.createElement("em");
     price.textContent = "$" + Number(item.price).toFixed(2);
 
-    a.append(thumb, text, price);
-    return a;
+    go.append(thumb, text, price);
+    li.append(go);
+
+    /* And the part that buys it. */
+    const buy = document.createElement("div");
+    buy.className = "buy";
+
+    const sizes = (item.sizes && item.sizes.length) ? item.sizes : [];
+    let pick = null;
+    if (sizes.length) {
+      pick = document.createElement("select");
+      pick.setAttribute("aria-label", "Size for " + item.name);
+      for (const sz of sizes) {
+        const o = document.createElement("option");
+        o.value = sz; o.textContent = sz;
+        pick.append(o);
+      }
+      buy.append(pick);
+    }
+
+    const add = document.createElement("button");
+    add.type = "button";
+    add.className = "add";
+    const said = document.createElement("span");
+    said.className = "said";
+
+    /* Out of stock is a real answer and the button says so rather than
+     * pretending, because the picture outlives the stock behind it. */
+    const inStock = (item.stock ?? 0) > 0;
+    add.textContent = inStock ? "Add to bag" : "Sold out";
+    add.disabled = !inStock;
+
+    add.addEventListener("click", () => {
+      const n = bag.add(item, pick ? pick.value : null, house && house.name);
+      sound.click();
+      said.textContent = n > 1 ? `${n} in your bag` : "In your bag";
+      said.dataset.on = "1";
+      clearTimeout(add._t);
+      add._t = setTimeout(() => { said.dataset.on = "0"; }, 2200);
+    });
+
+    buy.append(add, said);
+    li.append(buy);
+    return li;
   }
 
   /** What a single creative puts in the sheet. */
