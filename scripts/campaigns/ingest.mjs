@@ -44,6 +44,7 @@ const PER_PICTURE = {
   "hellstar-balenciaga":["Hellstar x Balenciaga", "Drip graphic, Paris cut."],
   "gallery-dept-back":  ["Gallery Dept.", "Read it from behind."],
   "supreme-track-her":  ["Supreme x Ducati", "The track set, in blue."],
+  "supreme-ducati-three":["Supreme x Ducati", "Three colourways, head to toe."],
 };
 
 /* Editorial copy. It lives here rather than in the generator because it is

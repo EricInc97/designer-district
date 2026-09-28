@@ -239,6 +239,37 @@ const SET = [
       `the back of it is what fills the frame.`,
   },
   {
+    /* All three colourways at once, one on each of the three.
+     *
+     * The set only makes sense seen together: the shop stocks the Ducati
+     * top and pants in white/red, blue and black, and a picture of one of
+     * them is a picture of a tracksuit. Three of them side by side is the
+     * collection. Every half comes out of set_key, so the pants in each
+     * fit are the ones that actually match the top above them.
+     */
+    tag: "supreme-ducati-three", aspect: "21:9", house: "supreme", place: "crown",
+    cast: ["man", "woman1", "woman2"],
+    shot: "The three of them together, full length, side by side and evenly " +
+          "spaced, all three complete outfits clearly visible head to shoes, " +
+          "headroom above and paving below, standing squarely to camera",
+    slots: {
+      "red top":    () => setHalves("supreme", "supreme-ducati-white-red")[0],
+      "red pants":  () => setHalves("supreme", "supreme-ducati-white-red")[1],
+      "blue top":   () => setHalves("supreme", "supreme-ducati-blue")[0],
+      "blue pants": () => setHalves("supreme", "supreme-ducati-blue")[1],
+      "black top":  () => setHalves("supreme", "supreme-ducati-black")[0],
+      "black pants":() => setHalves("supreme", "supreme-ducati-black")[1],
+    },
+    wear: (s) =>
+      `The man wears the cream and red Supreme Ducati track jacket with its ` +
+      `matching cream and red track pants. The first woman wears the light blue ` +
+      `Supreme Ducati track jacket with its matching light blue track pants. ` +
+      `The second woman wears the black Supreme Ducati track jacket with its ` +
+      `matching black track pants. Each of the three wears one complete ` +
+      `colourway, top and bottom together, exactly as the reference ` +
+      `photographs show them — do not mix the colours between the three.`,
+  },
+  {
     tag: "supreme-track-her", aspect: "2:3", house: "supreme", place: "crown", cast: ["woman2"],
     shot: "Full length, head to shoes, the whole outfit clearly visible",
     slots: {
