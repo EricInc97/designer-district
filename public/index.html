@@ -11561,6 +11561,10 @@ const storeRoom = (() => {
    * joins them at full strength.
    */
   const POSTER_W = 4.2, POSTER_H = 1.8;      // 21:9, the shape of the banners
+
+  // One white pixel, shared. See the note on the poster material below.
+  const BLANK = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
+  BLANK.needsUpdate = true;
   const posters = [-1, 1].map((sx) => {
     const g = new THREE.Group();
     // 4.6 clears most of the section sign, whose pill sits at 4.30; the
@@ -11575,10 +11579,19 @@ const storeRoom = (() => {
     frame.position.z = -0.012;
     g.add(frame);
 
+    /* A one-pixel stand-in for the artwork, from the start.
+     *
+     * Not decoration: a material's shader is compiled for the maps it has,
+     * so one built without a map compiles the no-map variant and then needs
+     * a brand new program the moment a picture is assigned — which is a
+     * compile on the main thread exactly as somebody walks into the shop.
+     * Starting with a placeholder means the warm-up pass compiles the
+     * variant that will actually be used. */
     const mat = new THREE.MeshStandardMaterial({
       color: 0xffffff, roughness: 0.62, metalness: 0,
       emissive: 0xffffff, emissiveIntensity: 0.28,
       transparent: true, opacity: 0,
+      map: BLANK, emissiveMap: BLANK,
     });
     const art = new THREE.Mesh(new THREE.PlaneGeometry(POSTER_W, POSTER_H), mat);
     g.add(art);
@@ -12073,6 +12086,106 @@ const storeRoom = (() => {
   }
 })();
 scene.add(storeRoom.group);
+
+/**
+ * Compile the shop's shaders before anybody walks into one.
+ *
+ * Stepping inside used to drop a frame of a quarter of a second, and the
+ * measurements said plainly what it was: the hitch did not scale with the
+ * number of products — a five-product shop stalled 282ms and a fifty-two
+ * product shop 201ms — and once a room had been entered once, the same
+ * entry cost 89ms with `renderer.info.programs` unchanged. A constant cost,
+ * paid once per new material, is shader compilation, and it lands on the
+ * main thread at exactly the wrong moment.
+ *
+ * So it is paid up front instead, while the visitor is still looking at the
+ * dome. Everything has to be visible for the pass, because three only walks
+ * the visible graph when it compiles, and the interiors hide every fixture
+ * but the one the current house uses.
+ *
+ * Deferred to an idle callback: it is a few hundred milliseconds of work
+ * and it must not compete with the first frames of the street.
+ */
+(function warmTheShops() {
+  const run = () => {
+    const g = storeRoom.group;
+    const wasGroup = g.visible;
+    const wasFix = new Map();
+    for (const k in storeRoom.fixtures) {
+      wasFix.set(k, storeRoom.fixtures[k].visible);
+      storeRoom.fixtures[k].visible = true;
+    }
+    g.visible = true;
+
+    /* Dressed first, then compiled.
+     *
+     * Compiling the bare room left two programs still to build on the first
+     * entry, because some of the material variants do not exist until a
+     * house has been put in the room: dressing is what gives the panels
+     * their maps and the fixtures their colours. So the warm-up dresses it
+     * with the first house, off camera and invisible, and compiles that.
+     * A real entry dresses it again a moment later, so nothing here has to
+     * be undone beyond hiding it. */
+    try { if (monoliths[0]) storeRoom.dress(monoliths[0]); } catch { /* not fatal */ }
+
+    const restore = () => {
+      g.visible = wasGroup;
+      for (const [k, v] of wasFix) storeRoom.fixtures[k].visible = v;
+    };
+
+    /* And one real frame, off screen.
+     *
+     * compileAsync builds the material programs but never runs the shadow
+     * pass, so the depth program for the room was still being compiled on
+     * the first entry. Rendering one frame does exercise it — into a four
+     * pixel render target rather than the canvas, so there is no chance of
+     * the shop flashing over the street for a frame. */
+    /* From inside the room, with a camera of its own.
+     *
+     * Compiling against the street camera achieved nothing, and the reason
+     * is simple: the shop sits behind a monolith a long way off and outside
+     * the frustum, so a render from out there draws none of it and compiles
+     * none of its programs. The two that were left — one standard material
+     * and one depth — only appear when the room is actually on screen.
+     *
+     * So the warm frame is taken from where the visitor will be standing,
+     * into a four-pixel target. Nothing reaches the canvas. */
+    const warmFrame = () => {
+      let rt = null;
+      try {
+        const eye = new THREE.PerspectiveCamera(camera.fov, camera.aspect, camera.near, camera.far);
+        // The visitor's spot: a little inside the door, facing the back wall.
+        eye.position.set(0, 2.0, ROOM.front - 2.4).applyMatrix4(g.matrixWorld);
+        const at = new THREE.Vector3(0, 2.4, ROOM_BACK).applyMatrix4(g.matrixWorld);
+        eye.lookAt(at);
+        eye.updateMatrixWorld(true);
+
+        rt = new THREE.WebGLRenderTarget(4, 4);
+        const wasTarget = renderer.getRenderTarget();
+        renderer.setRenderTarget(rt);
+        renderer.render(scene, eye);
+        renderer.setRenderTarget(wasTarget);
+      } catch { /* nothing here is worth failing over */ }
+      finally { if (rt) rt.dispose(); }
+    };
+
+    try {
+      const done = renderer.compileAsync
+        ? renderer.compileAsync(g, camera, scene)
+        : (renderer.compile(g, camera, scene), Promise.resolve());
+      Promise.resolve(done)
+        .then(warmFrame, warmFrame)
+        .then(restore, restore);
+    } catch {
+      // A driver that will not pre-compile is not a reason to fail; the
+      // first entry simply costs what it used to.
+      restore();
+    }
+  };
+
+  if (typeof requestIdleCallback === "function") requestIdleCallback(run, { timeout: 4000 });
+  else setTimeout(run, 1800);
+})();
 
 
 // ── the mode ────────────────────────────────────────────────────────────
