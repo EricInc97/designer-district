@@ -6770,17 +6770,51 @@ const boards = (() => {
      * not already claimed. The logo reel behind it is turned half a lap so
      * the two are never on the same house at the same time either.
      */
-    /* The crown: the district's mark first, then the district's campaign.
+    /* ── the block that closes the street ────────────────────────────────
      *
-     * Its mark leads, because the screen that closes the street is the one
-     * that has to say where you are. The group shot follows it. */
+     * Three screens, two shapes: the crown is 2.75 across and the two
+     * flankers are 0.48, which is to say one is a cinema screen and the
+     * others are posters. Until now the crown carried only the district's
+     * own work and the flankers carried everything, which put every wide
+     * picture in the campaign on a tall screen — shown whole over a blur,
+     * but small, with most of the panel given over to its own background.
+     *
+     * So every picture now goes to whichever of the two shapes it is
+     * actually closer to. Landscape work lands on the landscape screen and
+     * portrait work on the portrait ones, and nothing has to be decided by
+     * hand: the group shot and the three-colourway Ducati set are both 21:9
+     * and go to the crown because of their shape, not because they were
+     * named.
+     */
+    const everything = [];
+    for (const [slug, list] of Object.entries(looks)) {
+      const brand = BRANDS.find((x) => x.slug === slug) || (slug === "district" ? DISTRICT : null);
+      if (!brand) continue;
+      for (const look of list) everything.push({ kind: "look", brand, look, key: `l:${look.image}` });
+    }
+
     const crown = panels.find((b) => !b.house && !b.flanker);
+    const flankers = panels.filter((b) => b.flanker);
+    const wideWant = crown ? boardAspect(crown) : 2.75;
+    const tallWant = flankers.length ? boardAspect(flankers[0]) : 0.48;
+
+    // Whichever shape it suits better. A piece equidistant from both goes to
+    // the crown, which is the bigger screen and the better place to be seen.
+    const wide = [], tall = [];
+    for (const o of everything) {
+      (aspectMiss(o.look, wideWant) <= aspectMiss(o.look, tallWant) ? wide : tall).push(o);
+    }
+
     if (crown) {
-      const mine = fitFor(looks.district || [], boardAspect(crown), 2);
+      /* Its mark leads, because the screen that closes the street is the one
+       * that has to say where you are, and the ten-second advert follows it.
+       * Then every landscape picture in the campaign, best fit first. */
+      const ranked = wide.slice().sort(
+        (p, q) => aspectMiss(p.look, wideWant) - aspectMiss(q.look, wideWant),
+      );
       const reel = SITE_REEL.concat(
-        // The ten-second advert, between the mark and the stills.
         advert.ok ? [{ kind: "video", brand: DISTRICT, key: "advert" }] : [],
-        mine.map((look) => ({ kind: "look", brand: DISTRICT, look, key: `l:${look.image}` })),
+        ranked,
       );
       const sig = reel.map((c) => c.key).join("|");
       if (sig !== crown.sig) {
@@ -6788,48 +6822,14 @@ const boards = (() => {
       }
     }
 
-    /* ── the two screens that close the street ──────────────────────────
-     *
-     * They used to carry one house each: whichever house's artwork best fit
-     * the shape, and its two or three pieces on a loop. That is a very
-     * small window onto a campaign that now runs to two dozen pictures, and
-     * these are the biggest screens in the district standing where the walk
-     * ends and there is nothing else left to look at.
-     *
-     * So they show the whole body of work, not one house's corner of it:
-     * every campaign picture in the catalogue, ranked for the shape of a
-     * flanker, dealt alternately between the two. Alternating rather than
-     * splitting in half is what keeps them from ever holding the same
-     * picture at the same time while both still run the full range.
-     */
-    const flankers = panels.filter((b) => b.flanker);
     if (flankers.length) {
-      // Everything, not just the houses with no board of their own. A piece
-      // already running down the street is still worth seeing large.
-      const everything = [];
-      for (const [slug, list] of Object.entries(looks)) {
-        const brand = BRANDS.find((x) => x.slug === slug) || (slug === "district" ? DISTRICT : null);
-        if (!brand) continue;
-        for (const look of list) everything.push({ kind: "look", brand, look, key: `l:${look.image}` });
-      }
-
+      /* The portrait work, dealt alternately between the pair. Alternating
+       * rather than splitting in half is what lets both run the full range
+       * while never holding the same picture at the same time. */
+      const ranked = tall.slice().sort(
+        (p, q) => aspectMiss(p.look, tallWant) - aspectMiss(q.look, tallWant),
+      );
       flankers.forEach((b, n) => {
-        const want = boardAspect(b);
-        /* Ranked, but nothing dropped.
-         *
-         * Everywhere else a board refuses artwork more than a factor of
-         * 1.7 from its own shape, because filling the panel with it would
-         * crop most of it away. These two do not have to refuse anything
-         * any more: a picture whose shape does not match is drawn whole
-         * over a blurred copy of itself instead of being cropped, so the
-         * worst case is a softer background rather than a lost photograph.
-         *
-         * The ranking still matters — the best-fitting pictures lead, and
-         * they are the ones that fill the screen edge to edge. */
-        const ranked = everything
-          .slice()
-          .sort((p, q) => aspectMiss(p.look, want) - aspectMiss(q.look, want));
-
         const mine = ranked.filter((_, i) => i % flankers.length === n);
         const reel = mine.length ? mine : (ranked.length ? ranked : BRAND_REEL);
         const sig = reel.map((c) => c.key).join("|");
