@@ -437,6 +437,50 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
   will-change: transform, opacity;
   transition: box-shadow .2s ease;
 }
+/* A look at the fit before you walk over to it.
+ *
+ * The marker said which house it was and nothing about what was in it, so
+ * choosing between fifteen of them meant visiting fifteen of them. It now
+ * carries that house's current campaign picture above it.
+ *
+ * Shown on hover on a desktop, and on whichever house the card is reading
+ * on a phone, where there is no hover and the marker is the only thing that
+ * can answer "what is in there". Only houses with artwork get one; the rest
+ * are unchanged rather than given an empty frame.
+ */
+.pin .peek {
+  position: absolute;
+  bottom: calc(100% + 12px); left: 50%;
+  width: 124px; height: 152px;
+  translate: -50% 0;
+  scale: .92;
+  transform-origin: 50% 100%;
+  border-radius: 12px; overflow: hidden;
+  background: #17171b;
+  box-shadow: 0 10px 30px rgba(0,0,0,.45), 0 0 0 2px rgba(255,255,255,.85);
+  opacity: 0; pointer-events: none;
+  transition: opacity .22s ease, scale .22s cubic-bezier(.2,1.2,.4,1);
+}
+.pin .peek img { position: static; width: 100%; height: 100%; object-fit: cover; display: block; }
+/* The word, over the foot of the picture, so it reads as an invitation
+   rather than a caption. */
+.pin .peek span {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: 1.1rem .5rem .4rem;
+  font-size: .56rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  color: #fff; text-align: center;
+  background: linear-gradient(to top, rgba(0,0,0,.78), rgba(0,0,0,0));
+}
+.pin:hover .peek, .pin:focus-visible .peek { opacity: 1; scale: 1; }
+@media (hover: none) {
+  /* No hover to give: the live marker shows it instead. */
+  .pin:hover .peek { opacity: 0; }
+  .pin[data-live="1"] .peek { opacity: 1; scale: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pin .peek { transition: opacity .22s ease; scale: 1; }
+}
+
 .pin::after {                       /* the little tail, so it reads as a pin */
   content: "";
   position: absolute;
@@ -6646,23 +6690,14 @@ const boards = (() => {
     // running. They are built long after this and cannot see the fetch.
     LOOKS = looks;
 
-    /* Which houses can show their own artwork at all.
+    /* The homeless-artwork list used to be built here.
      *
-     * Not every house has a picture board: the street plan gives some of them
-     * a scrolling ticker instead, and a house with a ticker has nowhere to
-     * hang a campaign. Supreme is one of them, which is an odd place for a
-     * headline brand's artwork to die quietly. The two boards flanking the
-     * crown stand on the block that closes the street and belong to nobody,
-     * so they are exactly the right place to carry the homeless work.
+     * It existed because some houses draw a scrolling ticker instead of a
+     * picture board and so had nowhere to hang a campaign, and the flankers
+     * carried that work. The flankers now carry everything, so a house with
+     * a ticker is covered by the general case and there is nothing left for
+     * a separate list to do.
      */
-    const housed = new Set(panels.filter((b) => b.house).map((b) => b.house.slug));
-    const orphans = [];
-    for (const [slug, list] of Object.entries(looks)) {
-      if (housed.has(slug)) continue;
-      const brand = BRANDS.find((x) => x.slug === slug);
-      if (!brand) continue;
-      for (const look of list) orphans.push({ kind: "look", brand, look, key: `l:${look.image}` });
-    }
 
     /* The two flankers carry different houses, not the same ones offset.
      *
@@ -6697,63 +6732,47 @@ const boards = (() => {
       }
     }
 
+    /* ── the two screens that close the street ──────────────────────────
+     *
+     * They used to carry one house each: whichever house's artwork best fit
+     * the shape, and its two or three pieces on a loop. That is a very
+     * small window onto a campaign that now runs to two dozen pictures, and
+     * these are the biggest screens in the district standing where the walk
+     * ends and there is nothing else left to look at.
+     *
+     * So they show the whole body of work, not one house's corner of it:
+     * every campaign picture in the catalogue, ranked for the shape of a
+     * flanker, dealt alternately between the two. Alternating rather than
+     * splitting in half is what keeps them from ever holding the same
+     * picture at the same time while both still run the full range.
+     */
     const flankers = panels.filter((b) => b.flanker);
-    const byHouse = new Map();
-    for (const o of orphans) {
-      if (!byHouse.has(o.brand.slug)) byHouse.set(o.brand.slug, []);
-      byHouse.get(o.brand.slug).push(o);
+    if (flankers.length) {
+      // Everything, not just the houses with no board of their own. A piece
+      // already running down the street is still worth seeing large.
+      const everything = [];
+      for (const [slug, list] of Object.entries(looks)) {
+        const brand = BRANDS.find((x) => x.slug === slug) || (slug === "district" ? DISTRICT : null);
+        if (!brand) continue;
+        for (const look of list) everything.push({ kind: "look", brand, look, key: `l:${look.image}` });
+      }
+
+      flankers.forEach((b, n) => {
+        const want = boardAspect(b);
+        /* Ranked for this board's shape first, then dealt alternately. The
+         * ranking is what stops a 21:9 banner being hung on a 0.48 portrait
+         * screen, which is a crop so severe it is a stripe of fabric. */
+        const ranked = fitFor(everything.map((o) => o.look), want, 40)
+          .map((look) => everything.find((o) => o.look === look))
+          .filter(Boolean);
+
+        const mine = ranked.filter((_, i) => i % flankers.length === n);
+        const reel = mine.length ? mine : (ranked.length ? ranked : BRAND_REEL);
+        const sig = reel.map((c) => c.key).join("|");
+        if (sig !== b.sig) { b.sig = sig; b.reel = reel; show(b, 0); b.next = lastT + 3; }
+      });
     }
-    const claimed = new Set();
 
-    flankers.forEach((b, n) => {
-      const want = boardAspect(b);
-
-      /* Pick this flanker's house: the unclaimed one whose best piece fits
-       * this board's shape closest. */
-      let mine = null, best = Infinity;
-      for (const [slug, list] of byHouse) {
-        if (claimed.has(slug)) continue;
-        const m = Math.min(...list.map((o) => aspectMiss(o.look, want)));
-        if (m < best) { best = m; mine = slug; }
-      }
-
-      let pool;
-      if (mine) {
-        claimed.add(mine);
-        pool = byHouse.get(mine);
-      } else {
-        /* Only one house has homeless artwork, so the pair split its
-         * pieces between them rather than both showing all of them. */
-        const all = orphans.slice();
-        pool = all.filter((_, i) => i % flankers.length === n);
-        if (!pool.length) pool = all;
-      }
-
-      /* Four at most. It was three when the house logos padded the reel out
-       * behind them; now that the artwork is the whole reel, a little more
-       * of it keeps the two end screens from being a two-frame loop. */
-      const ranked = fitFor(pool.map((o) => o.look), want, 4)
-        .map((look) => pool.find((o) => o.look === look));
-
-      /* Artwork only, once there is any.
-       *
-       * These two used to run their artwork and then fall into the reel of
-       * fifteen house logos, so most of the time the screens that close the
-       * street were showing a wordmark — which is the one thing a visitor
-       * standing in the district has already seen fifteen times on the
-       * shopfronts. What they have not seen is the clothes on somebody.
-       *
-       * The logo reel stays only as the fallback for a street whose
-       * catalogue has no artwork at all, because a dark rectangle at the end
-       * of the walk is worse than a wordmark.
-       */
-      const k = Math.round((n * BRAND_REEL.length) / Math.max(1, flankers.length));
-      const logos = BRAND_REEL.slice(k).concat(BRAND_REEL.slice(0, k));
-
-      const reel = ranked.length ? ranked : logos;
-      const sig = reel.map((c) => c.key).join("|");
-      if (sig !== b.sig) { b.sig = sig; b.reel = reel; show(b, 0); b.next = lastT + 3; }
-    });
     const seen = new Map();
     for (const b of panels) {
       if (!b.house) continue;
@@ -7871,6 +7890,44 @@ function placePins(active, visible) {
 pins.forEach((p) => {
   p.el.style.display = p.stem.style.display = p.tack.style.display = "none";
 });
+
+/**
+ * Gives every marker a picture of what is in that shop.
+ *
+ * Called once the catalogue lands, because the markers are built from the
+ * street plan long before anybody knows what the houses are selling. Houses
+ * without artwork keep the marker they had rather than being handed an
+ * empty frame.
+ *
+ * The picture is loaded lazily and decoded off the main thread: fifteen of
+ * these arriving at once while the street is still settling is exactly the
+ * sort of thing that shows up as a dropped frame.
+ */
+function dressPins() {
+  for (const pin of pins) {
+    const slug = pin.m.brand.slug;
+    const best = boards.looksFor ? boards.looksFor(slug, 124 / 152) : [];
+    const look = best[0];
+    if (!look) { if (pin.peek) { pin.peek.remove(); pin.peek = null; } continue; }
+    if (pin.peekSrc === look.image) continue;
+    pin.peekSrc = look.image;
+
+    if (!pin.peek) {
+      pin.peek = document.createElement("span");
+      pin.peek.className = "peek";
+      pin.peek.setAttribute("aria-hidden", "true");
+      const im = document.createElement("img");
+      im.alt = "";
+      im.loading = "lazy";
+      im.decoding = "async";
+      const say = document.createElement("span");
+      say.textContent = "Step inside";
+      pin.peek.append(im, say);
+      pin.el.append(pin.peek);
+    }
+    pin.peek.querySelector("img").src = look.image;
+  }
+}
 
 let shownBrand = -1;
 function showBrand(i) {
@@ -13185,6 +13242,7 @@ storeMode = (() => {
       await loadCatalogue({ fresh: true, bust: opts.bust });
       // Whatever just changed, the boards outside are advertising it too.
       boards.setCatalogue(catalogue, catalogueLooks);
+      dressPins();
     } catch {
       return false;                       // the shelf already says so
     }
@@ -13264,7 +13322,7 @@ storeMode = (() => {
    * failure leaves every board showing its house's logo, which is exactly
    * what they showed before this existed. */
   loadCatalogue()
-    .then((c) => boards.setCatalogue(c, catalogueLooks))
+    .then((c) => { boards.setCatalogue(c, catalogueLooks); dressPins(); })
     .catch(() => {});
 
   /** Loads a house's stock into the listing, the chips and the sections. */
