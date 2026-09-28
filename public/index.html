@@ -5901,11 +5901,51 @@ const boards = (() => {
       const face = getComputedStyle(document.body).fontFamily;
 
       if (art_) {
-        // Cover, not contain: a board is a crop of a campaign image, and
-        // letterboxing one inside a hoarding looks like a mistake.
-        const k = Math.max(W / art_.width, H / art_.height);
-        const iw = art_.width * k, ih = art_.height * k;
-        x.drawImage(art_, (W - iw) / 2, (H - ih) / 2, iw, ih);
+        /* Cover when the shapes are close, and fit inside its own blur when
+         * they are not.
+         *
+         * Filling the board was the only mode, which is right for artwork
+         * composed for roughly this shape and ruinous for anything else: a
+         * 21:9 banner on a 0.48 portrait screen keeps about a fifth of its
+         * width and throws the rest away, so what is left is a stripe of
+         * fabric with no model in it. That is why the boards would only
+         * accept art of nearly their own proportions, and why most of the
+         * campaign could never appear on the two largest screens.
+         *
+         * So a badly matched picture is now drawn whole, over a blown-up
+         * blurred copy of itself. Nothing is lost, the panel is still full
+         * of colour rather than letterboxed against black, and the screens
+         * can carry every picture in the campaign.
+         */
+        const fill = (img) => {
+          const k = Math.max(W / img.width, H / img.height);
+          const iw = img.width * k, ih = img.height * k;
+          x.drawImage(img, (W - iw) / 2, (H - ih) / 2, iw, ih);
+        };
+
+        const miss = Math.abs(Math.log((art_.width / art_.height) / (W / H)));
+        if (miss < 0.30 || !("filter" in x)) {
+          // Close enough that the crop takes only edges, or a canvas with no
+          // filter support, where a blur is not available and a crop is
+          // still better than bars.
+          fill(art_);
+        } else {
+          x.save();
+          // The backdrop: the same picture, oversized and blurred past
+          // recognition, so it reads as light spilling off the panel.
+          x.filter = `blur(${Math.max(8, Math.round(Math.min(W, H) * 0.09))}px)`;
+          fill(art_);
+          x.filter = "none";
+          // And a wash, so the blur sits back and the picture comes forward.
+          x.fillStyle = "rgba(0,0,0,.30)";
+          x.fillRect(0, 0, W, H);
+          x.restore();
+
+          // The picture itself, whole.
+          const k = Math.min(W / art_.width, H / art_.height) * 0.96;
+          const iw = art_.width * k, ih = art_.height * k;
+          x.drawImage(art_, (W - iw) / 2, (H - ih) / 2, iw, ih);
+        }
       } else {
         fetchArt(keyOf(creative), thumbFor(look.image), look.image);
         const g0 = x.createLinearGradient(0, 0, W, H);
@@ -5935,23 +5975,39 @@ const boards = (() => {
       const logo = art.get(b.slug);
       let y = H - pad;
 
+      /* Type sized by the narrower side, not by the height.
+       *
+       * These were a flat fraction of H, which is right on a board wider
+       * than it is tall and wrong on the tall ones: at 0.48, eleven per cent
+       * of the height is a quarter of the width, so a headline of more than
+       * about one word ran off the edge and was cut. "Off-White x Purple
+       * Brand" arrived on the end screen as "Off-Whit". Capping against the
+       * width as well leaves wide boards exactly as they were and lets the
+       * tall ones hold a sentence.
+       */
+      const headSize = Math.min(H * 0.11, W * 0.13);
+      const ctaSize = Math.min(H * 0.058, W * 0.075);
+      const step = headSize * 1.14;
+
       const cta = (look.cta || "SHOP THE LOOK").toUpperCase();
       x.fillStyle = ink;
       x.globalAlpha = 0.82;
-      fitText(x, cta, W - pad * 2, H * 0.058, 700, face);
+      fitText(x, cta, W - pad * 2, ctaSize, 700, face);
       x.fillText(cta, pad, y);
       x.globalAlpha = 1;
-      y -= H * 0.085;
+      y -= ctaSize * 1.5;
 
       const line = look.headline || b.name;
-      const lines = wrapAt(x, line, W - pad * 2, H * 0.11, 700, face, 2);
+      // Three lines where the board is tall enough to spend them on.
+      const maxLines = H / W > 1.4 ? 3 : 2;
+      const lines = wrapAt(x, line, W - pad * 2, headSize, 700, face, maxLines);
       for (let i = lines.length - 1; i >= 0; i--) {
         x.fillText(lines[i], pad, y);
-        y -= H * 0.125;
+        y -= step;
       }
 
       if (logo) {
-        const lk = Math.min((W - pad * 2) * 0.32 / logo.width, H * 0.085 / logo.height);
+        const lk = Math.min((W - pad * 2) * 0.32 / logo.width, ctaSize * 1.45 / logo.height);
         x.save();
         // The house's mark reads as a mark whatever it is sitting on.
         if (dark) x.filter = "brightness(0) invert(1)";
@@ -6759,12 +6815,20 @@ const boards = (() => {
 
       flankers.forEach((b, n) => {
         const want = boardAspect(b);
-        /* Ranked for this board's shape first, then dealt alternately. The
-         * ranking is what stops a 21:9 banner being hung on a 0.48 portrait
-         * screen, which is a crop so severe it is a stripe of fabric. */
-        const ranked = fitFor(everything.map((o) => o.look), want, 40)
-          .map((look) => everything.find((o) => o.look === look))
-          .filter(Boolean);
+        /* Ranked, but nothing dropped.
+         *
+         * Everywhere else a board refuses artwork more than a factor of
+         * 1.7 from its own shape, because filling the panel with it would
+         * crop most of it away. These two do not have to refuse anything
+         * any more: a picture whose shape does not match is drawn whole
+         * over a blurred copy of itself instead of being cropped, so the
+         * worst case is a softer background rather than a lost photograph.
+         *
+         * The ranking still matters — the best-fitting pictures lead, and
+         * they are the ones that fill the screen edge to edge. */
+        const ranked = everything
+          .slice()
+          .sort((p, q) => aspectMiss(p.look, want) - aspectMiss(q.look, want));
 
         const mine = ranked.filter((_, i) => i % flankers.length === n);
         const reel = mine.length ? mine : (ranked.length ? ranked : BRAND_REEL);
