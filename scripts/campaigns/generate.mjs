@@ -52,7 +52,39 @@ const refUrl = (u) =>
 const cat = await (await fetch(process.env.DD_API || "http://localhost:3200/api/storefront")).json();
 if (!cat.ok) throw new Error("storefront not answering");
 
-const live = (slug) => (cat.brands[slug] || []).filter((p) => p.image && (p.stock ?? 0) > 0);
+/**
+ * A house's stock, the least-photographed first.
+ *
+ * This is the fix for everybody wearing the same t-shirt. The pickers below
+ * ask for "this house's first shirt", and the first shirt was the same shirt
+ * every run: counted across the campaign, one Chrome Hearts tee was in seven
+ * pictures and the Purple Brand jeans in seven more, while two hundred and
+ * one garments in stock had never been photographed at all.
+ *
+ * `used` comes from the product_campaign_use view, which counts the
+ * published boards each product already appears on. Sorting by it means the
+ * generator reaches for something new by default and only repeats a garment
+ * when a house has nothing else of that kind.
+ *
+ * Ties break on name, so a run is repeatable rather than depending on the
+ * order the catalogue happened to arrive in.
+ */
+/* What this run has already spent.
+ *
+ * `used` is a snapshot taken before the run, so on its own it only stops the
+ * generator repeating what previous runs shot — every picture in a single
+ * batch would still reach for the same least-used shirt, because nothing
+ * told it the shirt had just been taken. Each pick is counted here and
+ * weighs double, so within a batch a garment moves to the back of the queue
+ * the moment it is used.
+ */
+const takenThisRun = new Map();
+const cost = (p) => (p.used ?? 0) + (takenThisRun.get(p.id) ?? 0) * 2;
+
+const live = (slug) =>
+  (cat.brands[slug] || [])
+    .filter((p) => p.image && (p.stock ?? 0) > 0)
+    .sort((a, b) => cost(a) - cost(b) || String(a.name).localeCompare(String(b.name)));
 
 /* ── the pickers ─────────────────────────────────────────────────────────
  * Each returns a real row or undefined. Undefined is a dropped slot, never
@@ -301,7 +333,14 @@ for (const item of plan) {
   const missing = [];
   for (const [slot, resolve] of Object.entries(item.slots)) {
     const p = resolve();
-    if (p) chosen[slot] = p; else missing.push(slot);
+    if (p) {
+      chosen[slot] = p;
+      // Counted as spent the moment it is chosen, so the next slot and the
+      // next picture both see it as already used.
+      takenThisRun.set(p.id, (takenThisRun.get(p.id) ?? 0) + 1);
+    } else {
+      missing.push(slot);
+    }
   }
   polled.push({ item, chosen, missing });
 }
@@ -312,8 +351,11 @@ for (const { item, chosen, missing } of polled) {
   for (const [slot, p] of Object.entries(chosen)) {
     const refs = 1 + (item.back && p.gallery?.length ? Math.min(2, p.gallery.length) : 0);
     console.log(
-      `   ${slot.padEnd(12)} ${(p.sub || p.cat).padEnd(12)} ${p.name.slice(0, 38).padEnd(40)} ` +
-      `${refs} ref${refs > 1 ? "s" : ""}  stock ${p.stock}`,
+      `   ${slot.padEnd(12)} ${(p.sub || p.cat).padEnd(12)} ${p.name.slice(0, 34).padEnd(36)} ` +
+      `${refs} ref${refs > 1 ? "s" : ""}  stock ${p.stock}  ` +
+      // Shown so a repeat is visible in the bill rather than only in the
+      // finished picture.
+      `${(p.used ?? 0) === 0 ? "new" : `seen x${p.used}`}`,
     );
   }
   for (const slot of missing) console.log(`   ${slot.padEnd(12)} NOTHING IN STOCK — slot dropped`);

@@ -82,7 +82,7 @@ export async function GET() {
    * the shelf — no second cache to reason about and no second request
    * from a phone.
    */
-  const [{ data, error }, { data: art }] = await Promise.all([
+  const [{ data, error }, { data: art }, { data: usage }] = await Promise.all([
     supabase
     .from("products")
     .select(
@@ -101,6 +101,18 @@ export async function GET() {
       .eq("kind", "board")
       .eq("is_published", true)
       .order("sort_order", { ascending: true }),
+    /* How often each garment has already been photographed.
+     *
+     * A view over brand_media.product_ids, not a table: the record of what
+     * has been shot is the pictures themselves, and a second copy would
+     * drift the first time one was replaced by hand. The campaign generator
+     * reads this to stop dressing everybody in the same t-shirt — counted,
+     * one Chrome Hearts shirt was in seven of the pictures while a hundred
+     * and ninety-eight garments had never been in one.
+     *
+     * A failure here is not fatal: without it the generator simply picks as
+     * it used to. */
+    supabase.from("product_campaign_use").select("product_id, appearances"),
   ]);
 
   // 503, not 200. This used to answer "here are your products: none" to a
@@ -113,6 +125,11 @@ export async function GET() {
     );
   }
 
+  const usedBy = new Map<string, number>();
+  for (const u of (usage ?? []) as { product_id: string; appearances: number }[]) {
+    usedBy.set(u.product_id, Number(u.appearances) || 0);
+  }
+
   const brands: Record<string, unknown[]> = {};
   for (const row of (data ?? []) as Row[]) {
     // PostgREST hands an embedded one-to-one back as an object on some
@@ -121,6 +138,7 @@ export async function GET() {
     if (!slug) continue;
     const cat = one(row.categories);
     const sub = one(row.subcategories);
+    const used = usedBy.get(row.id) ?? 0;
     (brands[slug] ??= []).push({
       id: row.id,
       name: row.name,
@@ -153,6 +171,10 @@ export async function GET() {
        * given only the front will invent whatever it likes back there. */
       gallery: row.gallery ?? [],
       note: row.description ?? null,
+      /* How many published campaign boards this garment is already on.
+       * Zero means it has never been photographed, which is what the
+       * generator should reach for first. */
+      used,
     });
   }
 
