@@ -2529,6 +2529,49 @@ renderer.toneMappingExposure = 0.98;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
+/**
+ * When the sun's shadow map is worth redrawing.
+ *
+ * Redrawing it costs 4.5ms of a 12ms frame, and three renders it every
+ * single frame by default. That is the right thing to do for a scene where
+ * things move under the sun, and the wrong thing here: the shadow camera is
+ * pinned to the walk, so the map is genuinely stale while you are moving
+ * and byte-for-byte identical the moment you stop — which is most of the
+ * time, because stopping is what you do to read a card or look at a board.
+ *
+ * The epsilon matters. The camera is never exactly still: there is pointer
+ * sway and a slow breathing bob on Y, so an exact comparison would report
+ * movement on every frame and save nothing. A seventh of a metre of focus
+ * drift, with the sun ninety metres away, does not move a shadow edge a
+ * whole pixel.
+ *
+ * The idle refresh is the honest part. Thirty-one things in this scene cast
+ * shadows and not all of them are architecture — a shop door swings open on
+ * an instanced mesh, for one. Rather than enumerate what animates and be
+ * quietly wrong about the thirty-second, this keeps redrawing while parked,
+ * at twelve hertz instead of sixty. A soft shadow edge arriving a twelfth
+ * of a second late is not visible; a shadow that never arrives is.
+ */
+const shadows = (() => {
+  const EPS2 = 0.15 * 0.15;
+  const IDLE = 1 / 12;
+  const was = new THREE.Vector3(Infinity, Infinity, Infinity);
+  let nextIdle = 0;
+  renderer.shadowMap.autoUpdate = false;
+  renderer.shadowMap.needsUpdate = true;
+  return {
+    /** Called once a frame, after the shadow camera has been aimed. */
+    consider(focus, t) {
+      const moved = was.distanceToSquared(focus) > EPS2;
+      if (moved) was.copy(focus);
+      if (moved || t >= nextIdle) {
+        renderer.shadowMap.needsUpdate = true;
+        nextIdle = t + IDLE;
+      }
+    },
+  };
+})();
+
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(C.fog.getHex(), C.fogDensity);
 
@@ -9101,6 +9144,7 @@ function step(dt, t, p) {
   sun.position.copy(C.sun).multiplyScalar(90).add(shadowFocus);
   sun.target.position.copy(shadowFocus);
   sun.target.updateMatrixWorld();
+  shadows.consider(shadowFocus, t);
 
   // --- animation ----------------------------------------------------------
   windUniforms.uTime.value = t;
