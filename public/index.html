@@ -377,8 +377,15 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
   background: rgba(10,10,12,.62);
   backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   box-shadow: 0 2px 14px rgba(0,0,0,.34), inset 0 0 0 1px rgba(255,255,255,.18);
-  color: #fff; font: inherit; font-size: .62rem; font-weight: 600;
-  letter-spacing: .1em; text-transform: uppercase; white-space: nowrap;
+  color: #fff; font: inherit; font-size: .70rem; font-weight: 600;
+  /* Set as a name, not as a label.
+   *
+   * These were small caps at a tenth of an em of tracking, which is signage
+   * styling: it suits a word painted on a shopfront and it makes a house's
+   * name on a chip hard to read at a glance, which is the one thing this
+   * has to do. Sentence case, a touch larger, and only enough tracking to
+   * keep it from looking cramped on glass. */
+  letter-spacing: .01em; white-space: nowrap;
   cursor: pointer; pointer-events: auto;
   opacity: 0; transition: opacity .4s ease, background .2s ease;
 }
@@ -390,10 +397,16 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
   display: grid; place-items: center;
 }
 .hot .dot::before {
-  content: ""; width: 5px; height: 5px; border-radius: 999px; background: #fff;
+  content: "";
+  width: 5px; height: 5px;
+  border-right: 1.7px solid #fff; border-top: 1.7px solid #fff;
+  transform: rotate(45deg) translate(-1px, 1px);
 }
-/* One slow breath. On the ring only: a pulse on the whole chip reads as an
-   alert, on the ring it reads as a surface waiting to be touched. */
+/* A chevron, not a dot.
+ *
+ * A dot in a ring is a status light — it says something is on, which is not
+ * what this is for. A chevron pointing the way in is the same symbol every
+ * "open this" control uses, and it needs no caption to be understood. */
 .hot .dot::after {
   content: ""; position: absolute; inset: -1.5px;
   border-radius: 999px; border: 1.5px solid rgba(255,255,255,.6);
