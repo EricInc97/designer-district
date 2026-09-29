@@ -2465,14 +2465,64 @@ const pixels = (() => {
       samples = [];
 
       // 21ms is a frame and a bit: comfortably missing 60, not yet down to 30.
-      if (median > 21 && now > MIN) apply(Math.max(MIN, now - 0.15));
+      if (median > 21) {
+        // Cheapest-looking thing first. Refraction is worth about six
+        // milliseconds and almost nothing to look at; pixels are the picture.
+        if (refraction.drop()) return;
+        if (now > MIN) apply(Math.max(MIN, now - 0.15));
+      }
       // Climbs back only when there is real room, and only a step at a time.
+      // Resolution comes back; refraction does not, on purpose.
       else if (median < 13 && now < MAX) apply(Math.min(MAX, now + 0.1));
     },
   };
 })();
 
 renderer.setPixelRatio(pixels.value);
+
+/**
+ * The panes, and the ability to stop refracting through them.
+ *
+ * Real transmission is the most expensive thing in this scene by a wide
+ * margin. Measured with a GPU timer rather than a frame counter — a frame
+ * counter here reads 16.7ms for everything, because it is really reading
+ * vsync — the five transmissive materials cost 6.1ms of a 12.1ms scene
+ * pass. Half the frame, to bend the light behind some glass.
+ *
+ * So when a machine cannot hold the frame, this is the first thing it gives
+ * up, ahead of resolution. Refraction is a detail most people would not
+ * name if it vanished; resolution is the picture itself, and giving that up
+ * first to keep a refraction nobody asked for is the wrong way round.
+ *
+ * One way only. Turning transmission back on recompiles these materials,
+ * and a scene that flickers between sharp-and-flat and soft-and-refracting
+ * is worse than one that quietly settled on the cheaper look.
+ */
+const refraction = (() => {
+  const panes = [];
+  let dropped = false;
+  return {
+    /**
+     * @param flat  the opacity to wear once it stops refracting, or null to
+     *              leave opacity to whoever else is driving it.
+     */
+    add(mat, flat = null) { panes.push({ mat, flat }); return mat; },
+    get refracting() { return !dropped; },
+    drop() {
+      if (dropped) return false;
+      dropped = true;
+      let any = false;
+      for (const { mat, flat } of panes) {
+        if (!(mat.transmission > 0)) continue;
+        mat.transmission = 0;
+        if (flat !== null) mat.opacity = flat;
+        mat.needsUpdate = true;
+        any = true;
+      }
+      return any;
+    },
+  };
+})();
 renderer.setSize(viewW, viewH, false);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.98;
@@ -3338,7 +3388,7 @@ function texDomeAlpha() {
 
   const panes = new THREE.Mesh(
     mergeGeometries(paneGeos),
-    new THREE.MeshPhysicalMaterial({
+    refraction.add(new THREE.MeshPhysicalMaterial({
       color: 0xa9dfe6,
       roughness: 0.04,
       metalness: 0,
@@ -3351,7 +3401,7 @@ function texDomeAlpha() {
       opacity: QUALITY.transmission ? 0.6 : 0.42,
       side: THREE.DoubleSide,
       envMapIntensity: 1.4,
-    })
+    }), 0.42)
   );
   domeGroup.add(panes);
 
@@ -3412,7 +3462,7 @@ const fountain = (() => {
   }
   const JETS = AZ.length;
 
-  const water = new THREE.MeshPhysicalMaterial({
+  const water = refraction.add(new THREE.MeshPhysicalMaterial({
     color: 0xcfeaf2,
     roughness: 0.08,
     metalness: 0,
@@ -3423,7 +3473,7 @@ const fountain = (() => {
     opacity: QUALITY.transmission ? 0.55 : 0.38,
     side: THREE.DoubleSide,
     envMapIntensity: 1.4,
-  });
+  }), 0.38);
 
   // One cone, instanced. Scaled on Y each frame; the geometry is built with
   // its foot at the origin so scaling grows it upward out of the water.
@@ -4934,7 +4984,7 @@ const streetLamps = [];
   const interiorMesh = new THREE.Mesh(mergeGeometries(interiors), interiorMat);
   scene.add(interiorMesh);
 
-  glassMat = new THREE.MeshPhysicalMaterial({
+  glassMat = refraction.add(new THREE.MeshPhysicalMaterial({
     color: 0x22323a,
     roughness: 0.05,
     metalness: 0.1,
@@ -4945,7 +4995,7 @@ const streetLamps = [];
     opacity: 0.85,
     envMapIntensity: 1.6,
     side: THREE.DoubleSide,
-  });
+  }));
   const glassMesh = new THREE.Mesh(mergeGeometries(glass), glassMat);
   scene.add(glassMesh);
 
@@ -5174,12 +5224,12 @@ const streetLamps = [];
 
     const endGlass = new THREE.Mesh(
       mergeGeometries(capGlass),
-      new THREE.MeshPhysicalMaterial({
+      refraction.add(new THREE.MeshPhysicalMaterial({
         color: 0x223038, roughness: 0.06, metalness: 0.1,
         transmission: QUALITY.transmission ? 0.5 : 0, thickness: 0.2, ior: 1.5,
         transparent: true, opacity: 0.86, envMapIntensity: 1.6,
         side: THREE.DoubleSide,
-      })
+      }))
     );
     scene.add(endGlass);
   }
@@ -5216,11 +5266,11 @@ const streetLamps = [];
 
     const railMesh = new THREE.Mesh(
       mergeGeometries(rails),
-      new THREE.MeshPhysicalMaterial({
+      refraction.add(new THREE.MeshPhysicalMaterial({
         color: 0x2a3a42, roughness: 0.05, metalness: 0.1,
         transmission: QUALITY.transmission ? 0.6 : 0, thickness: 0.15, ior: 1.5,
         transparent: true, opacity: 0.8, side: THREE.DoubleSide, envMapIntensity: 1.5,
-      })
+      }))
     );
     scene.add(railMesh);
   }
@@ -11259,7 +11309,8 @@ function applyTimeOfDay(hour) {
   // also what a real shopfront does once the inside is brighter than the out.
   if (glassMat) {
     glassMat.opacity = mixNum(0.85, 0.42, night);
-    if (QUALITY.transmission) glassMat.transmission = mixNum(0.55, 0.9, night);
+    if (QUALITY.transmission && refraction.refracting)
+      glassMat.transmission = mixNum(0.55, 0.9, night);
   }
   if (domeShellMat) domeShellMat.emissiveIntensity = mixNum(0, 0.34, night);
   if (domeRimMat) domeRimMat.emissiveIntensity = mixNum(0, 0.26, night);
