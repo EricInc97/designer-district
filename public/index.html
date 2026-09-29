@@ -7080,17 +7080,25 @@ const boards = (() => {
     },
 
     /**
-     * The other adverts on this board for the same house.
+     * Every advert this board runs, in the order it runs them.
      *
-     * Same house, deliberately: the two boards flanking the crown carry
-     * homeless artwork from several houses, and paging from a Supreme
-     * picture into a Vale one would be a different shop without saying so.
+     * This used to be narrowed to the house whose advert was open, on the
+     * reasoning that paging from a Supreme picture into a Vale one is a
+     * different shop without saying so. That was right when a board carried
+     * one house's work and wrong now: the screens that close the street
+     * carry the whole campaign, so nearly every advert on them was the only
+     * one for its house, the pager had nothing to move to and hid itself,
+     * and there was no way to see the next advert without closing the panel
+     * and waiting for the reel to come round.
+     *
+     * So it is the whole board, and the panel renames itself as it goes.
+     * `brand` is still accepted for a caller that wants one house's worth.
      */
     adsFor(b, brand) {
-      if (!b.reel || !brand) return [];
+      if (!b.reel) return [];
       return b.reel.filter(
         (c) => (c.kind === "look" || c.kind === "product") &&
-               c.brand && c.brand.slug === brand.slug,
+               c.brand && (!brand || c.brand.slug === brand.slug),
       );
     },
 
@@ -8439,13 +8447,18 @@ const lookPanel = (() => {
     storeMode.enterBySlug(slug);
   });
 
-  /** Move to another of this house's adverts on the same board. */
+  /** Move to the next advert on the same board, whoever it belongs to. */
   function step(by) {
     if (ads.length < 2 || !board) return;
     at = (at + by + ads.length) % ads.length;
+    const next = ads[at];
+    // The house travels with the advert: the eyebrow, the note and the way
+    // into the shop all have to follow it, or the panel keeps describing
+    // the shop you were looking at a moment ago.
+    house = next.brand;
     // Put it on the board too, so the panel and the hoarding behind it agree.
-    boards.showAd(board, ads[at]);
-    fill(ads[at]);
+    boards.showAd(board, next);
+    fill(next);
   }
   prevBtn.addEventListener("click", () => step(-1));
   nextBtn.addEventListener("click", () => step(1));
@@ -8595,7 +8608,9 @@ const lookPanel = (() => {
     boards.hold(board, true);
     // They have found it; the cues have nothing left to say.
     boardHints.learn();
-    ads = boards.adsFor(board, house);
+    // Everything this screen runs, so the pager can reach the next advert
+    // rather than only the rest of this house's.
+    ads = boards.adsFor(board);
     at = Math.max(0, ads.indexOf(c));
 
     fill(c);
