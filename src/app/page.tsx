@@ -128,14 +128,37 @@ export default async function HomePage() {
             sits over the photograph and a solid button would read as a
             sticker laid on it.
           */}
-          <a
-            href="/index.html"
-            className="mt-7 inline-flex animate-rise items-center gap-2.5 rounded-full border border-white/55 bg-black/25 px-6 py-3 text-[0.6875rem] font-medium uppercase tracking-[0.22em] text-white backdrop-blur-md transition-colors hover:border-white hover:bg-white hover:text-ink"
-            style={{ animationDelay: "160ms" }}
-          >
-            Walk the district
-            <span aria-hidden>&rarr;</span>
-          </a>
+          <div className="relative mt-7 inline-block animate-rise" style={{ animationDelay: "160ms" }}>
+            <a
+              href="/index.html"
+              className="inline-flex items-center gap-2.5 rounded-full border border-white/55 bg-black/25 px-6 py-3 text-[0.6875rem] font-medium uppercase tracking-[0.22em] text-white backdrop-blur-md transition-colors hover:border-white hover:bg-white hover:text-ink"
+            >
+              Walk the district
+              <span aria-hidden>&rarr;</span>
+            </a>
+
+            {/*
+              Coming soon.
+
+              The district is staff-only until it is finished — the proxy
+              turns everybody else away at /index.html — so the button has to
+              say so rather than leading a customer to a redirect with no
+              explanation. It sits on the corner of the button rather than
+              replacing it, because the button is still live for the people
+              who can use it.
+
+              aria-hidden and a visually-hidden phrase instead: read out, "Walk
+              the district Coming soon" is the wrong order and the badge is
+              decoration over a link whose own label already reads correctly.
+            */}
+            <span
+              aria-hidden
+              className="pointer-events-none absolute -right-2 -top-2 select-none rounded-full bg-white px-2.5 py-1 text-[0.5625rem] font-semibold uppercase tracking-[0.14em] text-ink shadow-[0_2px_10px_rgba(0,0,0,0.45)]"
+            >
+              Coming soon!
+            </span>
+            <span className="sr-only"> (coming soon)</span>
+          </div>
         </div>
       </section>
 

@@ -57,7 +57,21 @@ export async function updateSession(request: NextRequest) {
   ensureSessionCookie(request, response);
 
   const { pathname } = request.nextUrl;
-  const isProtected = pathname.startsWith("/account") || pathname.startsWith("/admin");
+
+  /* The 3D district is staff-only while it is being built.
+   *
+   * It is a static file in public/, not a route, so nothing in the app
+   * tree can guard it — this proxy is the only thing between it and the
+   * open web. The matcher above excludes images and _next assets by
+   * extension but not .html, so this request does reach here.
+   *
+   * Its artwork under /campaigns stays public: those are images, the
+   * matcher skips them, and a folder of pictures is not the experience.
+   * Gating the door is the point, not hiding the paint.
+   */
+  const isDistrict = pathname === "/index.html";
+  const isProtected =
+    pathname.startsWith("/account") || pathname.startsWith("/admin") || isDistrict;
 
   if (isProtected && !user) {
     const redirect = request.nextUrl.clone();
@@ -68,7 +82,7 @@ export async function updateSession(request: NextRequest) {
 
   // Staff gate. Role lives in profiles, so we check it here rather than in JWT
   // claims, one indexed lookup, and it stays correct the instant a role changes.
-  if (pathname.startsWith("/admin") && user) {
+  if ((pathname.startsWith("/admin") || isDistrict) && user) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("role")
@@ -77,7 +91,10 @@ export async function updateSession(request: NextRequest) {
 
     if (profile?.role !== "admin" && profile?.role !== "master_admin") {
       const redirect = request.nextUrl.clone();
-      redirect.pathname = "/account";
+      // A signed-in customer who tries the district is sent to the shop
+      // rather than to their account: they were not doing admin, they were
+      // trying to look at something that is not open yet.
+      redirect.pathname = isDistrict ? "/" : "/account";
       redirect.search = "";
       return NextResponse.redirect(redirect);
     }
