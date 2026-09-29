@@ -424,11 +424,37 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
      own height to fit across a 46px disc, and most of the houses read as a
      smudge. A wide rounded tag gives the artwork its own aspect and roughly
      three times the area, and it is a better tap target with it. */
-  width: 104px; height: 66px;
-  --pad-x: 12px; --pad-y: 9px;
+  width: 96px; height: 60px;
+  --pad-x: 11px; --pad-y: 8px;
   margin: 0; padding: var(--pad-y) var(--pad-x);
   border: 0;
-  border-radius: 18px;
+  border-radius: 16px;
+  /* Glass, not paint.
+   *
+   * Every marker used to be a solid slab of its house's colour, and fifteen
+   * of those over a street that is already carrying photographs, signage and
+   * planting is a lot of opaque furniture. Frosted glass lets the district
+   * through, which both quiets the street and stops the markers competing
+   * with the artwork they are pointing at.
+   *
+   * The house keeps its colour, as a bar down the leading edge rather than
+   * as the whole tag: enough to tell them apart at a glance, not enough to
+   * be the loudest thing in frame.
+   */
+  /* The house's own colour, solid.
+   *
+   * This was tried in frosted glass, to quiet a street that is already
+   * carrying photographs, signage and planting. It quieted it and cost the
+   * marks their legibility at the same time: every one of these logos was
+   * drawn to sit on its house's colour, so on glass the pale ones read as
+   * smudges. Tinting the glass back toward the brand was the obvious
+   * compromise and the wrong one — a colour at half strength is not that
+   * colour, and telling fifteen houses apart at a glance is the whole job
+   * of a waypoint. It stays painted.
+   *
+   * The glass went to the advert chips instead, where there is no mark to
+   * protect and the thing underneath is worth seeing.
+   */
   background: var(--pin-bg, #fff);
   color: var(--pin-ink, #0b0b0b);
   box-shadow: 0 4px 18px rgba(0,0,0,.4), 0 0 0 2px rgba(255,255,255,.85);
@@ -437,6 +463,7 @@ h2.title { margin: .5rem 0 0; font-size: clamp(1.6rem, 4.6vw, 3.2rem); }
   will-change: transform, opacity;
   transition: box-shadow .2s ease;
 }
+
 /* A look at the fit before you walk over to it.
  *
  * The marker said which house it was and nothing about what was in it, so
@@ -1628,9 +1655,15 @@ const QUALITY = (() => {
      * The light tier still gets eleven and the cheaper sky, because none of
      * this was measured on a phone.
      *
-     * The count of *trees* stays where it is. That is a composition decision
-     * about a street with buildings down both sides, not a budget one. */
-    palmsRow:  light ? 4   : 6,
+     * The count of *trees* is a composition decision about a street with
+     * buildings down both sides, not a budget one — and the composition was
+     * wrong. Twelve palms at 7.6 apart down a seventeen-wide street is an
+     * avenue, and an avenue is a thing you look along rather than a thing
+     * you shop: the crowns closed over the walkway and the shopfronts spent
+     * most of the journey behind a frond. Eight, further apart, leave the
+     * street readable and still give the parallax that made them worth
+     * having. */
+    palmsRow:  light ? 3   : 4,
     palmsRing: light ? 6   : 9,
     frondsPer: light ? 12  : 20,
     bloom:     !light,
@@ -3743,7 +3776,9 @@ const crowns = [];   // world positions of every crown, for the leaf spawner
   // street actually has — a high slender trunk carrying a compact crown,
   // clear above the canopies and well inside the shopfronts.
   for (let i = 0; i < QUALITY.palmsRow * 2; i++) {
-    const z = -40 - i * 7.6 - rand() * 2.2;
+    // Spaced to the new count, so the file still reaches the end of the
+    // street rather than stopping a third of the way down it.
+    const z = -40 - i * 11.4 - rand() * 2.6;
     const sideX = (i % 2 === 0 ? -1 : 1) * (STREET.half * 0.38);
     plant(sideX, z, 1, rand() * 9, {
       height: 8.4 + (i % 3) * 0.8,
@@ -6478,8 +6513,8 @@ const boards = (() => {
    */
   const PLAN = [
     "facadeTower", "banner",      "ticker",      "facadeTower", "twin",
-    "banner",      "facadeTower", "ticker",      "twin",        "roofBanner",
-    "twin",        "banner",      "facadeTower", "ticker",      "banner",
+    "banner",      "ticker",      "facadeTower", "banner",      "roofBanner",
+    "twin",        "ticker",      "facadeTower", "banner",      "banner",
   ];
 
   /* Turned to face the way you are walking, which is the whole difference
@@ -6543,18 +6578,23 @@ const boards = (() => {
         // stops being a band running along the building and becomes a plank.
         return [{ w: 13.2, h: 0.95, x: 0, y: lo + 0.62, z: FACE_Z, ticker: true }];
       case "facadeTower": {
-        /* A pair of portrait screens on the wall itself.
+        /* One portrait screen on the wall, not two.
          *
          * This is the roof tower brought down to where it can be read: same
          * shape, mounted in the facade band, turned toward the approach and
          * tipped down so it faces the pavement rather than the far horizon.
-         * Narrow enough that the turn does not reach into the street. */
-        const h = clamp(band * 0.62, 3.6, 6.4);
-        const w = 4.6, tilt = side * 0.34, z = clear(w, tilt);
-        return [
-          { w, h, x: -3.6, y: lo + h / 2 + 0.4, z, tilt, pitch: 0.12 },
-          { w, h, x:  3.6, y: lo + h / 2 + 0.4, z, tilt, pitch: 0.12 },
-        ];
+         *
+         * It was a pair, at plus and minus 3.6, and nothing was wrong with
+         * either of them on their own — no board intersects a building or
+         * another board, which was checked by raycasting out of every panel
+         * and by comparing all of their boxes. What was wrong is that from
+         * anywhere along the street you saw both at once, at a glancing
+         * angle, one behind the other: two tilted screens reading as one
+         * broken thing. A single wider screen says the same and says it
+         * once. */
+        const h = clamp(band * 0.66, 3.8, 6.6);
+        const w = 5.6, tilt = side * 0.30, z = clear(w, tilt);
+        return [{ w, h, x: 0, y: lo + h / 2 + 0.4, z, tilt, pitch: 0.12 }];
       }
       case "roofTower":
         return [{ w: 5.2, h: 7.6, x: -2.4, y: H + 4.2, z: ROOF_Z, foot: H, tilt: side * 0.82 }];
