@@ -5378,6 +5378,161 @@ const streetLamps = [];
 // leaf is a rotation and nothing else. Both swing inward, which is what a
 // shop door does and which keeps them clear of the planters outside.
 
+/**
+ * ## 18D  DISPLAYS — windows and stands
+ *
+ * A street of screens is an advertising hoarding, not a shop. This is the
+ * retail furniture: a lit display unit standing inside each shopfront's own
+ * glazing, and a few stands out on the paving between the palms.
+ *
+ * Inside the existing glass, deliberately. Each shopfront already has two
+ * glazed bays with a room behind them """ + M + """ pane at z 0.1, back wall at -1.2 """ + M + """
+ * so a window display is something to put *in* that gap, not a new hole to
+ * cut in a wall that is already carrying a door, a sill and a head beam.
+ *
+ * The garment is a lit panel rather than a mannequin. Every product
+ * photograph in this catalogue is a studio shot on white, so there is no
+ * cut-out to stand up: a lit card on a plinth is what those photographs can
+ * honestly be, and it is what a real window unit looks like anyway.
+ *
+ * Built empty and dressed when the catalogue lands, because the street is
+ * laid out long before anybody knows what the houses are selling.
+ */
+const displays = (() => {
+  const loader = new THREE.TextureLoader();
+  const units = [];          // { mat, slug } — one per window, plus the stands
+  const plinths = [];        // merged, they never change
+
+  const PANEL_W = 1.9, PANEL_H = 2.5;
+
+  /** A plinth and a lit card on top of it, in some parent's local space. */
+  function unit(parent, x, y, z, ry, slug, scale) {
+    const k = scale ?? 1;
+    const pw = 1.3 * k, ph = 0.62 * k, pd = 0.8 * k;
+
+    const plinth = new THREE.BoxGeometry(pw, ph, pd);
+    plinth.rotateY(ry);
+    plinth.translate(x, y + ph / 2, z);
+    plinths.push({ geo: plinth, parent });
+
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.66,
+      metalness: 0,
+      // Lit from within, like a lightbox: a shop window at dusk is the
+      // brightest thing on the street and an unlit card in one is a poster
+      // in a dark room.
+      emissive: 0xffffff,
+      emissiveIntensity: 0.22,
+      transparent: true,
+      opacity: 0,
+      side: THREE.DoubleSide,
+    });
+    const card = new THREE.Mesh(new THREE.PlaneGeometry(PANEL_W * k, PANEL_H * k), mat);
+    card.position.set(x, y + ph + (PANEL_H * k) / 2 - 0.05, z);
+    card.rotation.y = ry;
+    parent.add(card);
+
+    units.push({ mat, slug, card });
+  }
+
+  return {
+    /** Called once the street exists: one unit in each house's left bay. */
+    build(homes) {
+      for (const m of homes) {
+        // The glazed bays sit at local x +-4.4. The left one, set back
+        // behind the glass at -0.55, between the pane and the back wall.
+        unit(m.group, -4.4, 0, -0.55, 0, m.brand.slug, 1);
+      }
+
+      /* And a few out on the paving.
+       *
+       * Between the palms rather than beside them: the file of palms runs
+       * at 0.38 of the half-width, so these stand further out at 0.66 where
+       * they are passed rather than walked into. Four of them, because this
+       * street has just had a third of its screens and a third of its trees
+       * taken out of it for being crowded.
+       */
+      const standAt = [-58, -96, -134, -168];
+      standAt.forEach((z, i) => {
+        const side = i % 2 === 0 ? -1 : 1;
+        const x = side * (STREET.half * 0.66);
+        const g = new THREE.Group();
+        g.position.set(x, 0, z);
+        // Turned to face back up the street, which is the way it is walked.
+        g.rotation.y = side < 0 ? 0.5 : -0.5;
+        scene.add(g);
+        unit(g, 0, 0, 0, 0, null, 0.82);
+      });
+
+      if (plinths.length) {
+        /* Merged per parent: a shopfront's plinth belongs to its group so it
+         * travels with the building, and the street stands are their own. */
+        const byParent = new Map();
+        for (const p of plinths) {
+          if (!byParent.has(p.parent)) byParent.set(p.parent, []);
+          byParent.get(p.parent).push(p.geo);
+        }
+        const mat = new THREE.MeshStandardMaterial({
+          color: 0xdedbd4, roughness: 0.88, metalness: 0,
+        });
+        for (const [parent, geos] of byParent) {
+          const mesh = new THREE.Mesh(mergeGeometries(geos), mat);
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          parent.add(mesh);
+        }
+      }
+    },
+
+    /** Puts stock in the windows. Safe to call again on every refresh. */
+    dress(brands) {
+      if (!brands) return;
+      const pool = [];
+      for (const list of Object.values(brands)) {
+        for (const q of list) if (q.image && (q.stock ?? 0) > 0) pool.push(q);
+      }
+
+      units.forEach((u, i) => {
+        // A house's own window shows its own stock; a stand on the paving
+        // shows anybody's, which is what a street display is for.
+        const mine = u.slug ? (brands[u.slug] || []).filter((q) => q.image && (q.stock ?? 0) > 0) : pool;
+        if (!mine.length) return;
+        const pick = mine[i % mine.length];
+        if (u.shown === pick.image) return;
+        u.shown = pick.image;
+
+        loader.load(pick.image, (tex) => {
+          if (u.shown !== pick.image) { tex.dispose(); return; }
+          tex.colorSpace = THREE.SRGBColorSpace;
+          tex.anisotropy = 4;
+          u.mat.map = tex;
+          u.mat.emissiveMap = tex;
+          u.mat.needsUpdate = true;
+        });
+      });
+    },
+
+    /** The display units, for checking what landed where. */
+    units: () => units.map((u) => ({
+      slug: u.slug, shown: u.shown || null,
+      hasMap: !!u.mat.map, opacity: +u.mat.opacity.toFixed(2), card: u.card,
+    })),
+
+    /** Eases them in once their picture has landed. */
+    step(dt) {
+      for (const u of units) {
+        const want = u.mat.map ? 1 : 0;
+        if (Math.abs(u.mat.opacity - want) < 0.01) { u.mat.opacity = want; continue; }
+        u.mat.opacity += (want - u.mat.opacity) * Math.min(1, dt * 2.5);
+      }
+    },
+  };
+})();
+
+// The street exists by now, so the windows have somewhere to stand.
+displays.build(monoliths);
+
 const doors = (() => {
   const DOOR_W = 3.0, DOOR_H = 4.3, LEAF = DOOR_W / 2;
   const geo = new THREE.BoxGeometry(LEAF, DOOR_H, 0.085);
@@ -8887,6 +9042,7 @@ function step(dt, t, p) {
     storeMode.aim(dt, camPos, camLook);
     // The campaign posters ease in once their picture has landed.
     storeRoom.stepPosters(dt);
+    displays.step(dt);
   } else {
     PATH.getPointAt(p, camPos);
     LOOK.getPointAt(p, camLook);
@@ -8961,6 +9117,8 @@ function step(dt, t, p) {
      * `inStreet` either — the end screens stand past the last shopfront,
      * which is exactly where the visitor is told to look. */
     boardHints.place(true);
+    // The window displays fade in out here too, not only inside a shop.
+    displays.step(dt);
     placePins(shownBrand, inStreet);
     // The last stretch of the walk, where the crown block is what is left
     // to see. Slightly before the end copy, so it is already there.
@@ -10941,7 +11099,7 @@ window.DD = { THREE, scene, camera, renderer, composer, C, BRANDS, PATH, LOOK,
               // Place and render the scene at a scroll position without the
               // rAF loop; works in a backgrounded tab, where goTo does not.
               step: (v) => { scrollEased = v; step(0.016, clock.elapsedTime, v); },
-              doors, boards, lookPanel, lookView,
+              doors, boards, lookPanel, lookView, displays,
               route: { houseInHash, openFromHash },
               // Getters, both: section 27 builds these several thousand
               // lines below this object and a plain reference is a
@@ -13546,6 +13704,7 @@ storeMode = (() => {
       await loadCatalogue({ fresh: true, bust: opts.bust });
       // Whatever just changed, the boards outside are advertising it too.
       boards.setCatalogue(catalogue, catalogueLooks);
+      displays.dress(catalogue);
       dressPins();
     } catch {
       return false;                       // the shelf already says so
@@ -13626,7 +13785,7 @@ storeMode = (() => {
    * failure leaves every board showing its house's logo, which is exactly
    * what they showed before this existed. */
   loadCatalogue()
-    .then((c) => { boards.setCatalogue(c, catalogueLooks); dressPins(); })
+    .then((c) => { boards.setCatalogue(c, catalogueLooks); displays.dress(c); dressPins(); })
     .catch(() => {});
 
   /** Loads a house's stock into the listing, the chips and the sections. */
