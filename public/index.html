@@ -2409,7 +2409,70 @@ try {
 let viewW = canvasEl.clientWidth || innerWidth;
 let viewH = canvasEl.clientHeight || innerHeight;
 
-renderer.setPixelRatio(Math.min(devicePixelRatio, QUALITY.dpr));
+/**
+ * How many pixels this machine can afford, decided by watching it.
+ *
+ * The scene was asking for more than the frame budget: measured, the render
+ * was taking the best part of fifty milliseconds against a budget of
+ * sixteen, which is why a laptop's fans come up. Resolution is the one lever
+ * that is both large and linear — dropping from 1.25 to 1.0 took eight
+ * milliseconds off a frame on its own, because it is a quarter fewer pixels
+ * to shade.
+ *
+ * Rather than pick a number and hope, this watches the frame clock and moves
+ * the resolution to fit the machine it is actually running on. A desktop
+ * with headroom keeps every pixel it asked for; one that cannot hold the
+ * frame gives some back until it can.
+ *
+ * Deliberately slow to react. A resolution change reallocates every render
+ * target, so it samples over seconds and steps rather than chases, and it is
+ * far more willing to drop than to climb: oscillating between two
+ * resolutions is more distracting than sitting at the lower one.
+ */
+const pixels = (() => {
+  const MAX = Math.min(devicePixelRatio, QUALITY.dpr);
+  const MIN = Math.max(0.75, MAX * 0.6);
+  let now = MAX;
+  let samples = [];
+  let nextCheck = 0;
+
+  function apply(v) {
+    if (Math.abs(v - now) < 0.02) return;
+    now = v;
+    renderer.setPixelRatio(v);
+    renderer.setSize(viewW, viewH, false);
+    if (typeof composer !== "undefined" && composer) composer.setSize(viewW, viewH);
+    if (typeof bloomPass !== "undefined" && bloomPass) bloomPass.setSize(viewW, viewH);
+  }
+
+  return {
+    get value() { return now; },
+    get max() { return MAX; },
+    reset() { apply(MAX); samples = []; },
+
+    /** Called once a frame with that frame's duration, in milliseconds. */
+    watch(ms, t) {
+      // Startup frames are not representative: textures are still landing
+      // and shaders are still compiling.
+      if (t < 4) return;
+      samples.push(ms);
+      if (t < nextCheck) return;
+      nextCheck = t + 2.5;
+      if (samples.length < 40) { samples = []; return; }
+
+      samples.sort((a, b) => a - b);
+      const median = samples[samples.length >> 1];
+      samples = [];
+
+      // 21ms is a frame and a bit: comfortably missing 60, not yet down to 30.
+      if (median > 21 && now > MIN) apply(Math.max(MIN, now - 0.15));
+      // Climbs back only when there is real room, and only a step at a time.
+      else if (median < 13 && now < MAX) apply(Math.min(MAX, now + 0.1));
+    },
+  };
+})();
+
+renderer.setPixelRatio(pixels.value);
 renderer.setSize(viewW, viewH, false);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.98;
@@ -2829,6 +2892,25 @@ const waterUniforms = {
   uMirror:   { value: null },
   uMirrorMat:{ value: new THREE.Matrix4() },
 };
+
+/* Is the pool in shot at all?
+ *
+ * Cheap: one matrix multiply and a sphere test against the frustum, against
+ * a second full render of the scene. */
+const mirrorFrustum = new THREE.Frustum();
+const mirrorMat = new THREE.Matrix4();
+let waterSphere = null;
+function mirrorNeeded() {
+  // Nothing to reflect into while the visitor is inside a shop.
+  if (storeMode && storeMode.active) return false;
+  if (!waterSphere) {
+    water.geometry.computeBoundingSphere();
+    waterSphere = water.geometry.boundingSphere.clone().applyMatrix4(water.matrixWorld);
+  }
+  mirrorMat.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+  mirrorFrustum.setFromProjectionMatrix(mirrorMat);
+  return mirrorFrustum.intersectsSphere(waterSphere);
+}
 
 const water = new THREE.Mesh(
   new THREE.PlaneGeometry(POOL.w, POOL.d, 1, 1),
@@ -5414,6 +5496,8 @@ const streetLamps = [];
 const displays = (() => {
   const loader = new THREE.TextureLoader();
   const units = [];          // { mat, slug } — one per window, plus the stands
+  const stands = [];         // just the ones on the paving
+  const art = [];            // every campaign picture, for the stands
   const plinths = [];        // merged, they never change
 
   const PANEL_W = 1.9, PANEL_H = 2.5;
@@ -5446,7 +5530,9 @@ const displays = (() => {
     card.rotation.y = ry;
     parent.add(card);
 
-    units.push({ mat, slug, card });
+    const u = { mat, slug, card, i: units.length, at: 0, next: 0, shown: null };
+    units.push(u);
+    if (!slug) { card.userData.stand = true; stands.push(u); }
   }
 
   return {
@@ -5498,33 +5584,68 @@ const displays = (() => {
       }
     },
 
-    /** Puts stock in the windows. Safe to call again on every refresh. */
-    dress(brands) {
-      if (!brands) return;
-      const pool = [];
-      for (const list of Object.values(brands)) {
-        for (const q of list) if (q.image && (q.stock ?? 0) > 0) pool.push(q);
-      }
-
-      units.forEach((u, i) => {
-        // A house's own window shows its own stock; a stand on the paving
-        // shows anybody's, which is what a street display is for.
-        const mine = u.slug ? (brands[u.slug] || []).filter((q) => q.image && (q.stock ?? 0) > 0) : pool;
-        if (!mine.length) return;
-        const pick = mine[i % mine.length];
-        if (u.shown === pick.image) return;
-        u.shown = pick.image;
-
-        loader.load(pick.image, (tex) => {
-          if (u.shown !== pick.image) { tex.dispose(); return; }
-          tex.colorSpace = THREE.SRGBColorSpace;
-          tex.anisotropy = 4;
-          u.mat.map = tex;
-          u.mat.emissiveMap = tex;
-          u.mat.needsUpdate = true;
-        });
+    /** Loads one picture onto a unit, dropping a stale answer. */
+    paint(u, src) {
+      if (!src || u.shown === src) return;
+      u.shown = src;
+      loader.load(src, (tex) => {
+        // Between the request and the answer the stand may have turned over.
+        if (u.shown !== src) { tex.dispose(); return; }
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.anisotropy = 4;
+        if (u.mat.map) u.mat.map.dispose();
+        u.mat.map = tex;
+        u.mat.emissiveMap = tex;
+        u.mat.needsUpdate = true;
       });
     },
+
+    /**
+     * Stock in the windows, campaign artwork on the stands.
+     *
+     * The two are doing different jobs. A shop window shows the thing
+     * itself, which is what the product photographs are; a stand out on the
+     * paving is a poster, and a poster is where the campaign goes now that
+     * the shopfront screens have stopped carrying it.
+     *
+     * A stand turns over on its own and can be tapped, which opens the
+     * panel on whatever it is showing — and the panel's pager is how you
+     * scroll the rest.
+     */
+    dress(brands, looks) {
+      if (brands) {
+        for (const u of units) {
+          if (!u.slug) continue;
+          const mine = (brands[u.slug] || []).filter((q) => q.image && (q.stock ?? 0) > 0);
+          if (mine.length) this.paint(u, mine[u.i % mine.length].image);
+        }
+      }
+
+      if (looks) {
+        art.length = 0;
+        for (const [slug, list] of Object.entries(looks)) {
+          const brand = BRANDS.find((x) => x.slug === slug) || (slug === "district" ? DISTRICT : null);
+          if (!brand) continue;
+          for (const look of list) art.push({ kind: "look", brand, look, key: `l:${look.image}` });
+        }
+        // Each stand starts at a different point in the run, so the four of
+        // them are never showing the same picture at once.
+        stands.forEach((u, i) => {
+          u.at = art.length ? Math.floor((i * art.length) / stands.length) : 0;
+          if (art.length) this.paint(u, art[u.at].look.image);
+        });
+      }
+    },
+
+    /** Which artwork a stand is showing, for the picker. */
+    artOf(mesh) {
+      const u = stands.find((x) => x.card === mesh);
+      if (!u || !art.length) return null;
+      return { ads: art.slice(), at: u.at % art.length };
+    },
+
+    /** The stands' cards, for the picker. */
+    cards: () => stands.map((u) => u.card),
 
     /** The display units, for checking what landed where. */
     units: () => units.map((u) => ({
@@ -5532,8 +5653,17 @@ const displays = (() => {
       hasMap: !!u.mat.map, opacity: +u.mat.opacity.toFixed(2), card: u.card,
     })),
 
-    /** Eases them in once their picture has landed. */
-    step(dt) {
+    /** Eases them in, and turns the stands over. */
+    step(dt, t) {
+      if (art.length && typeof t === "number") {
+        for (const u of stands) {
+          if (t < u.next) continue;
+          // Staggered, so the four do not flip together.
+          u.next = t + 9 + (u.i % 4) * 1.7;
+          u.at = (u.at + 1) % art.length;
+          this.paint(u, art[u.at].look.image);
+        }
+      }
       for (const u of units) {
         const want = u.mat.map ? 1 : 0;
         if (Math.abs(u.mat.opacity - want) < 0.01) { u.mat.opacity = want; continue; }
@@ -7045,46 +7175,28 @@ const boards = (() => {
       });
     }
 
-    const seen = new Map();
     for (const b of panels) {
       if (!b.house) continue;
       const slug = b.house.slug;
-      const nth = seen.get(slug) || 0;
-      seen.set(slug, nth + 1);
 
-      const all = (brands[slug] || []).filter((q) => q.image);
-      const inStock = all.filter((q) => (q.stock ?? 0) > 0);
-      const pool = inStock.length ? inStock : all;
-      /* Campaign artwork leads.
+      /* The shopfront screens carry the house, and nothing else.
        *
-       * A house with artwork opens on it rather than on its logo: it is the
-       * thing that actually sells, and it is the only creative that survives
-       * being read at an angle from the far end of the street. The logo card
-       * stays in the rotation behind it, and a house with no artwork is
-       * exactly as it was. */
-      const reel = [];
-      /* Closest shape first.
+       * They used to run the campaign artwork and a few product cards as
+       * well, and between them and the hoardings above them the street was
+       * advertising in every direction at once. The campaign now lives on
+       * the three screens that close the street, where it is large, where
+       * there is nothing competing with it, and where somebody who has
+       * walked the whole way is standing still and looking at it.
        *
-       * There are eight aspect classes on this street and a board draws its
-       * artwork to cover, so the wrong shape is not a small imperfection: a
-       * 21:9 image on a 3.17 banner loses a quarter of its height, which on
-       * a full-length figure is the head. Ranking by how far the artwork is
-       * from the board, in log space so that being half as wide counts the
-       * same as being twice as wide, means each hoarding takes the piece
-       * that was composed for something like it. */
-      const mine = fitFor(looks[slug] || [], boardAspect(b), 2);
-      for (const look of mine) {
-        reel.push({ kind: "look", brand: b.house, look, key: `l:${look.image}` });
-      }
-      reel.push({ kind: "brand", brand: b.house, key: slug });
-      // Two rather than three on the light tier. The bytes are small now,
-      // but each one is still a request, and a phone on a cellular link
-      // pays for the round trip more than for the payload.
-      const want = QUALITY.light ? 2 : 3;
-      for (let i = 0; i < Math.min(want, pool.length); i++) {
-        const pr = pool[(i + nth * 3) % pool.length];
-        reel.push({ kind: "product", brand: b.house, product: pr, key: pr.id });
-      }
+       * What is left here is the house's own mark, which is what a shopfront
+       * sign is for: telling you whose door this is.
+       *
+       * It is also most of the render cost gone. Every look and product card
+       * was a canvas repainted on its own timer and a photograph fetched and
+       * uploaded to the GPU; fifteen shopfronts' worth of that was running
+       * whether or not anybody was looking at it.
+       */
+      const reel = [{ kind: "brand", brand: b.house, key: slug }];
 
       /* Only restart when the reel actually changed.
        *
@@ -7251,178 +7363,6 @@ const boards = (() => {
     return { mesh: proxy };
   }
 
-  /* ── searchlights ────────────────────────────────────────────────────
-   *
-   * A beam of light standing up out of every screen that is running
-   * something you can buy.
-   *
-   * The advert chips work on a desktop and are easy to miss on a phone:
-   * they are small, they sit on the board itself, and on a narrow screen
-   * the board may be a long way up and half behind a palm. A column of
-   * light is the opposite — it is visible from the far end of the street,
-   * it points at exactly one thing, and it needs no text to be understood.
-   *
-   * Additive and unlit, so it reads as light rather than as a solid object,
-   * and it never writes depth — a beam is something the street shines
-   * through, not something that occludes it.
-   */
-  const BEAM_POOL = QUALITY.light ? 3 : 5;
-
-  const beamTex = (() => {
-    // One narrow strip: opaque at the foot, gone by the top.
-    const c = canvas(4, 128);
-    const g = c.getContext("2d");
-    const grad = g.createLinearGradient(0, 128, 0, 0);
-    grad.addColorStop(0.00, "rgba(255,255,255,0.85)");
-    grad.addColorStop(0.18, "rgba(255,255,255,0.52)");
-    grad.addColorStop(0.60, "rgba(255,255,255,0.16)");
-    grad.addColorStop(1.00, "rgba(255,255,255,0)");
-    g.fillStyle = grad;
-    g.fillRect(0, 0, 4, 128);
-    return asTexture(c);
-  })();
-
-  const WHITE = new THREE.Color(0xffffff);
-
-  const beams = (() => {
-    const pool = [];
-    const at = new THREE.Vector3();
-    const toCam = new THREE.Vector3();
-    const nrm = new THREE.Vector3();
-    const quat = new THREE.Quaternion();
-
-    for (let i = 0; i < BEAM_POOL; i++) {
-      /* Narrow at the foot and wide at the head, open at both ends: a cone
-       * with caps reads as a solid horn when it is edge-on to the camera. */
-      const geo = new THREE.CylinderGeometry(3.1, 0.75, 30, 14, 1, true);
-      geo.translate(0, 15, 0);            // stand it on its own foot
-      /* Normal blending, not additive.
-       *
-       * Additive was the obvious choice for something made of light and it
-       * is invisible in daylight: adding white to a bright sky is adding
-       * white to white, and at the opacity a beam wants it registered as
-       * nothing at all. Measured at noon it was sitting at 0.08 and could
-       * not be seen in a screenshot.
-       *
-       * Normal blending with the house's own colour reads against both the
-       * sky and the buildings, and the alpha ramp in the texture is what
-       * keeps it looking like light rather than like a plastic cone.
-       */
-      const mat = new THREE.MeshBasicMaterial({
-        map: beamTex,
-        transparent: true,
-        opacity: 0,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-        toneMapped: false,
-        fog: false,
-      });
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.visible = false;
-      mesh.renderOrder = 3;
-      // Picked as the board it belongs to, not as a thing of its own.
-      mesh.userData.beam = true;
-      scene.add(mesh);
-      pool.push({ mesh, mat, board: null });
-    }
-
-    return {
-      /** The beam meshes, for the picker. */
-      meshes: () => pool.map((b) => b.mesh),
-      /** Which board a beam is standing on, or null. */
-      boardOf: (mesh) => (pool.find((b) => b.mesh === mesh) || {}).board || null,
-
-      update(dt, night) {
-        /* Which screens deserve one — and not simply the nearest.
-         *
-         * Nearest was the first answer and it was exactly wrong. These beams
-         * stand from ten metres up to forty, and from the pavement directly
-         * underneath one that is thirty degrees of sky: measured, the
-         * nearest beams projected to ndc y of 7, 16, even 60, entirely off
-         * the top of the frame. The screens you are standing under are the
-         * ones you can already see; the beam is for the ones further down
-         * the street, where the angle is shallow enough that the whole
-         * column is in shot.
-         *
-         * So there is a near limit as well as a far one, and inside the band
-         * the nearest still lead.
-         */
-        const NEAR = 30, FAR = 165;
-        const want = [];
-        for (const b of panels) {
-          const c = b.creative;
-          if (!c || (c.kind !== "look" && c.kind !== "product")) continue;
-          b.mesh.getWorldPosition(at);
-          const d = at.distanceTo(camera.position);
-          if (d < NEAR || d > FAR) continue;
-          want.push({ b, d, y: at.y, x: at.x, z: at.z });
-        }
-        want.sort((p, q) => p.d - q.d);
-
-        pool.forEach((beam, i) => {
-          const w = want[i];
-          if (!w) {
-            beam.board = null;
-            // Faded out rather than switched off, or they blink as the reel
-            // turns over.
-            beam.mat.opacity = Math.max(0, beam.mat.opacity - dt * 1.6);
-            beam.mesh.visible = beam.mat.opacity > 0.01;
-            return;
-          }
-
-          beam.board = w.b;
-          const g = w.b.mesh.geometry.parameters;
-          w.b.mesh.getWorldQuaternion(quat);
-          nrm.set(0, 0, 1).applyQuaternion(quat);
-
-          // Standing on the top edge of the board and leaning very slightly
-          // out over the street, the way a real one would be aimed.
-          beam.mesh.position.set(
-            w.x + nrm.x * 0.35,
-            w.y + g.height * 0.42,
-            w.z + nrm.z * 0.35,
-          );
-
-          /* Brighter at night, and brighter the more squarely you are
-           * looking at the board it belongs to: a beam seen from behind its
-           * own hoarding is pointing at something you cannot read. */
-          toCam.copy(camera.position).sub(at).normalize();
-          const facing = Math.max(0, toCam.dot(nrm));
-          // Fades in over the first stretch of the band and out at the end
-          // of it, so a beam never snaps on as a board crosses the limit.
-          // Floored, not just ramped: these two multipliers together were
-          // cutting a base of 0.6 down to 0.3, which is back in the range
-          // that cannot be seen at noon.
-          const near = clamp(
-            clamp((w.d - NEAR) / 18, 0, 1) * clamp((FAR - w.d) / 40, 0, 1),
-            0.55, 1,
-          );
-          /* Strength found by looking, not by taste.
-           *
-           * At a fifth it was invisible in daylight and at two fifths it
-           * still was: a pale translucent cone against a pale sky is
-           * nothing, whatever the framing. Forced to full red it showed
-           * plainly, which proved the mechanism and left only the number.
-           * This is where it reads against both sky and buildings without
-           * turning into a plastic horn. */
-          const want0 = (0.82 + night * 0.15) * (0.72 + facing * 0.28) * near;
-
-          /* The house's colour, lightened.
-           *
-           * A white beam over a pale sky is a smudge; the brand colour tells
-           * you whose advert it is before you have read anything, which is
-           * most of the job on a phone. Lifted toward white so a dark house
-           * still reads as light rather than as a shadow. */
-          const house = (w.b.house && w.b.house.bg && w.b.house.bg[0]) || "#ffffff";
-          beam.mat.color.set(house).lerp(WHITE, 0.15);
-
-          beam.mat.opacity += (want0 - beam.mat.opacity) * Math.min(1, dt * 2.4);
-          beam.mesh.visible = beam.mat.opacity > 0.01;
-        });
-      },
-    };
-  })();
-
   // ?boards on the URL opens it on load, which is the quickest way in.
   if (new URLSearchParams(location.search).has("boards")) {
     requestAnimationFrame(() => preview(true));
@@ -7430,7 +7370,6 @@ const boards = (() => {
 
   return {
     panels, tickers, setCatalogue, preview, endTarget,
-    beams,
 
     /** This house's campaign artwork, best fit for a given shape first. */
     looksFor(slug, want) {
@@ -7520,9 +7459,6 @@ const boards = (() => {
         for (const b of tickers) b.tex.offset.x = (b.tex.offset.x - dt * 0.055) % 1;
       }
 
-      // The searchlights follow the reel: only screens with something
-      // shoppable on them get one, so this has to run after the turnover.
-      beams.update(dt, night);
       // Not mixNum: that is declared with the clock, a couple of thousand
       // lines below this, and reaching down for a two-term lerp is a
       // temporal dead zone waiting to happen the first time this runs early.
@@ -7680,21 +7616,17 @@ function under() {
    * hits the board hits the shopfront behind it too. Sorting by distance and
    * taking the nearest means tapping the picture opens the picture, and
    * tapping the door still opens the door. */
-  /* Beams are picked too, and resolve to the board they stand on.
-   *
-   * A beam is a much larger target than the screen at the foot of it, which
-   * is the entire point on a phone: the thing that catches the eye is the
-   * thing you can hit. */
+  /* Stands are picked too. They are the only advertising left at street
+   * level, so they have to be the thing you can reach from down here. */
   const hits = ray.intersectObjects(
-    faces.concat(shoppableBoards(), boards.beams.meshes()), false,
+    faces.concat(shoppableBoards(), displays.cards()), false,
   );
   return hits.length ? hits[0] : null;
 }
 
-/** The board a mesh belongs to, or null. A beam counts as its own board. */
+/** The board a mesh belongs to, or null. */
 function boardOf(mesh) {
   if (!boards) return null;
-  if (mesh.userData && mesh.userData.beam) return boards.beams.boardOf(mesh);
   return boards.panels.find((b) => b.mesh === mesh) || null;
 }
 
@@ -7703,6 +7635,12 @@ function pick(e) {
   const hit = under();
   if (!hit) return;
   if (storeMode && storeMode.active) { storeMode.pickPanel(hit.object); return; }
+
+  if (hit.object.userData && hit.object.userData.stand) {
+    const a = displays.artOf(hit.object);
+    if (a) { sound.click(); lookPanel.showArt(a.ads, a.at); }
+    return;
+  }
 
   const board = boardOf(hit.object);
   if (board) { lookPanel.open(board); return; }
@@ -8840,17 +8778,18 @@ const lookPanel = (() => {
     storeMode.enterBySlug(slug);
   });
 
-  /** Move to the next advert on the same board, whoever it belongs to. */
+  /** Move to the next advert, whoever it belongs to. */
   function step(by) {
-    if (ads.length < 2 || !board) return;
+    if (ads.length < 2) return;
     at = (at + by + ads.length) % ads.length;
     const next = ads[at];
     // The house travels with the advert: the eyebrow, the note and the way
     // into the shop all have to follow it, or the panel keeps describing
     // the shop you were looking at a moment ago.
     house = next.brand;
-    // Put it on the board too, so the panel and the hoarding behind it agree.
-    boards.showAd(board, next);
+    // Put it on the board too, so the panel and the hoarding behind it
+    // agree. Opened from a stand there is no board to keep in step.
+    if (board) boards.showAd(board, next);
     fill(next);
   }
   prevBtn.addEventListener("click", () => step(-1));
@@ -9016,7 +8955,33 @@ const lookPanel = (() => {
     return true;
   }
 
-  return { open, close, step, get isOpen() { return el.dataset.on === "1"; } };
+  /**
+   * Open the panel on a run of artwork with no hoarding behind it.
+   *
+   * This is what a display stand out on the paving opens. There is no board
+   * to freeze and no camera move to make — the stand is already at arm's
+   * length in front of you, and swinging the camera onto something you are
+   * standing at would be worse than leaving it alone. Everything else is the
+   * same panel, including the pager, which is how the rest of the campaign
+   * is reached from here.
+   */
+  function showArt(list, index, from) {
+    if (!list || !list.length) return false;
+    board = null;
+    ads = list;
+    at = Math.max(0, Math.min(index || 0, list.length - 1));
+    house = ads[at].brand;
+    opener = from || null;
+
+    fill(ads[at]);
+    el.dataset.on = "1";
+    el.setAttribute("aria-hidden", "false");
+    document.body.dataset.look = "1";
+    out.focus({ preventScroll: true });
+    return true;
+  }
+
+  return { open, showArt, close, step, get isOpen() { return el.dataset.on === "1"; } };
 })();
 
 // ## 22  FRAME LOOP
@@ -9055,7 +9020,7 @@ function step(dt, t, p) {
     storeMode.aim(dt, camPos, camLook);
     // The campaign posters ease in once their picture has landed.
     storeRoom.stepPosters(dt);
-    displays.step(dt);
+    displays.step(dt, t);
   } else {
     PATH.getPointAt(p, camPos);
     LOOK.getPointAt(p, camLook);
@@ -9096,9 +9061,19 @@ function step(dt, t, p) {
   if (leaves) leaves.update(dt, t);
   if (boards) boards.update(dt, t);
   fountain.update(dt, t);
-  // Before the main pass, so the water samples this frame's dome and not
-  // the last one's.
-  mirror.render(renderer, scene, camera);
+  /* Before the main pass, so the water samples this frame's dome and not
+   * the last one's — but only when the water is actually on screen.
+   *
+   * This is a second render of the scene, and it was running on every frame
+   * of the whole journey. Measured, the two scene-into-target passes cost
+   * 32 to 37ms a frame between them, and at the far end of the street the
+   * pool the reflection is for is a hundred and fifty metres behind the
+   * camera and cannot be seen at all.
+   *
+   * A frustum test rather than a distance rule: it is exact, it needs no
+   * number picked by eye, and it keeps working if the basin is ever moved.
+   */
+  if (mirrorNeeded()) mirror.render(renderer, scene, camera);
 
   // --- overlay ------------------------------------------------------------
   // A plain range test. This was a feathered curve once, and at the very top
@@ -9130,8 +9105,8 @@ function step(dt, t, p) {
      * `inStreet` either — the end screens stand past the last shopfront,
      * which is exactly where the visitor is told to look. */
     boardHints.place(true);
-    // The window displays fade in out here too, not only inside a shop.
-    displays.step(dt);
+    // The window displays fade in out here too, and the stands turn over.
+    displays.step(dt, t);
     placePins(shownBrand, inStreet);
     // The last stretch of the walk, where the crown block is what is left
     // to see. Slightly before the end copy, so it is already there.
@@ -9146,7 +9121,12 @@ function frame() {
   if (!running) return;
   requestAnimationFrame(frame);
 
-  const dt = Math.min(clock.getDelta(), 0.05);
+  // The raw delta is the frame clock; the clamped one is for physics, which
+  // must not take a half-second step when the tab comes back from the
+  // background.
+  const raw = clock.getDelta();
+  const dt = Math.min(raw, 0.05);
+  pixels.watch(raw * 1000, clock.elapsedTime);
   // Scroll easing: the camera always trails the scrollbar slightly, which is
   // what makes it feel like a dolly rather than a scrubbed video.
   // The camera trails the scrollbar by design — but trailing is drift, and
@@ -9181,7 +9161,9 @@ function resize() {
     BASE_FOV, 68
   );
   camera.updateProjectionMatrix();
-  renderer.setPixelRatio(Math.min(devicePixelRatio, QUALITY.dpr));
+  // Keeps whatever the watcher has settled on; a resize is not a reason to
+  // hand the machine back a resolution it has already said it cannot hold.
+  renderer.setPixelRatio(pixels.value);
   // `false`: do not write width/height back onto the canvas as inline pixels.
   // The stylesheet owns the box, and it owns it in `lvh` for a reason.
   renderer.setSize(w, h, false);
@@ -13717,7 +13699,7 @@ storeMode = (() => {
       await loadCatalogue({ fresh: true, bust: opts.bust });
       // Whatever just changed, the boards outside are advertising it too.
       boards.setCatalogue(catalogue, catalogueLooks);
-      displays.dress(catalogue);
+      displays.dress(catalogue, catalogueLooks);
       dressPins();
     } catch {
       return false;                       // the shelf already says so
@@ -13798,7 +13780,7 @@ storeMode = (() => {
    * failure leaves every board showing its house's logo, which is exactly
    * what they showed before this existed. */
   loadCatalogue()
-    .then((c) => { boards.setCatalogue(c, catalogueLooks); displays.dress(c); dressPins(); })
+    .then((c) => { boards.setCatalogue(c, catalogueLooks); displays.dress(c, catalogueLooks); dressPins(); })
     .catch(() => {});
 
   /** Loads a house's stock into the listing, the chips and the sections. */
