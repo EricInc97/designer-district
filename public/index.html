@@ -7083,6 +7083,178 @@ const boards = (() => {
     return { mesh: proxy };
   }
 
+  /* ── searchlights ────────────────────────────────────────────────────
+   *
+   * A beam of light standing up out of every screen that is running
+   * something you can buy.
+   *
+   * The advert chips work on a desktop and are easy to miss on a phone:
+   * they are small, they sit on the board itself, and on a narrow screen
+   * the board may be a long way up and half behind a palm. A column of
+   * light is the opposite — it is visible from the far end of the street,
+   * it points at exactly one thing, and it needs no text to be understood.
+   *
+   * Additive and unlit, so it reads as light rather than as a solid object,
+   * and it never writes depth — a beam is something the street shines
+   * through, not something that occludes it.
+   */
+  const BEAM_POOL = QUALITY.light ? 3 : 5;
+
+  const beamTex = (() => {
+    // One narrow strip: opaque at the foot, gone by the top.
+    const c = canvas(4, 128);
+    const g = c.getContext("2d");
+    const grad = g.createLinearGradient(0, 128, 0, 0);
+    grad.addColorStop(0.00, "rgba(255,255,255,0.85)");
+    grad.addColorStop(0.18, "rgba(255,255,255,0.52)");
+    grad.addColorStop(0.60, "rgba(255,255,255,0.16)");
+    grad.addColorStop(1.00, "rgba(255,255,255,0)");
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 4, 128);
+    return asTexture(c);
+  })();
+
+  const WHITE = new THREE.Color(0xffffff);
+
+  const beams = (() => {
+    const pool = [];
+    const at = new THREE.Vector3();
+    const toCam = new THREE.Vector3();
+    const nrm = new THREE.Vector3();
+    const quat = new THREE.Quaternion();
+
+    for (let i = 0; i < BEAM_POOL; i++) {
+      /* Narrow at the foot and wide at the head, open at both ends: a cone
+       * with caps reads as a solid horn when it is edge-on to the camera. */
+      const geo = new THREE.CylinderGeometry(3.1, 0.75, 30, 14, 1, true);
+      geo.translate(0, 15, 0);            // stand it on its own foot
+      /* Normal blending, not additive.
+       *
+       * Additive was the obvious choice for something made of light and it
+       * is invisible in daylight: adding white to a bright sky is adding
+       * white to white, and at the opacity a beam wants it registered as
+       * nothing at all. Measured at noon it was sitting at 0.08 and could
+       * not be seen in a screenshot.
+       *
+       * Normal blending with the house's own colour reads against both the
+       * sky and the buildings, and the alpha ramp in the texture is what
+       * keeps it looking like light rather than like a plastic cone.
+       */
+      const mat = new THREE.MeshBasicMaterial({
+        map: beamTex,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        toneMapped: false,
+        fog: false,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.visible = false;
+      mesh.renderOrder = 3;
+      // Picked as the board it belongs to, not as a thing of its own.
+      mesh.userData.beam = true;
+      scene.add(mesh);
+      pool.push({ mesh, mat, board: null });
+    }
+
+    return {
+      /** The beam meshes, for the picker. */
+      meshes: () => pool.map((b) => b.mesh),
+      /** Which board a beam is standing on, or null. */
+      boardOf: (mesh) => (pool.find((b) => b.mesh === mesh) || {}).board || null,
+
+      update(dt, night) {
+        /* Which screens deserve one — and not simply the nearest.
+         *
+         * Nearest was the first answer and it was exactly wrong. These beams
+         * stand from ten metres up to forty, and from the pavement directly
+         * underneath one that is thirty degrees of sky: measured, the
+         * nearest beams projected to ndc y of 7, 16, even 60, entirely off
+         * the top of the frame. The screens you are standing under are the
+         * ones you can already see; the beam is for the ones further down
+         * the street, where the angle is shallow enough that the whole
+         * column is in shot.
+         *
+         * So there is a near limit as well as a far one, and inside the band
+         * the nearest still lead.
+         */
+        const NEAR = 30, FAR = 165;
+        const want = [];
+        for (const b of panels) {
+          const c = b.creative;
+          if (!c || (c.kind !== "look" && c.kind !== "product")) continue;
+          b.mesh.getWorldPosition(at);
+          const d = at.distanceTo(camera.position);
+          if (d < NEAR || d > FAR) continue;
+          want.push({ b, d, y: at.y, x: at.x, z: at.z });
+        }
+        want.sort((p, q) => p.d - q.d);
+
+        pool.forEach((beam, i) => {
+          const w = want[i];
+          if (!w) {
+            beam.board = null;
+            // Faded out rather than switched off, or they blink as the reel
+            // turns over.
+            beam.mat.opacity = Math.max(0, beam.mat.opacity - dt * 1.6);
+            beam.mesh.visible = beam.mat.opacity > 0.01;
+            return;
+          }
+
+          beam.board = w.b;
+          const g = w.b.mesh.geometry.parameters;
+          w.b.mesh.getWorldQuaternion(quat);
+          nrm.set(0, 0, 1).applyQuaternion(quat);
+
+          // Standing on the top edge of the board and leaning very slightly
+          // out over the street, the way a real one would be aimed.
+          beam.mesh.position.set(
+            w.x + nrm.x * 0.35,
+            w.y + g.height * 0.42,
+            w.z + nrm.z * 0.35,
+          );
+
+          /* Brighter at night, and brighter the more squarely you are
+           * looking at the board it belongs to: a beam seen from behind its
+           * own hoarding is pointing at something you cannot read. */
+          toCam.copy(camera.position).sub(at).normalize();
+          const facing = Math.max(0, toCam.dot(nrm));
+          // Fades in over the first stretch of the band and out at the end
+          // of it, so a beam never snaps on as a board crosses the limit.
+          // Floored, not just ramped: these two multipliers together were
+          // cutting a base of 0.6 down to 0.3, which is back in the range
+          // that cannot be seen at noon.
+          const near = clamp(
+            clamp((w.d - NEAR) / 18, 0, 1) * clamp((FAR - w.d) / 40, 0, 1),
+            0.55, 1,
+          );
+          /* Strength found by looking, not by taste.
+           *
+           * At a fifth it was invisible in daylight and at two fifths it
+           * still was: a pale translucent cone against a pale sky is
+           * nothing, whatever the framing. Forced to full red it showed
+           * plainly, which proved the mechanism and left only the number.
+           * This is where it reads against both sky and buildings without
+           * turning into a plastic horn. */
+          const want0 = (0.82 + night * 0.15) * (0.72 + facing * 0.28) * near;
+
+          /* The house's colour, lightened.
+           *
+           * A white beam over a pale sky is a smudge; the brand colour tells
+           * you whose advert it is before you have read anything, which is
+           * most of the job on a phone. Lifted toward white so a dark house
+           * still reads as light rather than as a shadow. */
+          const house = (w.b.house && w.b.house.bg && w.b.house.bg[0]) || "#ffffff";
+          beam.mat.color.set(house).lerp(WHITE, 0.15);
+
+          beam.mat.opacity += (want0 - beam.mat.opacity) * Math.min(1, dt * 2.4);
+          beam.mesh.visible = beam.mat.opacity > 0.01;
+        });
+      },
+    };
+  })();
+
   // ?boards on the URL opens it on load, which is the quickest way in.
   if (new URLSearchParams(location.search).has("boards")) {
     requestAnimationFrame(() => preview(true));
@@ -7090,6 +7262,7 @@ const boards = (() => {
 
   return {
     panels, tickers, setCatalogue, preview, endTarget,
+    beams,
 
     /** This house's campaign artwork, best fit for a given shape first. */
     looksFor(slug, want) {
@@ -7178,6 +7351,10 @@ const boards = (() => {
       if (!QUALITY.still) {
         for (const b of tickers) b.tex.offset.x = (b.tex.offset.x - dt * 0.055) % 1;
       }
+
+      // The searchlights follow the reel: only screens with something
+      // shoppable on them get one, so this has to run after the turnover.
+      beams.update(dt, night);
       // Not mixNum: that is declared with the clock, a couple of thousand
       // lines below this, and reaching down for a two-term lerp is a
       // temporal dead zone waiting to happen the first time this runs early.
@@ -7335,13 +7512,21 @@ function under() {
    * hits the board hits the shopfront behind it too. Sorting by distance and
    * taking the nearest means tapping the picture opens the picture, and
    * tapping the door still opens the door. */
-  const hits = ray.intersectObjects(faces.concat(shoppableBoards()), false);
+  /* Beams are picked too, and resolve to the board they stand on.
+   *
+   * A beam is a much larger target than the screen at the foot of it, which
+   * is the entire point on a phone: the thing that catches the eye is the
+   * thing you can hit. */
+  const hits = ray.intersectObjects(
+    faces.concat(shoppableBoards(), boards.beams.meshes()), false,
+  );
   return hits.length ? hits[0] : null;
 }
 
-/** The board a mesh belongs to, or null. */
+/** The board a mesh belongs to, or null. A beam counts as its own board. */
 function boardOf(mesh) {
   if (!boards) return null;
+  if (mesh.userData && mesh.userData.beam) return boards.beams.boardOf(mesh);
   return boards.panels.find((b) => b.mesh === mesh) || null;
 }
 
