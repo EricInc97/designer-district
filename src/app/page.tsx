@@ -8,10 +8,26 @@ export default async function HomePage() {
   if (!supabaseConfigured) return <SetupNotice />;
 
   const supabase = await createClient();
+  /*
+   * `shoppable_brands`, not `brands`.
+   *
+   * There are sixteen rows in the table and only fifteen shops: the
+   * sixteenth is Designer District itself, which owns the crown screen in
+   * the 3D district and has never had a product of its own. Listed here it
+   * drew a tile that opened onto an empty shop, directly under copy that
+   * says "Select a brand to view its products".
+   *
+   * The view is the rule rather than the exception — a house earns a tile
+   * by having something published behind it. Excluding this one by slug
+   * would have fixed today and missed the next house whose last product is
+   * unpublished. Deactivating the row was the other obvious move and is a
+   * trap: brands is read under `is_active or is_staff()`, so clearing the
+   * flag also hides it from the join the district uses to fetch its boards,
+   * and the crown advert goes dark for everyone but staff.
+   */
   const { data: brands } = await supabase
-    .from("brands")
+    .from("shoppable_brands")
     .select("*")
-    .eq("is_active", true)
     .order("sort_order", { ascending: true });
 
   const brandList = (brands ?? []) as Brand[];

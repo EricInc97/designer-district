@@ -49,7 +49,9 @@ export default async function SearchPage({ searchParams }: Props) {
     !term && !brand && !category && !onlyFeatured && !onlySale && !onlyArrivals;
 
   const [{ data: brandRows }, { data: categoryRows }] = await Promise.all([
-    supabase.from("brands").select("*").eq("is_active", true).order("sort_order"),
+    // A facet that can only ever return nothing is not a facet. See
+    // app/page.tsx for why this is a view and not a filter on `brands`.
+    supabase.from("shoppable_brands").select("*").order("sort_order"),
     supabase.from("categories").select("*").order("sort_order"),
   ]);
 

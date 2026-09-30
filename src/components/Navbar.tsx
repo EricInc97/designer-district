@@ -19,7 +19,9 @@ export default async function Navbar() {
     } = await supabase.auth.getUser());
 
     const [{ data: brandRows }, { data: categoryRows }, profile] = await Promise.all([
-      supabase.from("brands").select("*").eq("is_active", true).order("sort_order"),
+      // Only houses that can be shopped; the district's own brand row has
+      // artwork in the 3D street but nothing to sell. See app/page.tsx.
+      supabase.from("shoppable_brands").select("*").order("sort_order"),
       supabase.from("categories").select("*").order("sort_order"),
       user
         ? supabase.from("profiles").select("role").eq("id", user.id).single()

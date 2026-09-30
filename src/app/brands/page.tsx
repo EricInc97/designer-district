@@ -11,10 +11,12 @@ export default async function BrandsIndexPage() {
   if (!supabaseConfigured) return <SetupNotice />;
 
   const supabase = await createClient();
+  // Houses with something published behind them. See the note on the
+  // homepage: the district's own row owns the crown screen but no products,
+  // and a tile onto an empty shop is worse than no tile.
   const { data } = await supabase
-    .from("brands")
+    .from("shoppable_brands")
     .select("*")
-    .eq("is_active", true)
     .order("sort_order", { ascending: true });
 
   const brands = (data ?? []) as Brand[];
