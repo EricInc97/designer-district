@@ -58,6 +58,13 @@ export type BrandMedia = {
   cta_href: string | null;
   /** Whether overlaid type should be light or dark on this photograph. */
   ink: "light" | "dark";
+  /** The shape it was generated at: "21:9", "2:3", "9:16". Boards were cut to
+   *  fit particular screens in the 3D street, so a page reusing one has to
+   *  lay it out at the shape it actually is rather than crop it to a guess. */
+  aspect: string | null;
+  /** The garments in the picture. Set when the campaign was generated from
+   *  stock, which is what lets a product page find the shots it appears in. */
+  product_ids: string[] | null;
   sort_order: number;
   is_published: boolean;
   created_at: string;

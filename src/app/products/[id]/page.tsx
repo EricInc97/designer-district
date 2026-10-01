@@ -11,8 +11,9 @@ import ProductViewTracker from "@/components/ProductViewTracker";
 import LiveViewers from "@/components/LiveViewers";
 import ProductCard from "@/components/ProductCard";
 import RecommendationRail from "@/components/RecommendationRail";
+import ProductCampaign from "@/components/ProductCampaign";
 import { money } from "@/lib/format";
-import type { ProductWithBrand } from "@/lib/types";
+import type { BrandMedia, ProductWithBrand } from "@/lib/types";
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -60,16 +61,88 @@ export default async function ProductPage({ params }: Props) {
 
   const brand = product.brands;
 
-  // Same house, different pieces, the most reliable cross-sell there is.
-  const { data: siblings } = await supabase
-    .from("products")
-    .select("*, brands(id, name, slug, logo_url)")
-    .eq("brand_id", product.brand_id)
-    .eq("is_published", true)
-    .neq("id", product.id)
-    .limit(4);
+  /*
+   * Same house, different pieces, the most reliable cross-sell there is —
+   * and, alongside it, the campaign artwork.
+   *
+   * Two separate reads rather than one `or`, because they ask genuinely
+   * different questions and only the first is about this garment.
+   *
+   * `inPicture` is every board this product is actually in, whoever's board
+   * it is. That last part matters: a good few of these are collaborations —
+   * "Chrome Hearts x Purple Brand", "Supreme x Ksubi" — so the picture that
+   * shows a Purple Brand jean being worn is filed under Chrome Hearts. A
+   * query scoped to the product's own house would miss exactly the shots
+   * worth showing.
+   */
+  const [{ data: siblings }, { data: inPicture }, { data: houseBoards }] =
+    await Promise.all([
+      supabase
+        .from("products")
+        .select("*, brands(id, name, slug, logo_url)")
+        .eq("brand_id", product.brand_id)
+        .eq("is_published", true)
+        .neq("id", product.id)
+        .limit(4),
+      supabase
+        .from("brand_media")
+        .select("*")
+        .eq("kind", "board")
+        .eq("is_published", true)
+        .contains("product_ids", [product.id]),
+      supabase
+        .from("brand_media")
+        .select("*")
+        .eq("kind", "board")
+        .eq("is_published", true)
+        .eq("brand_id", product.brand_id)
+        .order("sort_order", { ascending: true }),
+    ]);
 
   const more = (siblings ?? []) as ProductWithBrand[];
+
+  /*
+   * Which picture, and what it is allowed to claim.
+   *
+   * Of the shots this garment is in, the one dressing the most products wins:
+   * those are the full outfits rather than the single-garment detail shots,
+   * so they are both the better photograph and the better thing to shop.
+   * Failing that the house's own first board, captioned as the house's
+   * campaign and nothing more.
+   */
+  const worn = ((inPicture ?? []) as BrandMedia[])
+    .slice()
+    .sort(
+      (a, b) =>
+        (b.product_ids?.length ?? 0) - (a.product_ids?.length ?? 0) ||
+        a.sort_order - b.sort_order,
+    )[0] ?? null;
+  const campaign = worn ?? ((houseBoards ?? []) as BrandMedia[])[0] ?? null;
+
+  // The other garments in that photograph. Only ever offered for a picture
+  // this product is genuinely in, so "the rest of the look" is the rest of a
+  // look the shopper is actually looking at.
+  const lookIds = worn
+    ? (worn.product_ids ?? []).filter((pid) => pid !== product.id)
+    : [];
+  const { data: lookRows } = lookIds.length
+    ? await supabase
+        .from("products")
+        .select("*, brands(id, name, slug, logo_url)")
+        .in("id", lookIds)
+        .eq("is_published", true)
+    : { data: [] };
+  const companions = (lookRows ?? []) as ProductWithBrand[];
+
+  // Whether the board's own copy is about this house: either it is this
+  // house's board, or it is a collaboration whose title names this house.
+  const ownCopy =
+    campaign != null &&
+    (campaign.brand_id === product.brand_id ||
+      (brand?.name != null &&
+        (campaign.headline ?? "")
+          .toLowerCase()
+          .includes(brand.name.toLowerCase())));
   const gallery = [product.image_url, ...(product.gallery ?? [])].filter(
     (src): src is string => Boolean(src),
   );
@@ -186,6 +259,18 @@ export default async function ProductPage({ params }: Props) {
             </ul>
           </div>
         </div>
+
+          {/* ---------------- CAMPAIGN ---------------- */}
+        {campaign && (
+          <ProductCampaign
+            media={campaign}
+            worn={Boolean(worn)}
+            ownCopy={ownCopy}
+            companions={companions}
+            brandName={brand?.name ?? null}
+            brandSlug={brand?.slug ?? null}
+          />
+        )}
 
         {/* ---------------- MORE FROM BRAND ---------------- */}
         {more.length > 0 && (
