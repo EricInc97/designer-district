@@ -54,6 +54,13 @@ const PER_PICTURE = {
   // picture of two matching halves.
   "casablanca-photo":   ["Casablanca", "The towelling set."],
   "essentials-photo":   ["Essentials", "The fleece set, in black."],
+  // Batch two. The two cross-house pictures are named as collaborations,
+  // because that is what they are and because the carousel shows each of
+  // them on both houses' pages.
+  "off-white-ksubi-photo":  ["Off-White x Ksubi", "Quotation marks, shredded denim."],
+  "gallery-purple-photo":   ["Gallery Dept. x Purple Brand", "Painted cotton, premium washes."],
+  "bape-socks-photo":       ["A Bathing Ape", "The socks, up close."],
+  "godspeed-photo":         ["Godspeed", "Religious motifs, boxy cuts."],
 };
 
 /* Editorial copy. It lives here rather than in the generator because it is

@@ -44,6 +44,32 @@ const DWELL_MS = 6000;
  * to the rendered image, so the scrim and the words land on the photograph at
  * every aspect, with no letterboxed dead space under them.
  */
+/**
+ * What the caption says, given that the mark above it already says the
+ * house.
+ *
+ * Three of the boards are headlined with nothing but the brand name, which
+ * is exactly what the mark is. On Casablanca, which has no logo file, the
+ * mark falls back to the wordmark — so the overlay read CASABLANCA, then
+ * Casablanca, then the line that actually said something. The same word
+ * twice and the real copy demoted below both.
+ *
+ * So when the headline only repeats the mark, the subheading is promoted to
+ * be the headline: the mark names the house, the line says what the picture
+ * is. Fixed here rather than by rewriting three rows, because the next
+ * board headlined with a house name would bring it straight back.
+ */
+function line(
+  media: BrandMedia,
+  ownCopy: boolean,
+  brand: Pick<Brand, "name" | "description">,
+) {
+  const head = (ownCopy && media.headline) || brand.name;
+  const sub = (ownCopy && media.subhead) || brand.description || null;
+  const echoesMark = head.trim().toLowerCase() === brand.name.trim().toLowerCase();
+  return echoesMark && sub ? { head: sub, sub: null } : { head, sub };
+}
+
 export default function BrandCampaignCarousel({
   slides,
   brand,
@@ -221,7 +247,7 @@ export default function BrandCampaignCarousel({
                       and "Fifteen districts, one address" over a Purple Brand
                       page is a line about somewhere else. */}
                   <h2 className="display mt-2.5 text-xl leading-tight [text-shadow:0_1px_3px_rgba(0,0,0,0.85)] sm:text-3xl">
-                    {(ownCopy && media.headline) || brand.name}
+                    {line(media, ownCopy, brand).head}
                   </h2>
                   {/* A subheading on every slide, not only the ones whose
                       board happens to carry copy. Most of these were written
@@ -231,9 +257,9 @@ export default function BrandCampaignCarousel({
                       description is the fallback, and it is the right one —
                       it is the sentence the house is already described by
                       everywhere else on the site. */}
-                  {(ownCopy && media.subhead) || brand.description ? (
+                  {line(media, ownCopy, brand).sub ? (
                     <p className="mt-1.5 max-w-md text-xs leading-relaxed text-white/85 [text-shadow:0_1px_3px_rgba(0,0,0,0.85)] sm:text-sm">
-                      {(ownCopy && media.subhead) || brand.description}
+                      {line(media, ownCopy, brand).sub}
                     </p>
                   ) : null}
                   {/* Straight to the garments in this picture, which are the

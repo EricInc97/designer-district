@@ -57,12 +57,20 @@ export default function ProductCampaign({
   const banner = aw && ah ? `${aw} / ${ah}` : "21 / 9";
 
   const brandName = brand?.name ?? null;
-  const headline = (ownCopy && media.headline) || brandName || "The campaign";
+  const rawHead = (ownCopy && media.headline) || brandName || "The campaign";
   // A subheading on every hero. Boards were written as signage and many
   // carry no second line, which left the mark, the headline and the
   // button with nothing between them; the house's own description is
   // the sentence it is already described by everywhere else.
-  const subhead = (ownCopy ? media.subhead : null) || brand?.description || null;
+  const rawSub = (ownCopy ? media.subhead : null) || brand?.description || null;
+  /* The mark above already says the house, so a headline that is only the
+     house name says it twice — and on a house with no logo file, where the
+     mark falls back to the wordmark, it is the same word twice in type. When
+     that happens the subheading is promoted and carries the line. */
+  const echoesMark =
+    brandName != null && rawHead.trim().toLowerCase() === brandName.trim().toLowerCase();
+  const headline = echoesMark && rawSub ? rawSub : rawHead;
+  const subhead = echoesMark && rawSub ? null : rawSub;
   const href = media.cta_href || (brand?.slug ? `/brands/${brand.slug}` : null);
   const alt = `${brandName ?? "House"} campaign photograph featuring this piece`;
 
