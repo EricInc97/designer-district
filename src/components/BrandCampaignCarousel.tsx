@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import BrandMark from "@/components/BrandMark";
 import ProductImage from "@/components/ProductImage";
@@ -15,6 +15,9 @@ export type CampaignSlide = {
   ownCopy: boolean;
 };
 
+/** How long a slide holds before the next one comes up. */
+const DWELL_MS = 6000;
+
 /**
  * The house's campaign artwork at the top of its page, one picture at a time.
  *
@@ -23,26 +26,23 @@ export type CampaignSlide = {
  * one house in fifteen has any of, so fourteen of them opened on a flat colour
  * swatch while their campaign sat unused.
  *
- * Every slide is the house's mark, the campaign line under it, and the
- * garments that are in the picture. A campaign picture whose clothes cannot
- * be reached is a poster, not a shop.
+ * The picture is the slide. The caption sits on it — mark, line, and the way
+ * to shop it — and the garments in the shot sit underneath, because a campaign
+ * picture whose clothes cannot be reached is a poster, not a shop.
  *
- * On paper rather than on a dark ground. These photographs carry their own
- * colour — sun, travertine, a Miami skyline — and a black surround competes
- * with every one of them; white reads as a gallery wall and lets the picture
- * be the only saturated thing on the page. It also means the marks can be the
- * cut drawn for paper rather than the one drawn for a colourway.
+ * Two things the layout has to get right at once.
  *
- * The track is the same mechanism as the product gallery: one horizontally
- * scrollable element with scroll snapping, so below lg a swipe is the
- * browser's own gesture — real momentum, real rubber-banding, no touch
- * handlers to get wrong — and from lg up it is overflow-hidden, which stops it
- * being dragged but does not stop `scrollTo` driving it from the arrows.
+ * Every slide must be the same height or the page jumps as the track moves,
+ * and these were cut for different screens: 21:9 for the crown, 2:3 and 9:16
+ * for the towers. So the picture sits in a fixed-height band and is contained
+ * in it, never cropped — cover-cropping a full-length outfit shot into a wide
+ * band takes off the head and the shoes, which is the entire reason for
+ * showing one.
  *
- * Pictures are contained rather than cropped. These were cut for particular
- * screens: 21:9 for the crown, 2:3 and 9:16 for the towers. Cover-cropping
- * them all into one band would take the head and the shoes off every tall one,
- * which is the entire reason for showing a full-length outfit shot.
+ * But a caption pinned to a contained picture has to sit on the picture, not
+ * on the empty band beside it. Hence the inline-flex wrapper: it shrink-wraps
+ * to the rendered image, so the scrim and the words land on the photograph at
+ * every aspect, with no letterboxed dead space under them.
  */
 export default function BrandCampaignCarousel({
   slides,
@@ -52,7 +52,9 @@ export default function BrandCampaignCarousel({
   brand: Pick<Brand, "name" | "slug" | "logo_url">;
 }) {
   const [active, setActive] = useState(0);
+  const [playing, setPlaying] = useState(true);
   const track = useRef<HTMLUListElement>(null);
+  const many = slides.length > 1;
 
   /**
    * Which slide is under the viewport, read back from the scroll position.
@@ -74,28 +76,90 @@ export default function BrandCampaignCarousel({
     setActive((prev) => (prev === i ? prev : i));
   };
 
-  const goTo = (i: number) => {
-    const el = track.current;
-    const next = Math.min(Math.max(i, 0), slides.length - 1);
-    setActive(next);
-    if (!el) return;
-    // A smooth scroll needs animation frames, so anyone who has asked for
-    // less motion gets the jump instead.
-    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    el.scrollTo({ left: next * el.clientWidth, behavior: still ? "auto" : "smooth" });
+  const goTo = useCallback(
+    (i: number) => {
+      const el = track.current;
+      const next = Math.min(Math.max(i, 0), slides.length - 1);
+      setActive(next);
+      if (!el) return;
+      // A smooth scroll needs animation frames, so anyone who has asked for
+      // less motion gets the jump instead.
+      const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      el.scrollTo({ left: next * el.clientWidth, behavior: still ? "auto" : "smooth" });
+    },
+    [slides.length],
+  );
+
+  /** A deliberate move: go there, and stop advancing on our own. */
+  const takeOver = (i: number) => {
+    setPlaying(false);
+    goTo(i);
   };
 
-  const many = slides.length > 1;
+  /*
+   * Advancing on its own.
+   *
+   * Four things switch it off, and all four earn their place.
+   *
+   * `prefers-reduced-motion` is the one that is not negotiable: content that
+   * moves by itself is exactly what that setting is for.
+   *
+   * A pointer over it or keyboard focus inside it means somebody is reading,
+   * or on their way to clicking something. A carousel that moves out from
+   * under a cursor heading for a product is its most irritating failure.
+   *
+   * A hidden tab, because timers keep running in one and the thing would
+   * otherwise be found several slides along having apparently never moved.
+   *
+   * And any use of the arrows or dots stops it for good: once somebody is
+   * steering, taking the wheel back is wrong.
+   *
+   * The pause control is not decoration. Anything that moves on its own for
+   * more than five seconds needs a visible way to stop it, and a carousel
+   * with no stop button is the usual way that is failed.
+   */
+  useEffect(() => {
+    if (!many || !playing) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const tick = () =>
+      setActive((i) => {
+        const next = i + 1 >= slides.length ? 0 : i + 1;
+        const el = track.current;
+        if (el) el.scrollTo({ left: next * el.clientWidth, behavior: "smooth" });
+        return next;
+      });
+    const start = () => {
+      if (timer === null) timer = setInterval(tick, DWELL_MS);
+    };
+    const stop = () => {
+      if (timer !== null) {
+        clearInterval(timer);
+        timer = null;
+      }
+    };
+    const onVisibility = () => (document.hidden ? stop() : start());
+
+    start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [many, playing, slides.length]);
 
   return (
     <section
       aria-roledescription="carousel"
       aria-label={`${brand.name} campaign`}
       className="relative w-full border-b border-rule bg-paper"
+      onMouseEnter={() => setPlaying(false)}
+      onFocusCapture={() => setPlaying(false)}
       onKeyDown={(e) => {
         if (!many) return;
-        if (e.key === "ArrowRight") { e.preventDefault(); goTo(active + 1); }
-        if (e.key === "ArrowLeft") { e.preventDefault(); goTo(active - 1); }
+        if (e.key === "ArrowRight") { e.preventDefault(); takeOver(active + 1); }
+        if (e.key === "ArrowLeft") { e.preventDefault(); takeOver(active - 1); }
       }}
     >
       <ul
@@ -111,115 +175,155 @@ export default function BrandCampaignCarousel({
             aria-label={`${i + 1} of ${slides.length}`}
             aria-hidden={i !== active}
           >
-            {/* Stacked on a phone, side by side from lg.
-                Stacking at every width put the whole slide at 844px against
-                a 794px viewport, which pushes the dots off the bottom of the
-                screen: the one control saying there is more to see is
-                invisible exactly while you are looking at what it pages.
-                Side by side, a slide is as tall as its taller half rather
-                than the sum of both, and a desktop has the width going
-                spare.
-                Heights in vh so the picture is never taller than the screen
-                it is on, and a smaller share of a phone, where everything
-                below has to stay reachable without a long scroll past one
-                image. */}
-            <div className="mx-auto grid max-w-7xl gap-6 px-5 py-6 sm:gap-7 sm:px-8 sm:py-8 md:grid-cols-[minmax(0,6fr)_minmax(0,5fr)] md:items-center md:gap-10 md:py-9 lg:gap-12 lg:py-10">
-              <div className="flex h-[32vh] items-center justify-center sm:h-[38vh] md:h-[46vh] lg:h-[58vh]">
+            {/* Fixed band so every slide is the same height whatever shape the
+                artwork was cut to. Heights in vh so the picture is never
+                taller than the screen it is on, and a smaller share of a
+                phone, where what is below has to stay reachable. */}
+            <div className="flex h-[40vh] items-center justify-center sm:h-[48vh] lg:h-[56vh]">
+              {/* inline-BLOCK, and the cap in vh on the image rather than
+                  `max-h-full` on either.
+                  Both details are load-bearing. As an inline-flex the image
+                  became a flex item and got stretched on the cross axis, so a
+                  2:3 board reported a 375x374 box inside a 375x373 band and
+                  the caption spread across the letterbox instead of sitting
+                  on the photograph. And `max-h-full` resolves against a
+                  shrink-to-fit parent, which has no definite height, so it
+                  resolves to nothing. A viewport cap is definite, and an
+                  image with only max-width and max-height set keeps its
+                  aspect, so the wrapper shrink-wraps the picture exactly. */}
+              <div className="relative inline-block">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={media.image_url}
                   alt={`${brand.name} campaign photograph`}
                   loading={i === 0 ? "eager" : "lazy"}
-                  className="max-h-full max-w-full object-contain"
+                  className="block max-h-[40vh] w-auto max-w-full sm:max-h-[48vh] lg:max-h-[56vh]"
                 />
+
+                {/* The scrim belongs to the caption, not to the picture: it
+                    covers only the band the words sit in, so the garment
+                    above it stays as photographed. */}
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/90 via-black/55 to-transparent"
+                />
+
+                <div className="absolute inset-x-0 bottom-0 p-5 text-white sm:p-7">
+                  <BrandMark
+                    brand={brand}
+                    size="sm"
+                    decorative
+                    hovered
+                    className="!text-white [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.85))]"
+                  />
+                  {/* The headline only travels when it is about this house. A
+                      collaboration title names it; the crown advert does not,
+                      and "Fifteen districts, one address" over a Purple Brand
+                      page is a line about somewhere else. */}
+                  <h2 className="display mt-2.5 text-xl leading-tight [text-shadow:0_1px_3px_rgba(0,0,0,0.85)] sm:text-3xl">
+                    {(ownCopy && media.headline) || brand.name}
+                  </h2>
+                  {ownCopy && media.subhead && (
+                    <p className="mt-1.5 max-w-md text-xs leading-relaxed text-white/85 [text-shadow:0_1px_3px_rgba(0,0,0,0.85)] sm:text-sm">
+                      {media.subhead}
+                    </p>
+                  )}
+                  {/* Straight to the garments in this picture, which are the
+                      next thing down the page. A plain anchor rather than a
+                      link to the first item: "shop the look" means the look,
+                      and picking one of six to stand for it is a guess. */}
+                  {items.length > 0 && (
+                    <a
+                      href={`#look-${media.id}`}
+                      className="mt-4 inline-block rounded-full bg-white px-6 py-2.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-ink transition-opacity hover:opacity-85 sm:text-[11px]"
+                    >
+                      Shop the look
+                    </a>
+                  )}
+                </div>
               </div>
+            </div>
 
-              <div>
-                {/* The house's mark, then what the campaign says, then what
-                    is in it. The mark is decorative here: the page already
-                    has a heading naming the brand. */}
-                <BrandMark brand={brand} size="sm" decorative className="!text-ink" />
-
-                {/* The headline only travels when it is about this house. A
-                    collaboration title names it; the crown advert does not,
-                    and "Fifteen districts, one address" over a Purple Brand
-                    page is a line about somewhere else. */}
-                <h2 className="display mt-4 text-xl leading-tight sm:text-3xl">
-                  {(ownCopy && media.headline) || brand.name}
-                </h2>
-                {ownCopy && media.subhead && (
-                  <p className="mt-2 max-w-xl text-sm leading-relaxed text-ink-dim">
-                    {media.subhead}
-                  </p>
-                )}
-
-                {items.length > 0 && (
-                  <>
-                    <h3 className="mt-6 text-[11px] font-semibold uppercase tracking-[0.2em] text-ink-faint">
-                      Featured in this shot
-                    </h3>
-                    <ul className="mt-4 flex gap-4 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                      {items.map((p) => (
-                        <li key={p.id} className="w-28 shrink-0 sm:w-32">
-                          <Link href={`/products/${p.id}`} className="group block">
-                            <div className="overflow-hidden rounded-md bg-paper-sunken">
-                              <ProductImage
-                                src={p.image_url}
-                                slug={p.slug}
-                                alt={p.name}
-                                className="aspect-[4/5] w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]"
-                              />
-                            </div>
-                            <p className="mt-2 truncate text-xs text-ink group-hover:underline">
-                              {p.name}
-                            </p>
-                            <p className="text-xs tabular-nums text-ink-faint">
-                              {money(p.price)}
-                            </p>
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                )}
-              </div>
+            <div className="mx-auto max-w-7xl px-5 pb-8 pt-7 sm:px-8">
+              {items.length > 0 && (
+                <>
+                  <h3
+                    id={`look-${media.id}`}
+                    className="scroll-mt-24 text-[11px] font-semibold uppercase tracking-[0.2em] text-ink-faint"
+                  >
+                    Featured in this shot
+                  </h3>
+                  <ul className="mt-4 flex gap-4 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    {items.map((p) => (
+                      <li key={p.id} className="w-28 shrink-0 sm:w-32">
+                        <Link href={`/products/${p.id}`} className="group block">
+                          <div className="overflow-hidden rounded-md bg-paper-sunken">
+                            <ProductImage
+                              src={p.image_url}
+                              slug={p.slug}
+                              alt={p.name}
+                              className="aspect-[4/5] w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]"
+                            />
+                          </div>
+                          <p className="mt-2 truncate text-xs text-ink group-hover:underline">
+                            {p.name}
+                          </p>
+                          <p className="text-xs tabular-nums text-ink-faint">
+                            {money(p.price)}
+                          </p>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </div>
           </li>
         ))}
       </ul>
 
-      {/* Arrows are a desktop affordance: below lg the track is swipeable and
-          the dots do the same job without covering the picture. Pinned to the
-          middle of the picture area, which is why the offsets track the same
-          heights as the slide. */}
       {many && (
         <>
+          {/* Arrows are a desktop affordance: below lg the track is swipeable
+              and the dots do the same job without covering the picture. The
+              offsets track the middle of the band above. */}
           <button
             type="button"
-            onClick={() => goTo(active - 1)}
+            onClick={() => takeOver(active - 1)}
             disabled={active === 0}
             aria-label="Previous campaign image"
-            className="absolute left-4 hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-rule-strong bg-paper/85 text-ink backdrop-blur transition-colors hover:bg-ink hover:text-paper disabled:pointer-events-none disabled:opacity-0 md:top-[calc(2.25rem+23vh)] md:grid lg:top-[calc(2.5rem+29vh)]"
+            className="absolute left-4 top-[20vh] hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-rule-strong bg-paper/85 text-ink backdrop-blur transition-colors hover:bg-ink hover:text-paper disabled:pointer-events-none disabled:opacity-0 sm:top-[24vh] lg:top-[28vh] lg:grid"
           >
             <span aria-hidden>&#8592;</span>
           </button>
           <button
             type="button"
-            onClick={() => goTo(active + 1)}
+            onClick={() => takeOver(active + 1)}
             disabled={active === slides.length - 1}
             aria-label="Next campaign image"
-            className="absolute right-4 hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-rule-strong bg-paper/85 text-ink backdrop-blur transition-colors hover:bg-ink hover:text-paper disabled:pointer-events-none disabled:opacity-0 md:top-[calc(2.25rem+23vh)] md:grid lg:top-[calc(2.5rem+29vh)]"
+            className="absolute right-4 top-[20vh] hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-rule-strong bg-paper/85 text-ink backdrop-blur transition-colors hover:bg-ink hover:text-paper disabled:pointer-events-none disabled:opacity-0 sm:top-[24vh] lg:top-[28vh] lg:grid"
           >
             <span aria-hidden>&#8594;</span>
           </button>
 
-          {/* Wraps: eleven dots do not fit across a 375px phone in one line. */}
           <div className="flex flex-wrap items-center justify-center gap-1 px-5 pb-6 sm:gap-2">
+            <button
+              type="button"
+              onClick={() => setPlaying((p) => !p)}
+              aria-label={
+                playing ? "Pause the campaign slideshow" : "Play the campaign slideshow"
+              }
+              className="mr-1 grid h-6 w-6 place-items-center text-ink-faint transition-colors hover:text-ink"
+            >
+              <span aria-hidden className="text-[11px] leading-none">
+                {playing ? "⏸" : "▶"}
+              </span>
+            </button>
             {slides.map((s, i) => (
               <button
                 key={s.media.id}
                 type="button"
-                onClick={() => goTo(i)}
+                onClick={() => takeOver(i)}
                 aria-label={`Campaign image ${i + 1} of ${slides.length}`}
                 aria-current={i === active}
                 className="grid h-6 w-6 place-items-center"
