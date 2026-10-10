@@ -6,6 +6,7 @@ import { supabaseConfigured } from "@/lib/supabase/config";
 import SetupNotice from "@/components/SetupNotice";
 import ProductCard from "@/components/ProductCard";
 import BrandCampaign from "@/components/BrandCampaign";
+import BrandCampaignCarousel, { type CampaignSlide } from "@/components/BrandCampaignCarousel";
 import BrandLookbook from "@/components/BrandLookbook";
 import RecommendationRail from "@/components/RecommendationRail";
 import type { Brand, BrandMedia, ProductWithBrand } from "@/lib/types";
@@ -72,6 +73,71 @@ export default async function BrandPage({ params, searchParams }: Props) {
   const hero = media.find((m) => m.kind === "hero") ?? null;
   const lookbook = media.filter((m) => m.kind === "lookbook");
 
+  /* ── the campaign carousel ────────────────────────────────────────────
+   *
+   * Two reads, because a house's campaign is not only the boards filed
+   * under it. Several of these are collaborations — "Chrome Hearts x
+   * Purple Brand", "Supreme x Ksubi" — and the picture of a Purple Brand
+   * jean being worn is filed under Chrome Hearts. Counting those in takes
+   * Purple Brand from two slides to seven and Ksubi from one to four, and
+   * they are its campaign by any reading a shopper would use.
+   *
+   * `overlaps` rather than a second round trip per board: one query for
+   * every board touching any of this house's garments.
+   */
+  const ownIds = all.map((p) => p.id);
+  const [{ data: ownBoards }, { data: featuring }] = await Promise.all([
+    supabase
+      .from("brand_media")
+      .select("*")
+      .eq("kind", "board")
+      .eq("is_published", true)
+      .eq("brand_id", brand.id)
+      .order("sort_order", { ascending: true }),
+    ownIds.length
+      ? supabase
+          .from("brand_media")
+          .select("*")
+          .eq("kind", "board")
+          .eq("is_published", true)
+          .neq("brand_id", brand.id)
+          .overlaps("product_ids", ownIds)
+      : Promise.resolve({ data: [] }),
+  ]);
+
+  const boards = [
+    ...((ownBoards ?? []) as BrandMedia[]),
+    ...((featuring ?? []) as BrandMedia[]),
+  ];
+
+  /* The garments in those pictures, in one read rather than one per slide.
+   * Published only: a board can outlive a product, and a slide offering
+   * something that has been taken down is worse than a slide offering
+   * nothing. */
+  const slideIds = [...new Set(boards.flatMap((b) => b.product_ids ?? []))];
+  const { data: slideProducts } = slideIds.length
+    ? await supabase
+        .from("products")
+        .select("*, brands(id, name, slug, logo_url)")
+        .in("id", slideIds)
+        .eq("is_published", true)
+    : { data: [] };
+  const byId = new Map(
+    ((slideProducts ?? []) as ProductWithBrand[]).map((p) => [p.id, p]),
+  );
+
+  const slides: CampaignSlide[] = boards.map((m) => ({
+    media: m,
+    items: (m.product_ids ?? [])
+      .map((id) => byId.get(id))
+      .filter((p): p is ProductWithBrand => Boolean(p)),
+    // The board's own copy travels only when it is about this house: its
+    // own board, or a collaboration whose title names it.
+    ownCopy:
+      m.brand_id === brand.id ||
+      (m.headline ?? "").toLowerCase().includes(brand.name.toLowerCase()),
+  }));
+
   // Only offer the categories this house actually stocks, in catalog order.
   const categories: { name: string; slug: string; sort_order: number }[] = [];
   for (const product of all) {
@@ -112,8 +178,16 @@ export default async function BrandPage({ params, searchParams }: Props) {
 
   return (
     <>
-      {/* ---------------- CAMPAIGN ---------------- */}
-      <BrandCampaign brand={brand} media={hero} />
+      {/* ---------------- CAMPAIGN ----------------
+          The carousel when the house has campaign artwork, which all fifteen
+          now do. BrandCampaign stays as the fallback it always was: the
+          house colourway with its mark centred, for a house with nothing
+          shot yet. */}
+      {slides.length > 0 ? (
+        <BrandCampaignCarousel slides={slides} brandName={brand.name} />
+      ) : (
+        <BrandCampaign brand={brand} media={hero} />
+      )}
 
       {/* ---------------- BRAND HEADER ---------------- */}
       <header className="border-b border-rule">
