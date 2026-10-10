@@ -115,7 +115,14 @@ export default async function ProductPage({ params }: Props) {
     .sort(
       (a, b) =>
         (b.product_ids?.length ?? 0) - (a.product_ids?.length ?? 0) ||
-        a.sort_order - b.sort_order,
+        a.sort_order - b.sort_order ||
+        // Newest wins what the first two cannot separate, and something has
+        // to: the Supreme track sets are in two six-garment boards at the
+        // same sort order — the drawn one and the photographed one — and
+        // with no third test the page showed whichever Postgres happened to
+        // return first. Recency is the right tie-break anyway. A new picture
+        // of the same garments is the campaign that replaced the old one.
+        (b.created_at ?? "").localeCompare(a.created_at ?? ""),
     )[0] ?? null;
   const campaign = worn ?? ((houseBoards ?? []) as BrandMedia[])[0] ?? null;
 

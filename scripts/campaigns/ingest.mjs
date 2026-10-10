@@ -45,6 +45,10 @@ const PER_PICTURE = {
   "gallery-dept-back":  ["Gallery Dept.", "Read it from behind."],
   "supreme-track-her":  ["Supreme x Ducati", "The track set, in blue."],
   "supreme-ducati-three":["Supreme x Ducati", "Three colourways, head to toe."],
+  // The photographed pair. Same garments as the two above, so the copy says
+  // the same thing — the picture is what changed, not the offer.
+  "supreme-sets-photo": ["Supreme x Ducati", "Three colourways, head to toe."],
+  "supreme-hoodie-photo":["Supreme x Ducati", "The track set, in black."],
 };
 
 /* Editorial copy. It lives here rather than in the generator because it is

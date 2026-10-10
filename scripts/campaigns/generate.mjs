@@ -144,6 +144,30 @@ const CEL =
   "look like a photograph or a 3D render — painted backgrounds, visible linework, " +
   "flat cel shading.";
 
+/* ── the other look: photographed rather than drawn ──────────────────────
+ *
+ * The cel style is the district's house style and stays the default. These
+ * two constants are its opposite number, picked by `real: true` on a single
+ * picture, so a realistic set can be tried on two boards without touching
+ * the forty-four that are already hanging.
+ *
+ * Both halves are needed. Saying "photorealistic" at the top and nothing at
+ * the bottom leaves the closing instruction still demanding cel shading,
+ * and the model obeys whichever it read last; the anime conditioning on
+ * these fashion prompts is strong enough that it has to be refused at both
+ * ends.
+ */
+const PHOTO =
+  "Photorealistic fashion campaign photograph, shot on a full-frame camera with " +
+  "a fast prime lens in natural daylight. Shallow depth of field, true-to-life " +
+  "skin texture, visible fabric weave and stitching, physically accurate shadows " +
+  "and reflections. Not an illustration, not anime, not a painting, not a 3D render.";
+const PHOTO_FINISH =
+  "Render the entire image as a real photograph: photographic detail throughout, " +
+  "natural skin and flyaway hair, accurate cloth drape and folds, real lens depth " +
+  "of field and fine sensor grain. No linework, no cel shading, no painted or " +
+  "illustrated surfaces anywhere, and no anime styling in the faces or figures.";
+
 /* ── the cast ────────────────────────────────────────────────────────────
  * The women read as tomboys in the last set, which was the prompt's fault:
  * they were described only by their hair. Femininity here is carried by
@@ -302,6 +326,55 @@ const SET = [
       `photographs show them — do not mix the colours between the three.`,
   },
   {
+    /* The same two pictures as the Ducati pair above, photographed instead
+     * of drawn.
+     *
+     * Deliberately the same two shapes and the same two framings: a 21:9
+     * strip of all three colourways and a 2:3 full length of one. Holding
+     * everything else still is what makes them a fair test of the style —
+     * put next to the cel versions on the same boards, the only thing that
+     * differs is whether the people are drawn or photographed.
+     *
+     * The black set for the single, because it is the least photographed of
+     * the three: the blue is already on three boards and the cream and red
+     * on two.
+     */
+    tag: "supreme-sets-photo", aspect: "21:9", house: "supreme", place: "crown", real: true,
+    cast: ["man", "woman1", "woman2"],
+    shot: "The three of them together, full length, side by side and evenly " +
+          "spaced, all three complete outfits clearly visible head to shoes, " +
+          "headroom above and paving below, standing squarely to camera",
+    slots: {
+      "red top":     () => setHalves("supreme", "supreme-ducati-white-red")[0],
+      "red pants":   () => setHalves("supreme", "supreme-ducati-white-red")[1],
+      "blue top":    () => setHalves("supreme", "supreme-ducati-blue")[0],
+      "blue pants":  () => setHalves("supreme", "supreme-ducati-blue")[1],
+      "black top":   () => setHalves("supreme", "supreme-ducati-black")[0],
+      "black pants": () => setHalves("supreme", "supreme-ducati-black")[1],
+    },
+    wear: () =>
+      "The man wears the cream and red Supreme hooded track top with its matching " +
+      "cream and red track pants. The first woman wears the light blue Supreme " +
+      "hooded track top with its matching light blue track pants. The second woman " +
+      "wears the black Supreme hooded track top with its matching black track " +
+      "pants. Each of the three wears one complete colourway, hood and pants " +
+      "together, exactly as the reference photographs show them — do not mix the " +
+      "colours between the three.",
+  },
+  {
+    tag: "supreme-hoodie-photo", aspect: "2:3", house: "supreme", place: "street", real: true,
+    cast: ["woman1"],
+    shot: "Full length, head to shoes, the whole outfit clearly visible, centred " +
+          "with headroom above and paving below",
+    slots: {
+      "track top":   () => setHalves("supreme", "supreme-ducati-black")[0],
+      "track pants": () => setHalves("supreme", "supreme-ducati-black")[1],
+    },
+    wear: (s) =>
+      `She wears ${d(s["track top"])} with ${d(s["track pants"])}, worn together as ` +
+      `the matching set they are sold as.`,
+  },
+  {
     tag: "supreme-track-her", aspect: "2:3", house: "supreme", place: "crown", cast: ["woman2"],
     shot: "Full length, head to shoes, the whole outfit clearly visible",
     slots: {
@@ -324,8 +397,10 @@ function d(p) {
 /* ── the poll ────────────────────────────────────────────────────────────
  * Resolved and printed before a single call is made.
  */
-const only = process.argv.slice(2).find((a) => !a.startsWith("-"));
-const plan = SET.filter((s) => !only || s.tag === only);
+// Several tags, not one: the realistic pair is a pair, and shooting them in
+// a single run puts both in the same manifest for ingest to pick up.
+const only = process.argv.slice(2).filter((a) => !a.startsWith("-"));
+const plan = SET.filter((s) => !only.length || only.includes(s.tag));
 
 const polled = [];
 for (const item of plan) {
@@ -347,7 +422,7 @@ for (const item of plan) {
 
 console.log("BILL OF ITEMS — every garment resolved from stock before anything is sent\n");
 for (const { item, chosen, missing } of polled) {
-  console.log(`${item.tag}  (${item.aspect}, ${item.place})`);
+  console.log(`${item.tag}  (${item.aspect}, ${item.place}, ${item.real ? "photoreal" : "cel"})`);
   for (const [slot, p] of Object.entries(chosen)) {
     const refs = 1 + (item.back && p.gallery?.length ? Math.min(2, p.gallery.length) : 0);
     console.log(
@@ -386,9 +461,10 @@ for (const { item, chosen } of polled) {
 
   const who = item.cast.map((k) => CAST[k]).join("; and ");
   const prompt =
-    `${STYLE} ${item.shot}. ${who}. ${item.wear(chosen)} They are in ${PLACES[item.place]}. ` +
+    `${item.real ? PHOTO : STYLE} ${item.shot}. ${who}. ${item.wear(chosen)} ` +
+    `They are in ${PLACES[item.place]}. ` +
     `${FIDELITY} ${item.cast.some((k) => k.startsWith("woman")) ? FEM + " " : ""}` +
-    `${NO_TAGS} ${SIGNAGE} ${CEL}`;
+    `${NO_TAGS} ${SIGNAGE} ${item.real ? PHOTO_FINISH : CEL}`;
 
   /* Whose board it hangs on, named rather than inferred.
    *
