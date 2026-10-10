@@ -53,7 +53,7 @@ export default async function ProductPage({ params }: Props) {
 
   const { data: product } = await supabase
     .from("products")
-    .select("*, brands(id, name, slug, logo_url)")
+    .select("*, brands(id, name, slug, logo_url, description)")
     .eq("id", id)
     .single<ProductWithBrand>();
 

@@ -38,7 +38,7 @@ export default function ProductCampaign({
   /** Whether this board's own copy is about this product's house. */
   ownCopy: boolean;
   companions: ProductWithBrand[];
-  brand: Pick<Brand, "name" | "slug" | "logo_url"> | null;
+  brand: Pick<Brand, "name" | "slug" | "logo_url" | "description"> | null;
 }) {
   /*
    * How the picture is fitted.
@@ -58,7 +58,11 @@ export default function ProductCampaign({
 
   const brandName = brand?.name ?? null;
   const headline = (ownCopy && media.headline) || brandName || "The campaign";
-  const subhead = ownCopy ? media.subhead : null;
+  // A subheading on every hero. Boards were written as signage and many
+  // carry no second line, which left the mark, the headline and the
+  // button with nothing between them; the house's own description is
+  // the sentence it is already described by everywhere else.
+  const subhead = (ownCopy ? media.subhead : null) || brand?.description || null;
   const href = media.cta_href || (brand?.slug ? `/brands/${brand.slug}` : null);
   const alt = `${brandName ?? "House"} campaign photograph featuring this piece`;
 

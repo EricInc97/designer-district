@@ -92,9 +92,43 @@ const live = (slug) =>
  */
 const byCat = (slug, c, n = 0) => live(slug).filter((p) => p.cat === c)[n];
 const bySub = (slug, sub, n = 0) => live(slug).filter((p) => p.sub === sub)[n];
+
+/* ── never photographed, and never twice ─────────────────────────────────
+ *
+ * `live` already sorts the least-used first, which makes a repeat unlikely.
+ * These make it impossible, which is a different thing: a garment that has
+ * been in a picture before, or has already been taken earlier in this run,
+ * is not returned at all. Undefined comes back instead and the slot is
+ * dropped and said out loud, rather than quietly handing back the shirt
+ * that is already on three hoardings.
+ *
+ * With a hundred and ninety-eight garments in stock never yet photographed,
+ * there is no reason to reach for one twice.
+ */
+const unshot = (p) => (p.used ?? 0) === 0 && !takenThisRun.has(p.id);
+const freshCat = (slug, c) => live(slug).filter((p) => p.cat === c && unshot(p))[0];
+const freshSub = (slug, sub) => live(slug).filter((p) => p.sub === sub && unshot(p))[0];
 const setHalves = (slug, key) => {
   const both = live(slug).filter((p) => p.setKey === key);
   return [both.find((p) => p.cat === "hoodies"), both.find((p) => p.cat === "bottoms")].filter(Boolean);
+};
+
+/* Both halves of a co-ordinated set, whatever they are made of.
+ *
+ * Deliberately NOT filtered by `unshot`, and that exception is the whole
+ * point of the sets work. Essentials has exactly one hoodie and one pair of
+ * shorts never photographed, and they are halves of two different sets —
+ * the black hoodie and the grey shorts. Asking for fresh garments by
+ * category would have dressed a model in one half of each, which is
+ * precisely the mismatch that is already on essentials-tower and the reason
+ * set_key exists. A set is shot as a set; a repeated half is a far smaller
+ * cost than advertising an outfit the shop does not sell.
+ */
+const wholeSet = (slug, key) => {
+  const both = live(slug).filter((p) => p.setKey === key);
+  const top = both.find((q) => ["hoodies", "shirts", "track-tops"].includes(q.cat) || q.sub === "track-tops");
+  const bottom = both.find((q) => q.cat === "bottoms" || q.cat === "denim");
+  return [top, bottom].filter(Boolean);
 };
 
 /* ── the look of the place ───────────────────────────────────────────── */
@@ -162,6 +196,21 @@ const PHOTO =
   "a fast prime lens in natural daylight. Shallow depth of field, true-to-life " +
   "skin texture, visible fabric weave and stitching, physically accurate shadows " +
   "and reflections. Not an illustration, not anime, not a painting, not a 3D render.";
+/* What makes it look like a shoot rather than a snapshot.
+ *
+ * The two photoreal boards already made were photoreal and still read as
+ * someone standing in a street. The difference between that and a campaign
+ * is not the camera, it is that somebody lit it, styled it and cast it — so
+ * that is what this says, in those terms.
+ */
+const SHOOT =
+  "An art-directed editorial fashion campaign shoot. Professional model casting, " +
+  "hair and makeup done, clothes steamed and styled, deliberate lighting with a " +
+  "key and a soft fill and a clean rim separating the figure from the ground. " +
+  "Composed by a fashion photographer: intentional pose, confident eyeline, " +
+  "shallow depth of field, magazine-grade colour and retouching, sharp on the " +
+  "garment. Nothing snapshot, nothing candid, no phone-camera look.";
+
 const PHOTO_FINISH =
   "Render the entire image as a real photograph: photographic detail throughout, " +
   "natural skin and flyaway hair, accurate cloth drape and folds, real lens depth " +
@@ -188,6 +237,17 @@ const CAST = {
     "features, slender build, poised graceful stance with her weight on one leg " +
     "and a soft turn of the shoulders",
 };
+const CAST_EXTRA = {
+  man2:
+    "a young man with a short fade and a trimmed beard, broad shoulders, calm " +
+    "assured stance, hands easy at his sides",
+  woman3:
+    "a strikingly feminine young woman with long loose auburn waves, fine gold " +
+    "jewellery, soft makeup, slender build, an easy confident stance with her " +
+    "weight on one hip",
+};
+Object.assign(CAST, CAST_EXTRA);
+
 const FEM =
   "Style the women's clothes so they read as feminine without altering the " +
   "garments themselves: the t-shirt tucked or knotted at the waist so the " +
@@ -201,6 +261,112 @@ const FEM =
  * jeans of one house and the shirt of another to the same person.
  */
 const SET = [
+  /* ── the photographed set ──────────────────────────────────────────────
+   *
+   * Five houses, five aesthetics, written from each one's own description
+   * in the catalogue rather than from a house style invented here. The
+   * point of doing them as five different houses at once is that it is a
+   * fair test: if the look holds for Chrome Hearts gothic silver and for
+   * Casablanca Mediterranean silk, it holds.
+   *
+   * Every garment is one that has never been photographed, and none
+   * appears twice across the five """ + M + """ enforced by the pickers, not by me
+   * reading the bill and hoping.
+   *
+   * Two shots are shaped by what is actually in stock rather than by
+   * preference, which is the whole reason for polling first:
+   *
+   * Chrome Hearts sells no bottoms at all. A full-length look would have
+   * had to borrow trousers from another house and would then be mostly
+   * somebody else; waist-up is the honest framing and it suits a house
+   * whose case is silver, leather and gothic type anyway.
+   *
+   * Essentials is shot as a whole set. Its only never-photographed hoodie
+   * and its only never-photographed shorts are halves of two different
+   * sets, so asking for fresh garments by category would have produced
+   * exactly the grey-top-black-bottom mismatch already sitting on
+   * essentials-tower. This picture replaces that one.
+   */
+  {
+    tag: "chrome-hearts-photo", aspect: "2:3", house: "chrome-hearts",
+    place: "doorway", real: true, cast: ["man2"],
+    look:
+      "Hollywood gothic: hard directional sun and deep shade, a silver-grey and " +
+      "black palette, the sterling jewellery and the gothic lettering catching " +
+      "the light. Tight, moody, expensive.",
+    shot: "Three-quarter view from the waist up, shoulders square to camera, " +
+          "the shirt graphic and the cap both clearly readable",
+    slots: {
+      shirt: () => freshCat("chrome-hearts", "shirts"),
+      cap:   () => freshSub("chrome-hearts", "snapbacks"),
+    },
+    wear: (x) =>
+      `He wears ${d(x.shirt)}` + (x.cap ? ` with ${d(x.cap)}` : "") + ".",
+  },
+  {
+    tag: "casablanca-photo", aspect: "2:3", house: "casablanca",
+    place: "street", real: true, cast: ["woman3"],
+    look:
+      "Mediterranean apres-sport: late afternoon sun, warm pastel light, a " +
+      "relaxed resort ease. Silk and towelling, colour everywhere, nothing " +
+      "stiff.",
+    shot: "Full length, head to shoes, the whole outfit clearly visible, " +
+          "centred with headroom above and paving below",
+    slots: {
+      shirt:  () => wholeSet("casablanca", "casablanca-terry-green")[0],
+      shorts: () => wholeSet("casablanca", "casablanca-terry-green")[1],
+    },
+    wear: (x) =>
+      `She wears ${d(x.shirt)} with ${d(x.shorts)}, worn together as the ` +
+      `matching set they are sold as.`,
+  },
+  {
+    tag: "amiri-photo", aspect: "2:3", house: "amiri",
+    place: "doorway", real: true, cast: ["man"],
+    look:
+      "Los Angeles rock-and-roll tailoring: bone and black, low contrast, " +
+      "cool shade with one hard shaft of sun. Hand-distressed denim, nothing " +
+      "loud, restraint doing the work.",
+    shot: "Full length, head to shoes, the whole outfit clearly visible",
+    slots: {
+      shirt: () => freshCat("amiri", "shirts"),
+      jeans: () => freshCat("amiri", "denim"),
+    },
+    wear: (x) => `He wears ${d(x.shirt)} with ${d(x.jeans)}.`,
+  },
+  {
+    tag: "rhude-photo", aspect: "21:9", house: "rhude",
+    place: "street", real: true, cast: ["woman1"],
+    look:
+      "Americana filtered through motorsport: wide, cinematic, hot midday " +
+      "light on pale paving, a luxury-sportswear calm. Clean lines, racing " +
+      "colour used sparingly.",
+    shot: "Full length and wide, standing off to one side of a cinematic " +
+          "frame with the street running away behind her, head to shoes " +
+          "clearly in frame",
+    slots: {
+      tee:    () => freshCat("rhude", "shirts"),
+      shorts: () => freshSub("rhude", "shorts"),
+    },
+    wear: (x) => `She wears ${d(x.tee)} with ${d(x.shorts)}.`,
+  },
+  {
+    tag: "essentials-photo", aspect: "2:3", house: "essentials",
+    place: "doorway", real: true, cast: ["woman2"],
+    look:
+      "Fear of God Essentials: oversized basics in cement, taupe and bone, " +
+      "soft even light on concrete, a quiet monochrome palette. Volume and " +
+      "texture rather than colour or print.",
+    shot: "Full length, head to shoes, the whole outfit clearly visible, the " +
+          "drape and volume of the fleece reading clearly",
+    slots: {
+      hoodie: () => wholeSet("essentials", "essentials-fleece-black")[0],
+      shorts: () => wholeSet("essentials", "essentials-fleece-black")[1],
+    },
+    wear: (x) =>
+      `She wears ${d(x.hoodie)} with ${d(x.shorts)}, worn together as the ` +
+      `matching set they are sold as.`,
+  },
   {
     tag: "crown-group", aspect: "21:9", house: "district", place: "crown", board: "the wide crown screen",
     shot: "The three of them together, full length, side by side and slightly " +
@@ -461,7 +627,12 @@ for (const { item, chosen } of polled) {
 
   const who = item.cast.map((k) => CAST[k]).join("; and ");
   const prompt =
-    `${item.real ? PHOTO : STYLE} ${item.shot}. ${who}. ${item.wear(chosen)} ` +
+    `${item.real ? PHOTO : STYLE} ${item.real ? SHOOT + " " : ""}` +
+    // The house's own aesthetic, where the shot carries one. This is what
+    // stops five photographs of five different labels looking like one
+    // catalogue: the light, the palette and the mood are the house's.
+    `${item.look ? item.look + " " : ""}` +
+    `${item.shot}. ${who}. ${item.wear(chosen)} ` +
     `They are in ${PLACES[item.place]}. ` +
     `${FIDELITY} ${item.cast.some((k) => k.startsWith("woman")) ? FEM + " " : ""}` +
     `${NO_TAGS} ${SIGNAGE} ${item.real ? PHOTO_FINISH : CEL}`;

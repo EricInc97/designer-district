@@ -71,7 +71,7 @@ export type BrandMedia = {
 };
 
 export type ProductWithBrand = Product & {
-  brands: Pick<Brand, "id" | "name" | "slug" | "logo_url"> | null;
+  brands: Pick<Brand, "id" | "name" | "slug" | "logo_url" | "description"> | null;
 };
 
 export type Profile = {

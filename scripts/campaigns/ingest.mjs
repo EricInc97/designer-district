@@ -49,6 +49,11 @@ const PER_PICTURE = {
   // the same thing — the picture is what changed, not the offer.
   "supreme-sets-photo": ["Supreme x Ducati", "Three colourways, head to toe."],
   "supreme-hoodie-photo":["Supreme x Ducati", "The track set, in black."],
+  // The photographed five. Two are co-ordinated sets and say so, because
+  // "sold as a set" is the thing a shopper most wants to know from a
+  // picture of two matching halves.
+  "casablanca-photo":   ["Casablanca", "The towelling set."],
+  "essentials-photo":   ["Essentials", "The fleece set, in black."],
 };
 
 /* Editorial copy. It lives here rather than in the generator because it is
@@ -68,6 +73,9 @@ const HEAD = {
   essentials: "Essentials",
   supreme: "Supreme x Ducati",
   "chrome-hearts": "Chrome Hearts",
+  rhude: "Rhude, head to toe",
+  vale: "Valley Dreams",
+  hellstar: "Hellstar",
   district: "Designer District",
 };
 const SUB = {
@@ -83,6 +91,9 @@ const SUB = {
   essentials: "The quiet layer.",
   supreme: "The box logo.",
   "chrome-hearts": "Sterling, leather, gothic type.",
+  rhude: "Americana, at speed.",
+  vale: "Collegiate, worn off campus.",
+  hellstar: "Flame and star.",
 };
 
 const q = (v) => (v === null || v === undefined ? "null" : `'${String(v).replace(/'/g, "''")}'`);

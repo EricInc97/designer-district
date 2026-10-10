@@ -49,7 +49,7 @@ export default function BrandCampaignCarousel({
   brand,
 }: {
   slides: CampaignSlide[];
-  brand: Pick<Brand, "name" | "slug" | "logo_url">;
+  brand: Pick<Brand, "name" | "slug" | "logo_url" | "description">;
 }) {
   const [active, setActive] = useState(0);
   const [playing, setPlaying] = useState(true);
@@ -223,11 +223,19 @@ export default function BrandCampaignCarousel({
                   <h2 className="display mt-2.5 text-xl leading-tight [text-shadow:0_1px_3px_rgba(0,0,0,0.85)] sm:text-3xl">
                     {(ownCopy && media.headline) || brand.name}
                   </h2>
-                  {ownCopy && media.subhead && (
+                  {/* A subheading on every slide, not only the ones whose
+                      board happens to carry copy. Most of these were written
+                      as signage for one hoarding and plenty have no second
+                      line at all, which left a mark, a headline and a button
+                      floating with nothing between them. The house's own
+                      description is the fallback, and it is the right one —
+                      it is the sentence the house is already described by
+                      everywhere else on the site. */}
+                  {(ownCopy && media.subhead) || brand.description ? (
                     <p className="mt-1.5 max-w-md text-xs leading-relaxed text-white/85 [text-shadow:0_1px_3px_rgba(0,0,0,0.85)] sm:text-sm">
-                      {media.subhead}
+                      {(ownCopy && media.subhead) || brand.description}
                     </p>
-                  )}
+                  ) : null}
                   {/* Straight to the garments in this picture, which are the
                       next thing down the page. A plain anchor rather than a
                       link to the first item: "shop the look" means the look,
