@@ -184,7 +184,7 @@ export default async function BrandPage({ params, searchParams }: Props) {
           house colourway with its mark centred, for a house with nothing
           shot yet. */}
       {slides.length > 0 ? (
-        <BrandCampaignCarousel slides={slides} brandName={brand.name} />
+        <BrandCampaignCarousel slides={slides} brand={brand} />
       ) : (
         <BrandCampaign brand={brand} media={hero} />
       )}

@@ -277,8 +277,7 @@ export default async function ProductPage({ params }: Props) {
           media={campaign}
           ownCopy={ownCopy}
           companions={companions}
-          brandName={brand?.name ?? null}
-          brandSlug={brand?.slug ?? null}
+          brand={brand}
         />
       )}
 
