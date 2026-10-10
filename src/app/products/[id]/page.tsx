@@ -63,54 +63,55 @@ export default async function ProductPage({ params }: Props) {
 
   /*
    * Same house, different pieces, the most reliable cross-sell there is —
-   * and, alongside it, the campaign artwork.
+   * and, alongside it, the campaign artwork this garment is in.
    *
-   * Two separate reads rather than one `or`, because they ask genuinely
-   * different questions and only the first is about this garment.
+   * `inPicture` asks the only question worth asking: which published boards
+   * actually have this product in them. Not which boards the house owns.
    *
-   * `inPicture` is every board this product is actually in, whoever's board
-   * it is. That last part matters: a good few of these are collaborations —
-   * "Chrome Hearts x Purple Brand", "Supreme x Ksubi" — so the picture that
-   * shows a Purple Brand jean being worn is filed under Chrome Hearts. A
-   * query scoped to the product's own house would miss exactly the shots
-   * worth showing.
+   * Scoped by product rather than by brand, and that cuts both ways. A good
+   * few of these are collaborations — "Chrome Hearts x Purple Brand",
+   * "Supreme x Ksubi" — so the picture showing a Purple Brand jean being
+   * worn is filed under Chrome Hearts, and a brand-scoped query would miss
+   * exactly the shots worth showing. The other way round, a house owning a
+   * picture says nothing about whether this garment is in it: of two
+   * hundred and thirty-six products, thirty-five are.
    */
-  const [{ data: siblings }, { data: inPicture }, { data: houseBoards }] =
-    await Promise.all([
-      supabase
-        .from("products")
-        .select("*, brands(id, name, slug, logo_url)")
-        .eq("brand_id", product.brand_id)
-        .eq("is_published", true)
-        .neq("id", product.id)
-        .limit(4),
-      supabase
-        .from("brand_media")
-        .select("*")
-        .eq("kind", "board")
-        .eq("is_published", true)
-        .contains("product_ids", [product.id]),
-      supabase
-        .from("brand_media")
-        .select("*")
-        .eq("kind", "board")
-        .eq("is_published", true)
-        .eq("brand_id", product.brand_id)
-        .order("sort_order", { ascending: true }),
-    ]);
+  const [{ data: siblings }, { data: inPicture }] = await Promise.all([
+    supabase
+      .from("products")
+      .select("*, brands(id, name, slug, logo_url)")
+      .eq("brand_id", product.brand_id)
+      .eq("is_published", true)
+      .neq("id", product.id)
+      .limit(4),
+    supabase
+      .from("brand_media")
+      .select("*")
+      .eq("kind", "board")
+      .eq("is_published", true)
+      .contains("product_ids", [product.id]),
+  ]);
 
   const more = (siblings ?? []) as ProductWithBrand[];
 
   /*
-   * Which picture, and what it is allowed to claim.
+   * Which picture.
    *
-   * Of the shots this garment is in, the one dressing the most products wins:
-   * those are the full outfits rather than the single-garment detail shots,
-   * so they are both the better photograph and the better thing to shop.
-   * Failing that the house's own first board, captioned as the house's
-   * campaign and nothing more.
+   * Of the shots this garment is in, the one dressing the most products
+   * wins: those are the full outfits rather than the single-garment detail
+   * shots, so they are both the better photograph and the better thing to
+   * shop.
+   *
+   * There is deliberately no fallback to the house's other artwork. An
+   * advertisement on a product page is a claim about that product, and a
+   * picture of a different garment from the same house is not a weaker
+   * version of that claim, it is a false one — a shopper reads the
+   * photograph, not the caption hedging it. Two thirds of the catalogue has
+   * no picture of itself yet, so two thirds of the pages carry no campaign
+   * hero, and the way to close that gap is to shoot those garments rather
+   * than to borrow a photograph of something else.
    */
-  const worn = ((inPicture ?? []) as BrandMedia[])
+  const campaign = ((inPicture ?? []) as BrandMedia[])
     .slice()
     .sort(
       (a, b) =>
@@ -124,13 +125,10 @@ export default async function ProductPage({ params }: Props) {
         // of the same garments is the campaign that replaced the old one.
         (b.created_at ?? "").localeCompare(a.created_at ?? ""),
     )[0] ?? null;
-  const campaign = worn ?? ((houseBoards ?? []) as BrandMedia[])[0] ?? null;
 
-  // The other garments in that photograph. Only ever offered for a picture
-  // this product is genuinely in, so "the rest of the look" is the rest of a
-  // look the shopper is actually looking at.
-  const lookIds = worn
-    ? (worn.product_ids ?? []).filter((pid) => pid !== product.id)
+  // The other garments in that photograph.
+  const lookIds = campaign
+    ? (campaign.product_ids ?? []).filter((pid) => pid !== product.id)
     : [];
   const { data: lookRows } = lookIds.length
     ? await supabase
@@ -162,7 +160,7 @@ export default async function ProductPage({ params }: Props) {
     <>
       <ProductViewTracker productId={product.id} />
 
-      <div className="mx-auto max-w-7xl px-5 sm:px-8 py-8 sm:py-12">
+      <div className="mx-auto max-w-7xl px-5 pt-8 sm:px-8 sm:pt-12">
         <nav aria-label="Breadcrumb" className="mb-8">
           <ol className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-ink-faint">
             <li>
@@ -267,21 +265,27 @@ export default async function ProductPage({ params }: Props) {
           </div>
         </div>
 
-          {/* ---------------- CAMPAIGN ---------------- */}
-        {campaign && (
-          <ProductCampaign
-            media={campaign}
-            worn={Boolean(worn)}
-            ownCopy={ownCopy}
-            companions={companions}
-            brandName={brand?.name ?? null}
-            brandSlug={brand?.slug ?? null}
-          />
-        )}
+      </div>
 
+      {/* ---------------- CAMPAIGN ----------------
+          Outside the container on purpose: the hero runs edge to edge, and a
+          full-width sibling is how this codebase does that. See the note in
+          the component for why breaking out of the container instead costs
+          the page half a scrollbar of sideways scroll. */}
+      {campaign && (
+        <ProductCampaign
+          media={campaign}
+          ownCopy={ownCopy}
+          companions={companions}
+          brandName={brand?.name ?? null}
+          brandSlug={brand?.slug ?? null}
+        />
+      )}
+
+      <div className="mx-auto max-w-7xl px-5 pb-8 sm:px-8 sm:pb-12">
         {/* ---------------- MORE FROM BRAND ---------------- */}
         {more.length > 0 && (
-          <section className="mt-24 border-t border-rule pt-12">
+          <section className="mt-20 border-t border-rule pt-12">
             <h2 className="eyebrow">More from {brand?.name}</h2>
             <div className="mt-6 grid grid-cols-2 gap-x-5 gap-y-10 sm:grid-cols-3 lg:grid-cols-4">
               {more.map((sibling) => (

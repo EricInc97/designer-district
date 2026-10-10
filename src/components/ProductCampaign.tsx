@@ -3,146 +3,169 @@ import ProductCard from "@/components/ProductCard";
 import type { BrandMedia, ProductWithBrand } from "@/lib/types";
 
 /**
- * The campaign artwork, on a product page.
+ * The campaign artwork, as the hero of a product page.
  *
  * Forty-four of these were generated for the hoardings in the 3D street and
- * then only ever shown there. They are the only pictures in the catalog with
- * a person in them — every product photograph is a flat-lay or a cut-out —
- * so they answer the one question a flat-lay cannot, which is what the thing
- * looks like worn.
+ * then only ever shown there. They are the only images in the catalog with a
+ * person in them — every product photograph is a flat-lay or a cut-out — so
+ * they answer the one question a flat-lay cannot, which is what the thing
+ * looks like worn. That earns the full width of the page.
  *
- * Two quite different claims, and the difference matters enough to be a prop
- * rather than a guess:
+ * It only ever renders a picture this garment is genuinely in. The campaign
+ * generator recorded what it dressed the models in, so that is a fact rather
+ * than a hunch, and the page can say "seen in the campaign" and mean it.
  *
- *   `worn`   this garment is in this picture. The campaign generator recorded
- *            what it dressed the models in, so this is a fact, not a hunch,
- *            and the picture can be captioned as such and the rest of the
- *            outfit offered alongside it.
- *
- *   false    the house has campaign work but this piece is not in any of it.
- *            Then it is the house's campaign and is labelled as the house's
- *            campaign. Captioning a shot "seen here" when the garment is not
- *            in it is the kind of small lie that costs a return.
- *
- * Only a third of the catalog is in a picture, so the second case is the
- * common one and has to look deliberate rather than like a near-miss.
+ * An earlier version fell back to the house's other artwork when a garment
+ * had no picture of its own, captioned carefully so as not to claim too
+ * much. That was wrong. An advertisement on a product page is a claim about
+ * that product, and a photograph of a different garment from the same house
+ * is not a weaker version of the claim, it is a false one — nobody reads the
+ * caption hedging it, they read the picture. A page with no hero is honest;
+ * a page with somebody else's hero is not.
  */
-
-/** The shape the picture was generated at, as a CSS ratio. */
-function ratio(aspect: string | null): string {
-  if (!aspect) return "4 / 5";
-  const [w, h] = aspect.split(":");
-  return w && h ? `${w} / ${h}` : "4 / 5";
-}
 
 export default function ProductCampaign({
   media,
-  worn,
   ownCopy,
   companions,
   brandName,
   brandSlug,
 }: {
   media: BrandMedia;
-  worn: boolean;
-  /** Whether this board's headline is about this product's house. */
+  /** Whether this board's own copy is about this product's house. */
   ownCopy: boolean;
   companions: ProductWithBrand[];
   brandName: string | null;
   brandSlug: string | null;
 }) {
-  // The boards cut for the crown screen are 21:9 cinema strips; the ones cut
-  // for the tower screens are 2:3 and 9:16. A strip wants the full width with
-  // the look underneath it, a tall one wants to sit beside the look. Reading
-  // it off the stored aspect rather than measuring means neither gets cropped
-  // into the other's shape.
-  const wide = media.aspect === "21:9";
-  const showLook = worn && companions.length > 0;
+  /*
+   * Which hero this picture can stand.
+   *
+   * A cinema banner cover-cropped into a wide band loses nothing; it was
+   * composed for one. The tall boards were cut for the tower screens and are
+   * full-length outfit shots, head to shoes — crop one into that same band
+   * and it loses the head and the shoes, which is the entire reason for
+   * showing it. So the shape of the artwork picks the layout, rather than
+   * the layout dictating a crop.
+   */
+  const cinematic = media.aspect === "21:9" || media.aspect === "16:9";
 
-  const picture = (
-    <div
-      className="overflow-hidden rounded-lg bg-paper-sunken"
-      style={{ aspectRatio: ratio(media.aspect) }}
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={media.image_url}
-        alt={
-          worn
-            ? `${brandName ?? "The house"} campaign photograph featuring this piece`
-            : `${brandName ?? "The house"} campaign photograph`
-        }
-        loading="lazy"
-        className="h-full w-full object-cover"
-      />
-    </div>
+  // Everything here is light type over a photograph; `ink: "dark"` is the
+  // rare board bright enough to need it the other way round.
+  const onDark = media.ink !== "dark";
+  const showLook = companions.length > 0;
+
+  // A hero always has a headline. The board's own line when it is about this
+  // house, otherwise the house's name — which is the Foot Locker brand
+  // banner in miniature: picture, name, one line, one button.
+  const headline = (ownCopy && media.headline) || brandName || "The campaign";
+  const subhead = ownCopy ? media.subhead : null;
+  const href = media.cta_href || (brandSlug ? `/brands/${brandSlug}` : null);
+  const cta = media.cta_label || (brandName ? `Shop ${brandName}` : "Shop the house");
+  const eyebrow = "Seen in the campaign";
+  const alt = `${brandName ?? "House"} campaign photograph featuring this piece`;
+
+  const words = (
+    <>
+      <p
+        className={`text-[11px] font-semibold uppercase tracking-[0.22em] ${
+          onDark ? "text-white/75" : "text-ink-dim"
+        }`}
+      >
+        {eyebrow}
+      </p>
+      <h2 className="display mt-3 max-w-2xl text-3xl leading-[1.05] sm:text-5xl">
+        {headline}
+      </h2>
+      {subhead && (
+        <p className="mt-4 max-w-md text-sm leading-relaxed opacity-85 sm:text-base">
+          {subhead}
+        </p>
+      )}
+      {href && (
+        <Link
+          href={href}
+          className={`mt-7 inline-block rounded-full px-7 py-3 text-[11px] font-semibold uppercase tracking-[0.2em] transition-opacity hover:opacity-85 ${
+            onDark ? "bg-white text-ink" : "bg-ink text-paper"
+          }`}
+        >
+          {cta}
+        </Link>
+      )}
+    </>
   );
 
   return (
-    <section className="mt-24 border-t border-rule pt-12">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-        <h2 className="eyebrow">
-          {worn ? "Seen in the campaign" : `The ${brandName ?? "house"} campaign`}
-        </h2>
-        {brandSlug && (
-          <Link
-            href={`/brands/${brandSlug}`}
-            className="text-[11px] uppercase tracking-[0.18em] text-ink-faint transition-colors hover:text-ink"
-          >
-            All {brandName} &rarr;
-          </Link>
-        )}
-      </div>
-
-      {/*
-        The headline is signage: it was written for a specific hoarding in the
-        street, in that house's voice. It only travels to a product page when
-        it is about this house — a collaboration title like "Chrome Hearts x
-        Purple Brand" says something true about a Purple Brand jean, while the
-        district's own crown advert, "Everything, in one place / Fifteen
-        districts, one address", is a perfectly good line about the district
-        and a non-sequitur underneath a pair of jeans. When it does not
-        travel, the photograph goes up without a caption rather than with
-        somebody else's.
-      */}
-      {ownCopy && media.headline && (
-        <p className="display mt-3 text-xl leading-tight sm:text-2xl">
-          {media.headline}
-        </p>
-      )}
-      {ownCopy && media.subhead && (
-        <p className="mt-2 max-w-xl text-sm leading-relaxed text-ink-dim">
-          {media.subhead}
-        </p>
-      )}
-
-      {wide || !showLook ? (
-        <>
-          <div className="mt-7">{picture}</div>
-          {showLook && (
-            <>
-              <h3 className="eyebrow mt-10">The rest of the look</h3>
-              <div className="mt-5 grid grid-cols-2 gap-x-5 gap-y-10 sm:grid-cols-3 lg:grid-cols-4">
-                {companions.map((p) => (
-                  <ProductCard key={p.id} product={p} />
-                ))}
-              </div>
-            </>
-          )}
-        </>
-      ) : (
-        <div className="mt-7 grid gap-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-12">
-          {picture}
-          <div>
-            <h3 className="eyebrow">The rest of the look</h3>
-            <div className="mt-5 grid grid-cols-2 gap-x-5 gap-y-10 sm:grid-cols-3">
-              {companions.map((p) => (
-                <ProductCard key={p.id} product={p} />
-              ))}
+    <>
+      {/* ---------------- HERO ----------------
+          A full-width sibling of the page's constrained blocks rather than
+          something breaking out of one. Breaking out means `w-screen` and a
+          negative translate, and 100vw counts the scrollbar while the content
+          box does not, so on a desktop it overhangs half a scrollbar at each
+          edge and the whole page scrolls sideways 8px. */}
+      {cinematic ? (
+        <section className="relative w-full overflow-hidden">
+          <div className="relative min-h-[46vh] sm:min-h-[62vh]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={media.image_url}
+              alt={alt}
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+            <div
+              aria-hidden
+              className={`absolute inset-0 ${
+                onDark
+                  ? "bg-gradient-to-t from-black/80 via-black/35 to-black/5"
+                  : "bg-gradient-to-t from-white/85 via-white/40 to-white/10"
+              }`}
+            />
+            <div className="relative mx-auto flex min-h-[46vh] max-w-7xl flex-col justify-end px-5 pb-10 sm:min-h-[62vh] sm:px-8 sm:pb-14">
+              <div className={onDark ? "text-white" : "text-ink"}>{words}</div>
             </div>
           </div>
-        </div>
+        </section>
+      ) : (
+        /* The tall boards get a band rather than a crop: the picture keeps
+           its own shape and the words take the space beside it. On a phone
+           they stack, picture first.
+
+           Bounded by height, not by a ratio box. Given the column width a
+           2:3 board came out 825 by 1237 — a screen and a half of nothing but
+           photograph, which is not a hero, it is a wall. Capping the height
+           and letting the width follow keeps the whole figure visible, head
+           to shoes, at the size of a picture rather than a billboard. */
+        <section className="w-full bg-ink text-white">
+          <div className="mx-auto grid max-w-7xl items-center gap-8 px-5 py-12 sm:px-8 sm:py-16 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:gap-14">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={media.image_url}
+              alt={alt}
+              className="mx-auto max-h-[58vh] w-auto max-w-full rounded-lg"
+            />
+            <div>{words}</div>
+          </div>
+        </section>
       )}
-    </section>
+
+      {/* ---------------- SHOP THE LOOK ----------------
+          The other garments in the same photograph, so the rest of the look
+          is the rest of a look the shopper is looking at. */}
+      {showLook && (
+        <section className="mx-auto max-w-7xl px-5 pt-12 sm:px-8 sm:pt-16">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+            <h3 className="eyebrow">Shop the look</h3>
+            <p className="text-[11px] uppercase tracking-[0.18em] text-ink-faint">
+              {companions.length} more in this picture
+            </p>
+          </div>
+          <div className="mt-6 grid grid-cols-2 gap-x-5 gap-y-10 sm:grid-cols-3 lg:grid-cols-4">
+            {companions.map((p) => (
+              <ProductCard key={p.id} product={p} />
+            ))}
+          </div>
+        </section>
+      )}
+    </>
   );
 }
