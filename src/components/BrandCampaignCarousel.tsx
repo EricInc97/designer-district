@@ -18,46 +18,25 @@ export type CampaignSlide = {
 /** How long a slide holds before the next one comes up. */
 const DWELL_MS = 6000;
 
+/** The shape it was generated at, as a CSS ratio, and whether it is upright. */
+function shapeOf(aspect: string | null) {
+  const [w, h] = (aspect ?? "").split(":").map(Number);
+  const ok = Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0;
+  const ratio = ok ? w / h : 2 / 3;
+  return { css: ok ? `${w} / ${h}` : "2 / 3", upright: ratio < 1 };
+}
+
 /**
- * The house's campaign artwork at the top of its page, one picture at a time.
+ * What the caption says, given that the mark above it already says the house.
  *
- * Forty-four of these were made for the hoardings in the 3D street. The brand
- * pages were reading `kind: "hero"` and `kind: "lookbook"` instead, which only
- * one house in fifteen has any of, so fourteen of them opened on a flat colour
- * swatch while their campaign sat unused.
- *
- * The picture is the slide. The caption sits on it — mark, line, and the way
- * to shop it — and the garments in the shot sit underneath, because a campaign
- * picture whose clothes cannot be reached is a poster, not a shop.
- *
- * Two things the layout has to get right at once.
- *
- * Every slide must be the same height or the page jumps as the track moves,
- * and these were cut for different screens: 21:9 for the crown, 2:3 and 9:16
- * for the towers. So the picture sits in a fixed-height band and is contained
- * in it, never cropped — cover-cropping a full-length outfit shot into a wide
- * band takes off the head and the shoes, which is the entire reason for
- * showing one.
- *
- * But a caption pinned to a contained picture has to sit on the picture, not
- * on the empty band beside it. Hence the inline-flex wrapper: it shrink-wraps
- * to the rendered image, so the scrim and the words land on the photograph at
- * every aspect, with no letterboxed dead space under them.
- */
-/**
- * What the caption says, given that the mark above it already says the
- * house.
- *
- * Three of the boards are headlined with nothing but the brand name, which
- * is exactly what the mark is. On Casablanca, which has no logo file, the
- * mark falls back to the wordmark — so the overlay read CASABLANCA, then
- * Casablanca, then the line that actually said something. The same word
- * twice and the real copy demoted below both.
+ * Three boards are headlined with nothing but the brand name, which is
+ * exactly what the mark is. On Casablanca, which has no logo file, the mark
+ * falls back to the wordmark — so the overlay read CASABLANCA, then
+ * Casablanca, then the line that actually said something.
  *
  * So when the headline only repeats the mark, the subheading is promoted to
- * be the headline: the mark names the house, the line says what the picture
- * is. Fixed here rather than by rewriting three rows, because the next
- * board headlined with a house name would bring it straight back.
+ * be the headline. Fixed here rather than by rewriting three rows, because
+ * the next board headlined with a house name would bring it straight back.
  */
 function line(
   media: BrandMedia,
@@ -70,6 +49,33 @@ function line(
   return echoesMark && sub ? { head: sub, sub: null } : { head, sub };
 }
 
+/**
+ * The house's campaign artwork at the top of its page, one picture at a time.
+ *
+ * Full bleed, and the height comes from the picture rather than the other way
+ * round.
+ *
+ * It used to be the other way round: every slide sat in one fixed band and was
+ * contained inside it, so that all slides were the same height and nothing
+ * was ever cropped. That produced exactly what a phone should not show. A
+ * 2:3 board became a narrow column with white down both sides, and a 21:9
+ * board became a 161px strip inside a 325px band — more white than
+ * photograph. Worse, the caption is about 169px tall, so on that strip it
+ * was taller than the image it was supposedly laid over and spilled off the
+ * top, putting the mark on the white above the picture and across the
+ * headline.
+ *
+ * Now each picture runs edge to edge at its own aspect, and the track takes
+ * its height from whichever slide is showing. Nothing is cropped, there are
+ * no gutters, and an upright board fills a phone the way a campaign should.
+ *
+ * Where the caption goes follows from that, and has to: a caption cannot be
+ * laid over a picture shorter than itself. Upright boards carry it on the
+ * photograph at every size. Landscape boards carry it underneath on a phone
+ * and on the photograph from `lg`, where the same board is 400px tall or
+ * more and there is room. It is one element either way, repositioned — not
+ * two copies, which would put the words in the document twice.
+ */
 export default function BrandCampaignCarousel({
   slides,
   brand,
@@ -79,8 +85,32 @@ export default function BrandCampaignCarousel({
 }) {
   const [active, setActive] = useState(0);
   const [playing, setPlaying] = useState(true);
+  const [trackH, setTrackH] = useState<number | undefined>(undefined);
   const track = useRef<HTMLUListElement>(null);
+  const cells = useRef<(HTMLLIElement | null)[]>([]);
   const many = slides.length > 1;
+
+  /*
+   * The track is as tall as the slide being shown.
+   *
+   * Slides are no longer a uniform height — that was the whole point — so
+   * something has to hold the box, or the track grows to the tallest and the
+   * short ones get the white space back underneath instead of around.
+   *
+   * Measured rather than calculated from the aspect, because a slide is the
+   * picture plus whatever caption sits under it, and on a phone that varies
+   * with how far the headline wraps. The observer catches the wrap changing
+   * on rotate or resize.
+   */
+  useEffect(() => {
+    const cell = cells.current[active];
+    if (!cell) return;
+    const measure = () => setTrackH(cell.offsetHeight);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(cell);
+    return () => ro.disconnect();
+  }, [active, slides.length]);
 
   /**
    * Which slide is under the viewport, read back from the scroll position.
@@ -123,26 +153,17 @@ export default function BrandCampaignCarousel({
   };
 
   /*
-   * Advancing on its own.
+   * Advancing on its own. Four things switch it off, and all four earn it.
    *
-   * Four things switch it off, and all four earn their place.
+   * `prefers-reduced-motion`, because content that moves by itself is exactly
+   * what that setting is for. A pointer over it or focus inside it, because a
+   * carousel that slides out from under a cursor on its way to a product is
+   * its most irritating failure. A hidden tab, because the timer keeps
+   * running in one. And any use of the arrows or dots, for good: once
+   * somebody is steering, taking the wheel back is wrong.
    *
-   * `prefers-reduced-motion` is the one that is not negotiable: content that
-   * moves by itself is exactly what that setting is for.
-   *
-   * A pointer over it or keyboard focus inside it means somebody is reading,
-   * or on their way to clicking something. A carousel that moves out from
-   * under a cursor heading for a product is its most irritating failure.
-   *
-   * A hidden tab, because timers keep running in one and the thing would
-   * otherwise be found several slides along having apparently never moved.
-   *
-   * And any use of the arrows or dots stops it for good: once somebody is
-   * steering, taking the wheel back is wrong.
-   *
-   * The pause control is not decoration. Anything that moves on its own for
-   * more than five seconds needs a visible way to stop it, and a carousel
-   * with no stop button is the usual way that is failed.
+   * The pause button is not decoration either — anything that moves on its
+   * own for more than five seconds needs a visible way to stop it.
    */
   useEffect(() => {
     if (!many || !playing) return;
@@ -191,142 +212,177 @@ export default function BrandCampaignCarousel({
       <ul
         ref={track}
         onScroll={onScroll}
-        className="flex snap-x snap-mandatory overflow-x-auto overflow-y-hidden [-ms-overflow-style:none] [scrollbar-width:none] lg:overflow-hidden [&::-webkit-scrollbar]:hidden"
+        style={trackH ? { height: trackH } : undefined}
+        className="flex snap-x snap-mandatory items-start overflow-x-auto overflow-y-hidden transition-[height] duration-500 ease-out [-ms-overflow-style:none] [scrollbar-width:none] motion-reduce:transition-none lg:overflow-hidden [&::-webkit-scrollbar]:hidden"
       >
-        {slides.map(({ media, items, ownCopy }, i) => (
-          <li
-            key={media.id}
-            className="w-full shrink-0 snap-center"
-            aria-roledescription="slide"
-            aria-label={`${i + 1} of ${slides.length}`}
-            aria-hidden={i !== active}
-          >
-            {/* Fixed band so every slide is the same height whatever shape the
-                artwork was cut to. Heights in vh so the picture is never
-                taller than the screen it is on, and a smaller share of a
-                phone, where what is below has to stay reachable. */}
-            <div className="flex h-[40vh] items-center justify-center sm:h-[48vh] lg:h-[56vh]">
-              {/* inline-BLOCK, and the cap in vh on the image rather than
-                  `max-h-full` on either.
-                  Both details are load-bearing. As an inline-flex the image
-                  became a flex item and got stretched on the cross axis, so a
-                  2:3 board reported a 375x374 box inside a 375x373 band and
-                  the caption spread across the letterbox instead of sitting
-                  on the photograph. And `max-h-full` resolves against a
-                  shrink-to-fit parent, which has no definite height, so it
-                  resolves to nothing. A viewport cap is definite, and an
-                  image with only max-width and max-height set keeps its
-                  aspect, so the wrapper shrink-wraps the picture exactly. */}
-              <div className="relative inline-block">
+        {slides.map(({ media, items, ownCopy }, i) => {
+          const shape = shapeOf(media.aspect);
+          const copy = line(media, ownCopy, brand);
+          // Upright pictures are always tall enough to carry the words. Wide
+          // ones only are once there is some width to work with.
+          const over = shape.upright ? "over" : "under";
+          return (
+            <li
+              key={media.id}
+              ref={(el) => { cells.current[i] = el; }}
+              className="w-full shrink-0 snap-center"
+              aria-roledescription="slide"
+              aria-label={`${i + 1} of ${slides.length}`}
+              aria-hidden={i !== active}
+            >
+              {/* Edge to edge, height from the picture's own aspect, so the
+                  box is the picture and object-cover never actually crops.
+                  
+                  Upright boards get a ceiling from sm up, and they need one:
+                  full bleed is right on a phone, where a 2:3 board is 375 by
+                  563 and fills the screen, but the same rule on a 1280
+                  desktop makes it 1265 by 1897 — a picture nearly two
+                  thousand pixels tall that the carousel then has to be as
+                  tall as. Above a phone it is capped by height and centred
+                  instead, and the wrapper shrink-wraps it so the caption
+                  still lands on the photograph rather than on the paper
+                  beside it.
+                  
+                  Landscape boards stay full bleed at every width, because
+                  capping them by height would pull them in from the edges
+                  for no reason: at 1280 a 21:9 board is 1265 by 542, which
+                  is already a hero. */}
+              <div
+                className={
+                  shape.upright
+                    ? "w-full sm:flex sm:h-[62vh] sm:items-center sm:justify-center"
+                    : "w-full"
+                }
+              >
+              <div className={shape.upright ? "relative w-full sm:h-full sm:w-fit" : "relative w-full"}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={media.image_url}
                   alt={`${brand.name} campaign photograph`}
                   loading={i === 0 ? "eager" : "lazy"}
-                  className="block max-h-[40vh] w-auto max-w-full sm:max-h-[48vh] lg:max-h-[56vh]"
+                  style={{ aspectRatio: shape.css }}
+                  className={
+                    shape.upright
+                      ? "block w-full object-cover sm:h-full sm:w-auto"
+                      : "block w-full object-cover"
+                  }
                 />
 
-                {/* The scrim belongs to the caption, not to the picture: it
-                    covers only the band the words sit in, so the garment
-                    above it stays as photographed. */}
+                {/* The scrim belongs to the caption and only appears where the
+                    caption does, so a picture with the words underneath is
+                    not darkened for nothing. */}
                 <div
                   aria-hidden
-                  className="pointer-events-none absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/90 via-black/55 to-transparent"
+                  className={`pointer-events-none absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/90 via-black/55 to-transparent ${
+                    over === "over" ? "" : "hidden lg:block"
+                  }`}
                 />
 
-                <div className="absolute inset-x-0 bottom-0 p-5 text-white sm:p-7">
-                  <BrandMark
-                    brand={brand}
-                    size="sm"
-                    decorative
-                    hovered
-                    className="!text-white [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.85))]"
-                  />
-                  {/* The headline only travels when it is about this house. A
-                      collaboration title names it; the crown advert does not,
-                      and "Fifteen districts, one address" over a Purple Brand
-                      page is a line about somewhere else. */}
-                  <h2 className="display mt-2.5 text-xl leading-tight [text-shadow:0_1px_3px_rgba(0,0,0,0.85)] sm:text-3xl">
-                    {line(media, ownCopy, brand).head}
-                  </h2>
-                  {/* A subheading on every slide, not only the ones whose
-                      board happens to carry copy. Most of these were written
-                      as signage for one hoarding and plenty have no second
-                      line at all, which left a mark, a headline and a button
-                      floating with nothing between them. The house's own
-                      description is the fallback, and it is the right one —
-                      it is the sentence the house is already described by
-                      everywhere else on the site. */}
-                  {line(media, ownCopy, brand).sub ? (
-                    <p className="mt-1.5 max-w-md text-xs leading-relaxed text-white/85 [text-shadow:0_1px_3px_rgba(0,0,0,0.85)] sm:text-sm">
-                      {line(media, ownCopy, brand).sub}
-                    </p>
-                  ) : null}
-                  {/* Straight to the garments in this picture, which are the
-                      next thing down the page. A plain anchor rather than a
-                      link to the first item: "shop the look" means the look,
-                      and picking one of six to stand for it is a guess. */}
-                  {items.length > 0 && (
-                    <a
-                      href={`#look-${media.id}`}
-                      className="mt-4 inline-block rounded-full bg-white px-6 py-2.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-ink transition-opacity hover:opacity-85 sm:text-[11px]"
+                <div
+                  className={
+                    over === "over"
+                      ? "absolute inset-x-0 bottom-0 p-5 text-white sm:p-7"
+                      : "px-5 pb-2 pt-6 text-ink sm:px-8 lg:absolute lg:inset-x-0 lg:bottom-0 lg:p-7 lg:text-white"
+                  }
+                >
+                  <div className="mx-auto max-w-7xl">
+                    <BrandMark
+                      brand={brand}
+                      size="sm"
+                      decorative
+                      hovered={over === "over"}
+                      className={
+                        over === "over"
+                          ? "!text-white [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.85))]"
+                          : "!text-ink lg:!text-white lg:[filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.85))]"
+                      }
+                    />
+                    <h2
+                      className={`display mt-2.5 max-w-xl text-2xl leading-tight sm:text-3xl ${
+                        over === "over"
+                          ? "[text-shadow:0_1px_3px_rgba(0,0,0,0.85)]"
+                          : "lg:[text-shadow:0_1px_3px_rgba(0,0,0,0.85)]"
+                      }`}
                     >
-                      Shop the look
-                    </a>
-                  )}
+                      {copy.head}
+                    </h2>
+                    {copy.sub && (
+                      <p
+                        className={`mt-1.5 max-w-md text-sm leading-relaxed ${
+                          over === "over"
+                            ? "text-white/85 [text-shadow:0_1px_3px_rgba(0,0,0,0.85)]"
+                            : "text-ink-dim lg:text-white/85 lg:[text-shadow:0_1px_3px_rgba(0,0,0,0.85)]"
+                        }`}
+                      >
+                        {copy.sub}
+                      </p>
+                    )}
+                    {items.length > 0 && (
+                      <a
+                        href={`#look-${media.id}`}
+                        className={`mt-5 inline-block rounded-full px-7 py-3 text-[11px] font-semibold uppercase tracking-[0.2em] transition-opacity hover:opacity-85 ${
+                          over === "over"
+                            ? "bg-white text-ink"
+                            : "bg-ink text-paper lg:bg-white lg:text-ink"
+                        }`}
+                      >
+                        Shop the look
+                      </a>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
+              </div>
 
-            <div className="mx-auto max-w-7xl px-5 pb-8 pt-7 sm:px-8">
-              {items.length > 0 && (
-                <>
-                  <h3
-                    id={`look-${media.id}`}
-                    className="scroll-mt-24 text-[11px] font-semibold uppercase tracking-[0.2em] text-ink-faint"
-                  >
-                    Featured in this shot
-                  </h3>
-                  <ul className="mt-4 flex gap-4 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                    {items.map((p) => (
-                      <li key={p.id} className="w-28 shrink-0 sm:w-32">
-                        <Link href={`/products/${p.id}`} className="group block">
-                          <div className="overflow-hidden rounded-md bg-paper-sunken">
-                            <ProductImage
-                              src={p.image_url}
-                              slug={p.slug}
-                              alt={p.name}
-                              className="aspect-[4/5] w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]"
-                            />
-                          </div>
-                          <p className="mt-2 truncate text-xs text-ink group-hover:underline">
-                            {p.name}
-                          </p>
-                          <p className="text-xs tabular-nums text-ink-faint">
-                            {money(p.price)}
-                          </p>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-            </div>
-          </li>
-        ))}
+              <div className="mx-auto max-w-7xl px-5 pb-8 pt-7 sm:px-8">
+                {items.length > 0 && (
+                  <>
+                    <h3
+                      id={`look-${media.id}`}
+                      className="scroll-mt-24 text-[11px] font-semibold uppercase tracking-[0.2em] text-ink-faint"
+                    >
+                      Featured in this shot
+                    </h3>
+                    <ul className="mt-4 flex gap-4 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                      {items.map((p) => (
+                        <li key={p.id} className="w-32 shrink-0 sm:w-36">
+                          <Link href={`/products/${p.id}`} className="group block">
+                            <div className="overflow-hidden rounded-md bg-paper-sunken">
+                              <ProductImage
+                                src={p.image_url}
+                                slug={p.slug}
+                                alt={p.name}
+                                className="aspect-[4/5] w-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]"
+                              />
+                            </div>
+                            <p className="mt-2 truncate text-xs text-ink group-hover:underline">
+                              {p.name}
+                            </p>
+                            <p className="text-xs tabular-nums text-ink-faint">
+                              {money(p.price)}
+                            </p>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </div>
+            </li>
+          );
+        })}
       </ul>
 
       {many && (
         <>
           {/* Arrows are a desktop affordance: below lg the track is swipeable
-              and the dots do the same job without covering the picture. The
-              offsets track the middle of the band above. */}
+              and the dots do the same job without covering the picture. */}
           <button
             type="button"
             onClick={() => takeOver(active - 1)}
             disabled={active === 0}
             aria-label="Previous campaign image"
-            className="absolute left-4 top-[20vh] hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-rule-strong bg-paper/85 text-ink backdrop-blur transition-colors hover:bg-ink hover:text-paper disabled:pointer-events-none disabled:opacity-0 sm:top-[24vh] lg:top-[28vh] lg:grid"
+            className="absolute left-4 top-[22vh] hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-rule-strong bg-paper/85 text-ink backdrop-blur transition-colors hover:bg-ink hover:text-paper disabled:pointer-events-none disabled:opacity-0 lg:grid"
           >
             <span aria-hidden>&#8592;</span>
           </button>
@@ -335,7 +391,7 @@ export default function BrandCampaignCarousel({
             onClick={() => takeOver(active + 1)}
             disabled={active === slides.length - 1}
             aria-label="Next campaign image"
-            className="absolute right-4 top-[20vh] hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-rule-strong bg-paper/85 text-ink backdrop-blur transition-colors hover:bg-ink hover:text-paper disabled:pointer-events-none disabled:opacity-0 sm:top-[24vh] lg:top-[28vh] lg:grid"
+            className="absolute right-4 top-[22vh] hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-rule-strong bg-paper/85 text-ink backdrop-blur transition-colors hover:bg-ink hover:text-paper disabled:pointer-events-none disabled:opacity-0 lg:grid"
           >
             <span aria-hidden>&#8594;</span>
           </button>

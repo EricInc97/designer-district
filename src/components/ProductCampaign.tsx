@@ -74,37 +74,80 @@ export default function ProductCampaign({
   const href = media.cta_href || (brand?.slug ? `/brands/${brand.slug}` : null);
   const alt = `${brandName ?? "House"} campaign photograph featuring this piece`;
 
-  /* The caption, laid on the photograph.
+  /* Where the caption can go, and why it is not always on the picture.
    *
-   * The scrim is the caption's own, covering only the band the words sit in,
-   * so the garment above it stays as photographed. Three stacked shadows on
-   * the type as well: a scrim alone cannot be trusted when the bottom third
-   * of a picture might be pale travertine in full sun. */
+   * An upright board is tall enough to carry words at any width. A landscape
+   * one is not: at 375 across, a 21:9 board is 161px tall and this caption is
+   * about 169, so laid over it the words were taller than the photograph and
+   * spilled off the top — the mark ended up on the white above the picture
+   * and across the headline. Measured, not guessed.
+   *
+   * So a landscape board carries its caption underneath on a phone and on the
+   * photograph from `lg`, where the same board is four hundred pixels tall
+   * and there is room. One element, repositioned by breakpoint, rather than
+   * two copies, which would put the words in the document twice.
+   *
+   * The scrim only appears where the caption is over the picture, so a board
+   * captioned underneath is not darkened for nothing. Three stacked shadows
+   * on the type as well: a scrim cannot be trusted on its own when the bottom
+   * third of a picture might be pale travertine in full sun.
+   */
+  const over = !cinematic;
   const caption = (
     <>
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/90 via-black/55 to-transparent"
+        className={`pointer-events-none absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/90 via-black/55 to-transparent ${
+          over ? "" : "hidden lg:block"
+        }`}
       />
-      <div className="absolute inset-x-0 bottom-0 p-5 text-white sm:p-8">
+      <div
+        className={
+          over
+            ? "absolute inset-x-0 bottom-0 p-5 text-white sm:p-8"
+            : "px-5 py-7 text-ink sm:px-8 lg:absolute lg:inset-x-0 lg:bottom-0 lg:p-8 lg:text-white"
+        }
+      >
         <div className="mx-auto max-w-7xl">
           {brand && (
             <BrandMark
               brand={brand}
               size="sm"
               decorative
-              hovered
-              className="!text-white [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.85))]"
+              hovered={over}
+              className={
+                over
+                  ? "!text-white [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.85))]"
+                  : "!text-ink lg:!text-white lg:[filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.85))]"
+              }
             />
           )}
-          <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-white/75 [text-shadow:0_1px_3px_rgba(0,0,0,0.85)] sm:text-[11px]">
+          <p
+            className={`mt-3 text-[10px] font-semibold uppercase tracking-[0.22em] sm:text-[11px] ${
+              over
+                ? "text-white/75 [text-shadow:0_1px_3px_rgba(0,0,0,0.85)]"
+                : "text-ink-faint lg:text-white/75 lg:[text-shadow:0_1px_3px_rgba(0,0,0,0.85)]"
+            }`}
+          >
             Seen in the campaign
           </p>
-          <h2 className="display mt-1.5 max-w-2xl text-xl leading-tight [text-shadow:0_1px_3px_rgba(0,0,0,0.85)] sm:text-4xl">
+          <h2
+            className={`display mt-1.5 max-w-2xl text-2xl leading-tight sm:text-4xl ${
+              over
+                ? "[text-shadow:0_1px_3px_rgba(0,0,0,0.85)]"
+                : "lg:[text-shadow:0_1px_3px_rgba(0,0,0,0.85)]"
+            }`}
+          >
             {headline}
           </h2>
           {subhead && (
-            <p className="mt-2 max-w-md text-xs leading-relaxed text-white/85 [text-shadow:0_1px_3px_rgba(0,0,0,0.85)] sm:text-sm">
+            <p
+              className={`mt-2 max-w-md text-sm leading-relaxed ${
+                over
+                  ? "text-white/85 [text-shadow:0_1px_3px_rgba(0,0,0,0.85)]"
+                  : "text-ink-dim lg:text-white/85 lg:[text-shadow:0_1px_3px_rgba(0,0,0,0.85)]"
+              }`}
+            >
               {subhead}
             </p>
           )}
@@ -115,7 +158,9 @@ export default function ProductCampaign({
           {companions.length > 0 ? (
             <a
               href="#shop-the-look"
-              className="mt-5 inline-block rounded-full bg-white px-6 py-2.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-ink transition-opacity hover:opacity-85 sm:px-7 sm:py-3 sm:text-[11px]"
+              className={`mt-5 inline-block rounded-full px-6 py-2.5 text-[10px] font-semibold uppercase tracking-[0.2em] transition-opacity hover:opacity-85 sm:px-7 sm:py-3 sm:text-[11px] ${
+                over ? "bg-white text-ink" : "bg-ink text-paper lg:bg-white lg:text-ink"
+              }`}
             >
               Shop the look
             </a>
@@ -123,7 +168,9 @@ export default function ProductCampaign({
             href && (
               <Link
                 href={href}
-                className="mt-5 inline-block rounded-full bg-white px-6 py-2.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-ink transition-opacity hover:opacity-85 sm:px-7 sm:py-3 sm:text-[11px]"
+                className={`mt-5 inline-block rounded-full px-6 py-2.5 text-[10px] font-semibold uppercase tracking-[0.2em] transition-opacity hover:opacity-85 sm:px-7 sm:py-3 sm:text-[11px] ${
+                  over ? "bg-white text-ink" : "bg-ink text-paper lg:bg-white lg:text-ink"
+                }`}
               >
                 {brandName ? `Shop ${brandName}` : "Shop the house"}
               </Link>
@@ -152,19 +199,21 @@ export default function ProductCampaign({
            screens tall. The wrapper shrink-wraps to the rendered image so the
            caption lands on the photograph rather than on the paper beside
            it. */
+        /* Edge to edge on a phone, capped by height from sm up.
+           An upright board contained in a centred column left white down
+           both sides and a picture barely half the width of the screen,
+           which is not what a campaign looks like on a phone. At full bleed
+           a 2:3 board is 375 by 562 and fills it. On a desktop the same rule
+           would make it 1920 tall, so there the height is capped and the
+           picture centres instead. */
         <div className="flex justify-center">
-          {/* inline-BLOCK, and the cap in vh on the image itself. As an
-              inline-flex the image becomes a flex item and gets stretched on
-              the cross axis, which makes the wrapper wider than the picture
-              and spreads the caption across the empty paper beside it. With
-              only a max-width and a max-height the image keeps its aspect,
-              so the wrapper shrink-wraps the photograph exactly. */}
-          <div className="relative inline-block">
+          <div className="relative w-full sm:w-auto">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={media.image_url}
               alt={alt}
-              className="block max-h-[52vh] w-auto max-w-full sm:max-h-[64vh]"
+              style={{ aspectRatio: banner }}
+              className="block w-full object-cover sm:h-[64vh] sm:w-auto sm:max-w-full"
             />
             {caption}
           </div>
