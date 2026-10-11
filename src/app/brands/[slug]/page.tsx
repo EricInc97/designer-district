@@ -159,9 +159,24 @@ export default async function BrandPage({ params, searchParams }: Props) {
         items: [product],
       });
   }
-  // A set of one is not a set: a half whose partner is out of stock or
-  // unpublished would otherwise get a collection band of its own.
-  const setBands = [...setMap.values()].filter((x) => x.items.length > 1);
+  /* Which sets still want a band of their own.
+   *
+   * A set of one is not a set: a half whose partner is out of stock or
+   * unpublished would otherwise get a collection band to itself.
+   *
+   * And a set already being worn in a campaign picture on this page does
+   * not need a second, lesser introduction. Supreme is the case that
+   * forced this: its three Ducati sets each got a band, and the hero
+   * already shows all three of them on three people, so the page carried
+   * four Ducati blocks — one photograph and three flat-lays of the same
+   * tracksuit in different colours. A photograph of the thing worn beats a
+   * cut-out of it every time, so where the campaign covers a set in full,
+   * the band stands down.
+   */
+  const wornInCampaign = new Set(bands.flatMap((b) => b.media.product_ids ?? []));
+  const setBands = [...setMap.values()].filter(
+    (x) => x.items.length > 1 && !x.items.every((p) => wornInCampaign.has(p.id)),
+  );
 
   // Only offer the categories this house actually stocks, in catalog order.
   const categories: { name: string; slug: string; sort_order: number }[] = [];
