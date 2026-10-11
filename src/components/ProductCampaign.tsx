@@ -58,11 +58,10 @@ export default function ProductCampaign({
 
   const brandName = brand?.name ?? null;
   const rawHead = (ownCopy && media.headline) || brandName || "The campaign";
-  // A subheading on every hero. Boards were written as signage and many
-  // carry no second line, which left the mark, the headline and the
-  // button with nothing between them; the house's own description is
-  // the sentence it is already described by everywhere else.
-  const rawSub = (ownCopy ? media.subhead : null) || brand?.description || null;
+  // The board's own line and nothing else. It used to fall back to the
+  // house description, which is a paragraph where every board already
+  // carries something short enough to read at a glance.
+  const rawSub = (ownCopy ? media.subhead : null) || null;
   /* The mark above already says the house, so a headline that is only the
      house name says it twice — and on a house with no logo file, where the
      mark falls back to the wordmark, it is the same word twice in type. When

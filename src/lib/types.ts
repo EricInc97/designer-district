@@ -40,6 +40,12 @@ export type Product = {
   stock_count: number;
   is_published: boolean;
   is_featured: boolean;
+  /** Part of a co-ordinated set sold to be worn together. */
+  is_set: boolean;
+  /** Which set, shared by every piece in it. Null for a loose garment. */
+  set_key: string | null;
+  /** What that set is called on a collection band. */
+  set_name: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

@@ -29,13 +29,15 @@ function shapeOf(aspect: string | null) {
  * line that actually said something. When the headline only repeats the mark
  * the subheading is promoted to carry it.
  */
-function line(
-  media: BrandMedia,
-  ownCopy: boolean,
-  brand: Pick<Brand, "name" | "description">,
-) {
+function line(media: BrandMedia, ownCopy: boolean, brand: Pick<Brand, "name">) {
   const head = (ownCopy && media.headline) || brand.name;
-  const sub = (ownCopy && media.subhead) || brand.description || null;
+  // The board's own line and nothing else. It used to fall back to the
+  // house description, which is a paragraph of prose — "Hollywood-born
+  // sterling silver, leather and gothic cross motifs" — where every board
+  // already carries something short enough to read at a glance: "Flame and
+  // star.", "Paris, exaggerated." Better one short line or none than a
+  // sentence nobody finishes.
+  const sub = (ownCopy && media.subhead) || null;
   const echoesMark = head.trim().toLowerCase() === brand.name.trim().toLowerCase();
   return echoesMark && sub ? { head: sub, sub: null } : { head, sub };
 }
@@ -105,12 +107,23 @@ export default function BrandCampaignBand({
             }
           />
 
-          {/* The scrim belongs to the caption and only appears where the
-              caption does, so a picture captioned underneath is not darkened
-              for nothing. */}
+{/* Drawn in from the left, matching the lookbook band this page
+              already uses, rather than up from the bottom. A second, gentler
+              wash up from the floor as well: the left gradient alone leaves
+              the lower-right of a wide picture bright, and the words sit
+              across it.
+
+              Only where the caption actually is, so a picture captioned
+              underneath is not darkened for nothing. */}
           <div
             aria-hidden
-            className={`pointer-events-none absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/90 via-black/55 to-transparent ${
+            className={`pointer-events-none absolute inset-0 bg-gradient-to-r from-black/80 via-black/35 to-transparent ${
+              over ? "" : "hidden lg:block"
+            }`}
+          />
+          <div
+            aria-hidden
+            className={`pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/60 to-transparent ${
               over ? "" : "hidden lg:block"
             }`}
           />
@@ -154,13 +167,16 @@ export default function BrandCampaignBand({
                   {copy.sub}
                 </p>
               )}
+{/* A rule-underlined link rather than a pill, which is how the
+                  lookbook band does it and reads as editorial rather than as
+                  a form control. */}
               {items.length > 0 && (
                 <a
                   href={`#${lookId}`}
-                  className={`mt-5 inline-block rounded-full px-7 py-3 text-[11px] font-semibold uppercase tracking-[0.2em] transition-opacity hover:opacity-85 ${
+                  className={`mt-6 inline-block border-b pb-1 text-xs font-semibold uppercase tracking-[0.2em] transition-opacity hover:opacity-70 ${
                     over
-                      ? "bg-white text-ink"
-                      : "bg-ink text-paper lg:bg-white lg:text-ink"
+                      ? "border-white text-white"
+                      : "border-ink text-ink lg:border-white lg:text-white"
                   }`}
                 >
                   Shop the look

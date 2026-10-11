@@ -7,13 +7,14 @@ import SetupNotice from "@/components/SetupNotice";
 import ProductCard from "@/components/ProductCard";
 import BrandCampaign from "@/components/BrandCampaign";
 import BrandCampaignBand, { type CampaignBand } from "@/components/BrandCampaignBand";
+import BrandSetBand, { type SetBand } from "@/components/BrandSetBand";
 import BrandLookbook from "@/components/BrandLookbook";
 import RecommendationRail from "@/components/RecommendationRail";
 import type { Brand, BrandMedia, ProductWithBrand } from "@/lib/types";
 
 type Props = {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ category?: string }>;
+  searchParams: Promise<{ category?: string; set?: string }>;
 };
 
 type Row = ProductWithBrand & {
@@ -37,7 +38,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function BrandPage({ params, searchParams }: Props) {
   const { slug } = await params;
-  const { category = "" } = await searchParams;
+  const { category = "", set = "" } = await searchParams;
   if (!supabaseConfigured) return <SetupNotice />;
 
   const supabase = await createClient();
@@ -138,6 +139,30 @@ export default async function BrandPage({ params, searchParams }: Props) {
       (m.headline ?? "").toLowerCase().includes(brand.name.toLowerCase()),
   }));
 
+  /* The co-ordinated sets this house sells, each one merchandised as a
+   * collection of its own.
+   *
+   * Built from the products already fetched rather than from another query:
+   * a set is just the pieces that share a set_key, and they are all in `all`
+   * by definition. Ordered by the first piece so the page is stable between
+   * loads.
+   */
+  const setMap = new Map<string, SetBand>();
+  for (const product of all) {
+    if (!product.set_key) continue;
+    const existing = setMap.get(product.set_key);
+    if (existing) existing.items.push(product);
+    else
+      setMap.set(product.set_key, {
+        key: product.set_key,
+        name: product.set_name ?? "The set",
+        items: [product],
+      });
+  }
+  // A set of one is not a set: a half whose partner is out of stock or
+  // unpublished would otherwise get a collection band of its own.
+  const setBands = [...setMap.values()].filter((x) => x.items.length > 1);
+
   // Only offer the categories this house actually stocks, in catalog order.
   const categories: { name: string; slug: string; sort_order: number }[] = [];
   for (const product of all) {
@@ -151,21 +176,34 @@ export default async function BrandPage({ params, searchParams }: Props) {
   categories.sort((a, b) => a.sort_order - b.sort_order);
 
   const active = categories.some((c) => c.slug === category) ? category : "";
-  const shown = active
-    ? all.filter((p) => p.categories?.slug === active)
-    : all;
+
+  /* ?set= narrows the page to one collection.
+   *
+   * Validated against the sets actually on the page rather than trusted, so
+   * an unknown or stale key falls back to the whole house instead of showing
+   * an empty shop.
+   */
+  const chosenSet = setBands.find((x) => x.key === set) ?? null;
+
+  const shown = chosenSet
+    ? chosenSet.items
+    : active
+      ? all.filter((p) => p.categories?.slug === active)
+      : all;
 
   // With no filter the whole house is laid out category by category; with one
   // selected it collapses to a single grid.
-  const groups = active
-    ? [{ name: categories.find((c) => c.slug === active)!.name, items: shown }]
-    : categories.map((c) => ({
-        name: c.name,
-        items: all.filter((p) => p.categories?.slug === c.slug),
-      }));
+  const groups = chosenSet
+    ? [{ name: chosenSet.name, items: chosenSet.items }]
+    : active
+      ? [{ name: categories.find((c) => c.slug === active)!.name, items: shown }]
+      : categories.map((c) => ({
+          name: c.name,
+          items: all.filter((p) => p.categories?.slug === c.slug),
+        }));
 
   const uncategorised = all.filter((p) => !p.categories);
-  if (!active && uncategorised.length > 0) {
+  if (!active && !chosenSet && uncategorised.length > 0) {
     groups.push({ name: "Other", items: uncategorised });
   }
 
@@ -249,18 +287,27 @@ export default async function BrandPage({ params, searchParams }: Props) {
               <li>
                 <Link
                   href={`/brands/${brand.slug}`}
-                  aria-current={!active ? "true" : undefined}
-                  className={chipClass(!active)}
+                  aria-current={!active && !chosenSet ? "true" : undefined}
+                  className={chipClass(!active && !chosenSet)}
                 >
                   All
                 </Link>
               </li>
+              {/* The open set gets a chip of its own so there is something
+                  showing it is on, and All beside it is the way out. */}
+              {chosenSet && (
+                <li>
+                  <span aria-current="true" className={chipClass(true)}>
+                    {chosenSet.name}
+                  </span>
+                </li>
+              )}
               {categories.map((c) => (
                 <li key={c.slug}>
                   <Link
                     href={`/brands/${brand.slug}?category=${c.slug}`}
                     aria-current={active === c.slug ? "true" : undefined}
-                    className={chipClass(active === c.slug)}
+                    className={chipClass(active === c.slug && !chosenSet)}
                   >
                     {c.name}
                   </Link>
@@ -321,6 +368,14 @@ export default async function BrandPage({ params, searchParams }: Props) {
                   <BrandCampaignBand band={bands[i + 1]} brand={brand} />
                 )}
 
+                {/* A set collection after the campaign picture, so the page
+                    alternates between what the house is advertising and what
+                    it sells as a whole outfit. Suppressed while a set is
+                    open, where the page is already about one of them. */}
+                {!chosenSet && setBands[i] && i < groups.length - 1 && (
+                  <BrandSetBand band={setBands[i]} brand={brand} />
+                )}
+
                 {lookbook[i] && i < groups.length - 1 && (
                   <BrandLookbook media={lookbook[i]} />
                 )}
@@ -330,12 +385,19 @@ export default async function BrandPage({ params, searchParams }: Props) {
         )}
       </div>
 
-      {/* Boards left over when a house has more pictures than it has gaps
-          between product groups. Chrome Hearts has one group and three
-          boards; without this, two of them would simply never render. */}
-      {bands.slice(Math.max(groups.length, 1)).map((band) => (
-        <BrandCampaignBand key={band.media.id} band={band} brand={brand} />
-      ))}
+      {/* Whatever did not fit between the groups. A house can easily have
+          more pictures and sets than it has gaps — Casablanca sells five
+          sets and has four product groups — and silently dropping a
+          collection would be worse than a long page. */}
+      {!chosenSet &&
+        bands.slice(Math.max(groups.length, 1)).map((band) => (
+          <BrandCampaignBand key={band.media.id} band={band} brand={brand} />
+        ))}
+
+      {!chosenSet &&
+        setBands.slice(Math.max(groups.length - 1, 0)).map((band) => (
+          <BrandSetBand key={band.key} band={band} brand={brand} />
+        ))}
 
       <RecommendationRail title="You may also like" limit={4} tone="quiet" />
     </>
