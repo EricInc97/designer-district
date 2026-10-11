@@ -106,8 +106,22 @@ const bySub = (slug, sub, n = 0) => live(slug).filter((p) => p.sub === sub)[n];
  * there is no reason to reach for one twice.
  */
 const unshot = (p) => (p.used ?? 0) === 0 && !takenThisRun.has(p.id);
-const freshCat = (slug, c) => live(slug).filter((p) => p.cat === c && unshot(p))[0];
-const freshSub = (slug, sub) => live(slug).filter((p) => p.sub === sub && unshot(p))[0];
+
+/* Half of a co-ordinated set is never returned by a category pick.
+ *
+ * Casablanca has five sets and Essentials two, and asking for "a fresh
+ * shirt" and "a fresh pair of shorts" from a house that sells sets will
+ * cheerfully hand back one half of one and one half of another. That is
+ * exactly the mismatch already found on essentials-tower, a grey top with
+ * black shorts, and it is not a thing the shop sells.
+ *
+ * So anything carrying a set_key is invisible to freshCat and freshSub. A
+ * set has to be asked for by name, through wholeSet, which returns both
+ * halves together. It is not possible to split one by accident any more.
+ */
+const loose = (p) => unshot(p) && !p.setKey;
+const freshCat = (slug, c) => live(slug).filter((p) => p.cat === c && loose(p))[0];
+const freshSub = (slug, sub) => live(slug).filter((p) => p.sub === sub && loose(p))[0];
 const setHalves = (slug, key) => {
   const both = live(slug).filter((p) => p.setKey === key);
   return [both.find((p) => p.cat === "hoodies"), both.find((p) => p.cat === "bottoms")].filter(Boolean);
@@ -330,6 +344,131 @@ const SET = [
    *               where the socks and the shoes are the subject, with the
    *               clothing above them borrowed from Vale.
    */
+  /* ── batch three: a Chrome Hearts that works on a phone, and seconds
+   *    for nine other houses. Bape skipped.
+   *
+   * Mostly 9:16. A phone is the surface that matters here and 9:16 is the
+   * shape that fills one: at 375 across it is 667 tall against 563 for a
+   * 2:3. The trade is on a desktop, where upright boards are bounded by
+   * height and centred, so a 9:16 comes out narrower than a 2:3 — 279
+   * against 331. Worth it in that order, and two of the six stay 2:3 so the
+   * street keeps a mix of shapes.
+   *
+   * Chrome Hearts is the reason this batch exists. Its first picture is a
+   * single man, waist up, because the house sells nineteen tops and not one
+   * pair of trousers — there was nothing to put on his legs. Borrowing
+   * Amiri denim fixes that properly: two models, full length, and a
+   * collaboration that both houses get a slide out of.
+   */
+  {
+    tag: "chrome-amiri-photo", aspect: "9:16", house: "chrome-hearts",
+    place: "doorway", real: true, cast: ["man2", "woman2"], angles: true,
+    look:
+      "Hollywood gothic over Los Angeles denim: sterling silver and gothic " +
+      "lettering above hand-distressed indigo. Hard directional sun, deep " +
+      "shade, a silver-black-and-bone palette. Tight and expensive.",
+    shot: "Side by side in the shade of an arched concrete colonnade",
+    slots: {
+      "his shirt": () => freshCat("chrome-hearts", "shirts"),
+      "his jeans": () => freshCat("amiri", "denim"),
+      "his cap":   () => freshSub("chrome-hearts", "snapbacks"),
+      "her shirt": () => freshCat("chrome-hearts", "shirts"),
+      "her jeans": () => freshCat("amiri", "denim"),
+    },
+    wear: (x) =>
+      `He wears ${d(x["his shirt"])} with ${d(x["his jeans"])}` +
+      `${x["his cap"] ? ` and ${d(x["his cap"])}` : ""}. ` +
+      `She wears ${d(x["her shirt"])} with ${d(x["her jeans"])}.`,
+  },
+  {
+    /* Both models in complete sets, asked for by name. Casablanca sells
+     * five of them and a category pick would have split two. */
+    tag: "casablanca-sets-photo", aspect: "9:16", house: "casablanca",
+    place: "street", real: true, cast: ["man", "woman3"], angles: true,
+    look:
+      "Mediterranean apres-sport: late sun, warm pastel light, towelling and " +
+      "silk. Colour and ease, nothing stiff.",
+    shot: "Side by side on pale travertine with palms behind them",
+    slots: {
+      "his shirt":  () => wholeSet("casablanca", "casablanca-black")[0],
+      "his shorts": () => wholeSet("casablanca", "casablanca-black")[1],
+      "her shirt":  () => wholeSet("casablanca", "casablanca-teal")[0],
+      "her shorts": () => wholeSet("casablanca", "casablanca-teal")[1],
+    },
+    wear: (x) =>
+      `He wears ${d(x["his shirt"])} with ${d(x["his shorts"])}, the matching ` +
+      `set they are sold as. She wears ${d(x["her shirt"])} with ` +
+      `${d(x["her shorts"])}, likewise a matching set.`,
+  },
+  {
+    tag: "supreme-ksubi-two-photo", aspect: "9:16", house: "supreme",
+    place: "crown", real: true, cast: ["man", "woman1"], angles: true,
+    look:
+      "Downtown New York over Sydney denim: the box logo against shredded " +
+      "washes. Bright flat daylight, red and indigo, graphic and direct.",
+    shot: "Side by side in the plaza that closes the district",
+    slots: {
+      "his tee":   () => freshCat("supreme", "shirts"),
+      "his jeans": () => freshCat("ksubi", "denim"),
+      "her tee":   () => freshCat("supreme", "shirts"),
+      "her jeans": () => freshCat("ksubi", "denim"),
+    },
+    wear: (x) =>
+      `He wears ${d(x["his tee"])} with ${d(x["his jeans"])}. ` +
+      `She wears ${d(x["her tee"])} with ${d(x["her jeans"])}.`,
+  },
+  {
+    tag: "off-white-vale-photo", aspect: "9:16", house: "off-white",
+    place: "hoarding", real: true, cast: ["man2", "woman3"], angles: true,
+    look:
+      "Milan industrial meets collegiate: Helvetica caps and quotation marks " +
+      "over arched varsity lettering. Clean hard light, black and white with " +
+      "one warm note.",
+    shot: "Side by side at a low angle under a bright screen",
+    slots: {
+      "his tee":    () => freshCat("off-white", "shirts"),
+      "his shorts": () => freshSub("vale", "shorts"),
+      "her tee":    () => freshCat("off-white", "shirts"),
+      "her shorts": () => freshSub("vale", "shorts"),
+    },
+    wear: (x) =>
+      `He wears ${d(x["his tee"])} with ${d(x["his shorts"])}. ` +
+      `She wears ${d(x["her tee"])} with ${d(x["her shorts"])}.`,
+  },
+  {
+    tag: "godspeed-two-photo", aspect: "2:3", house: "godspeed",
+    place: "street", real: true, cast: ["man", "woman2"], angles: true,
+    look:
+      "New York gothic streetwear in daylight for once: religious motifs and " +
+      "boxy cuts under a flat bright sky, black and bone against pale paving.",
+    shot: "Side by side on the open promenade",
+    slots: {
+      "his shirt":  () => freshCat("godspeed", "shirts"),
+      "his shorts": () => freshSub("godspeed", "shorts"),
+      "her shirt":  () => freshCat("godspeed", "shirts"),
+      "her shorts": () => freshSub("godspeed", "shorts"),
+    },
+    wear: (x) =>
+      `He wears ${d(x["his shirt"])} with ${d(x["his shorts"])}. ` +
+      `She wears ${d(x["her shirt"])} with ${d(x["her shorts"])}.`,
+  },
+  {
+    tag: "gallery-purple-two-photo", aspect: "2:3", house: "gallery-dept",
+    place: "street", real: true, cast: ["man2", "woman1"], angles: true,
+    look:
+      "Two Los Angeles studios in full sun: hand-painted and repaired cotton " +
+      "over premium denim washes. Bone, rust and indigo, everything worn in.",
+    shot: "Side by side on the promenade with the skyline behind them",
+    slots: {
+      "his shirt":  () => freshCat("gallery-dept", "shirts"),
+      "his jeans":  () => freshCat("purple-brand", "denim"),
+      "her shirt":  () => freshCat("gallery-dept", "shirts"),
+      "her shorts": () => freshSub("purple-brand", "shorts"),
+    },
+    wear: (x) =>
+      `He wears ${d(x["his shirt"])} with ${d(x["his jeans"])}. ` +
+      `She wears ${d(x["her shirt"])} with ${d(x["her shorts"])}.`,
+  },
   {
     tag: "balenciaga-photo", aspect: "3:2", house: "balenciaga",
     place: "street", real: true, cast: ["man2", "woman1"], angles: true,
