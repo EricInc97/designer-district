@@ -127,17 +127,65 @@ export default async function BrandPage({ params, searchParams }: Props) {
     ((slideProducts ?? []) as ProductWithBrand[]).map((p) => [p.id, p]),
   );
 
-  const bands: CampaignBand[] = boards.map((m) => ({
-    media: m,
-    items: (m.product_ids ?? [])
+  /* A brand page sells one house.
+   *
+   * Several of these photographs are collaborations, and that is good for
+   * the picture and wrong for the page it hangs on. Supreme's page was
+   * headlined "Supreme x Ksubi" and listed Ksubi jeans for sale under it,
+   * which is a rival's advertisement on Supreme's shopfront. The other
+   * label is still in the photograph, worn, because that is how the outfit
+   * was styled — it is simply not named and not sold here.
+   *
+   * So two things are trimmed to the house:
+   *
+   *   the goods   only this house's pieces are offered. The rest of the
+   *               look is still shoppable from the product pages, where
+   *               the whole outfit is the point.
+   *
+   *   the line    a headline naming another house on this site is dropped
+   *               for the house's own name. Detected from the garments in
+   *               the picture rather than from a list of brand names, so
+   *               it stays true if the roster changes: if a board dresses
+   *               someone in Ksubi and says "Ksubi", that is the other
+   *               house talking.
+   *
+   * "Supreme x Ducati" survives this, and should: Ducati is a motorcycle
+   * company the garment is licensed from, not a shop in the district.
+   */
+  const bands: CampaignBand[] = boards.map((m) => {
+    const inShot = (m.product_ids ?? [])
       .map((id) => byId.get(id))
-      .filter((p): p is ProductWithBrand => Boolean(p)),
-    // The board's own copy travels only when it is about this house: its
-    // own board, or a collaboration whose title names it.
-    ownCopy:
-      m.brand_id === brand.id ||
-      (m.headline ?? "").toLowerCase().includes(brand.name.toLowerCase()),
-  }));
+      .filter((p): p is ProductWithBrand => Boolean(p));
+
+    const otherHouses = [
+      ...new Set(
+        inShot
+          .filter((p) => p.brand_id !== brand.id && p.brands?.name)
+          .map((p) => p.brands!.name),
+      ),
+    ];
+    const rawHead = m.headline ?? "";
+    const namesARival = otherHouses.some((n) =>
+      rawHead.toLowerCase().includes(n.toLowerCase()),
+    );
+    const mine =
+      !namesARival &&
+      (m.brand_id === brand.id ||
+        rawHead.toLowerCase().includes(brand.name.toLowerCase()));
+
+    const head = (mine && rawHead) || brand.name;
+    const sub = (mine && m.subhead) || null;
+    // The mark above already says the house, so a headline that is only the
+    // house name says it twice; the short line is promoted to carry it.
+    const echoes = head.trim().toLowerCase() === brand.name.trim().toLowerCase();
+
+    return {
+      media: m,
+      items: inShot.filter((p) => p.brand_id === brand.id),
+      headline: echoes && sub ? sub : head,
+      subhead: echoes && sub ? null : sub,
+    };
+  });
 
   /* The co-ordinated sets this house sells, each one merchandised as a
    * collection of its own.

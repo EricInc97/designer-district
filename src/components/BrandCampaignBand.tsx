@@ -6,10 +6,16 @@ import type { Brand, BrandMedia, ProductWithBrand } from "@/lib/types";
 
 export type CampaignBand = {
   media: BrandMedia;
-  /** The garments actually in this photograph, in stock and published. */
+  /**
+   * The garments from this photograph that belong to the house whose page
+   * this is. A collaboration dresses the models in two labels, and the other
+   * one is styling here, not stock to be sold off a rival's page.
+   */
   items: ProductWithBrand[];
-  /** Whether this board's own copy is about the house whose page this is. */
-  ownCopy: boolean;
+  /** The line over the picture, already resolved against the house. */
+  headline: string;
+  /** The short line under it, or nothing. */
+  subhead: string | null;
 };
 
 /** The shape it was generated at, as a CSS ratio, and whether it is upright. */
@@ -18,28 +24,6 @@ function shapeOf(aspect: string | null) {
   const ok = Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0;
   const ratio = ok ? w / h : 2 / 3;
   return { css: ok ? `${w} / ${h}` : "2 / 3", upright: ratio < 1 };
-}
-
-/**
- * What the caption says, given that the mark above it already says the house.
- *
- * Several boards are headlined with nothing but the brand name, which is
- * exactly what the mark is. On a house with no logo file the mark falls back
- * to the wordmark, so the caption read CASABLANCA, then Casablanca, then the
- * line that actually said something. When the headline only repeats the mark
- * the subheading is promoted to carry it.
- */
-function line(media: BrandMedia, ownCopy: boolean, brand: Pick<Brand, "name">) {
-  const head = (ownCopy && media.headline) || brand.name;
-  // The board's own line and nothing else. It used to fall back to the
-  // house description, which is a paragraph of prose — "Hollywood-born
-  // sterling silver, leather and gothic cross motifs" — where every board
-  // already carries something short enough to read at a glance: "Flame and
-  // star.", "Paris, exaggerated." Better one short line or none than a
-  // sentence nobody finishes.
-  const sub = (ownCopy && media.subhead) || null;
-  const echoesMark = head.trim().toLowerCase() === brand.name.trim().toLowerCase();
-  return echoesMark && sub ? { head: sub, sub: null } : { head, sub };
 }
 
 /**
@@ -70,7 +54,7 @@ function line(media: BrandMedia, ownCopy: boolean, brand: Pick<Brand, "name">) {
  * same board is 542px tall. One element, repositioned.
  */
 export default function BrandCampaignBand({
-  band: { media, items, ownCopy },
+  band: { media, items, headline, subhead },
   brand,
   priority = false,
 }: {
@@ -80,7 +64,6 @@ export default function BrandCampaignBand({
   priority?: boolean;
 }) {
   const shape = shapeOf(media.aspect);
-  const copy = line(media, ownCopy, brand);
   const over = shape.upright;
   const lookId = `look-${media.id}`;
 
@@ -154,9 +137,9 @@ export default function BrandCampaignBand({
                     : "lg:[text-shadow:0_1px_3px_rgba(0,0,0,0.85)]"
                 }`}
               >
-                {copy.head}
+                {headline}
               </h2>
-              {copy.sub && (
+              {subhead && (
                 <p
                   className={`mt-1.5 max-w-md text-sm leading-relaxed ${
                     over
@@ -164,7 +147,7 @@ export default function BrandCampaignBand({
                       : "text-ink-dim lg:text-white/85 lg:[text-shadow:0_1px_3px_rgba(0,0,0,0.85)]"
                   }`}
                 >
-                  {copy.sub}
+                  {subhead}
                 </p>
               )}
 {/* A rule-underlined link rather than a pill, which is how the
