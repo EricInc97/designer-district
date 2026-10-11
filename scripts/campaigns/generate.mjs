@@ -217,6 +217,37 @@ const PHOTO =
  * is not the camera, it is that somebody lit it, styled it and cast it — so
  * that is what this says, in those terms.
  */
+/* What goes on the half of the body this house does not sell.
+ *
+ * Chrome Hearts sells nineteen tops and no trousers; Purple Brand and Ksubi
+ * sell denim and no tops. Somebody has to be dressed, and until now the
+ * missing half was borrowed from another house in the district. That made
+ * every such picture a collaboration, which then advertised a rival on the
+ * page it hung from — Supreme headlined "Supreme x Ksubi" with Ksubi jeans
+ * for sale underneath it.
+ *
+ * A plain garment solves it at the root. It is not a product, carries no
+ * product_id, and is described rather than referenced, so nothing in the
+ * picture is for sale except this house's own work.
+ *
+ * The last line is the one that has to hold. Left to itself a fashion model
+ * puts a logo on a t-shirt, because almost every t-shirt it has ever seen
+ * has one.
+ */
+const PLAIN_TEE_WHITE =
+  "a plain white cotton t-shirt, completely unbranded";
+const PLAIN_TEE_BLACK =
+  "a plain black cotton t-shirt, completely unbranded";
+const PLAIN_JEANS_BLACK =
+  "plain black denim jeans, completely unbranded";
+const PLAIN_JEANS_INDIGO =
+  "plain indigo denim jeans, completely unbranded";
+const UNBRANDED =
+  "Any garment described as plain or unbranded must be exactly that: no " +
+  "logo, no wordmark, no print, no graphic, no slogan, no embroidery and no " +
+  "visible label anywhere on it, front or back. Only the garments named from " +
+  "their reference photographs carry branding of any kind.";
+
 const SHOOT =
   "An art-directed editorial fashion campaign shoot. Professional model casting, " +
   "hair and makeup done, clothes steamed and styled, deliberate lighting with a " +
@@ -360,6 +391,93 @@ const SET = [
    * Amiri denim fixes that properly: two models, full length, and a
    * collaboration that both houses get a slide out of.
    */
+  /* ── batch four: one house per picture ──────────────────────────────
+   *
+   * Every one of these dresses the half the house does not sell in a plain
+   * unbranded garment instead of a rival's. Purple Brand and Ksubi get a
+   * board of their own for the first time — both sell denim and no tops, so
+   * until now they could only appear as somebody else's guest.
+   */
+  {
+    tag: "purple-brand-photo", aspect: "9:16", house: "purple-brand",
+    place: "street", real: true, cast: ["man2", "woman1"], angles: true,
+    plain: true,
+    look:
+      "Los Angeles denim: premium washes and painted wordmarks against pale " +
+      "travertine in hard midday sun. The denim is the whole picture, so " +
+      "everything above the waist is quiet.",
+    shot: "Side by side, both full length, the denim filling the lower half " +
+          "of the frame",
+    slots: {
+      "his jeans":  () => freshCat("purple-brand", "denim"),
+      "her shorts": () => freshSub("purple-brand", "shorts"),
+    },
+    wear: (x) =>
+      `He wears ${PLAIN_TEE_WHITE} with ${d(x["his jeans"])}. ` +
+      `She wears ${PLAIN_TEE_BLACK} with ${d(x["her shorts"])}. ` +
+      `The denim is the subject of the photograph.`,
+  },
+  {
+    tag: "ksubi-photo", aspect: "9:16", house: "ksubi",
+    place: "doorway", real: true, cast: ["man", "woman3"], angles: true,
+    plain: true,
+    look:
+      "Sydney denim turned Los Angeles: shredded washes and the scrawled " +
+      "signature, cool shade with one hard shaft of sun. Hard, rock-and-roll, " +
+      "nothing fussy.",
+    shot: "Side by side, both full length, the denim clearly readable from " +
+          "waist to hem",
+    slots: {
+      "his jeans": () => freshCat("ksubi", "denim"),
+      /* Least-used rather than never-used, and only here. Ksubi stocks five
+       * pairs of jeans and has exactly one that has never been in a
+       * picture, so asking for two fresh pairs drops the second model
+       * entirely — the poll said so out loud, which is what it is for. A
+       * house this small cannot carry a never-repeat rule, and a repeated
+       * pair of jeans costs far less than a picture with one person in it
+       * when the point is to show both. */
+      "her jeans": () => byCat("ksubi", "denim"),
+    },
+    wear: (x) =>
+      `He wears ${PLAIN_TEE_BLACK} with ${d(x["his jeans"])}. ` +
+      `She wears ${PLAIN_TEE_WHITE} with ${d(x["her jeans"])}. ` +
+      `The denim is the subject of the photograph.`,
+  },
+  {
+    tag: "chrome-hearts-solo-photo", aspect: "9:16", house: "chrome-hearts",
+    place: "doorway", real: true, cast: ["man2", "woman2"], angles: true,
+    plain: true,
+    look:
+      "Hollywood gothic: hard directional sun and deep shade, a silver, black " +
+      "and bone palette, sterling jewellery and gothic lettering catching the " +
+      "light.",
+    shot: "Side by side in the shade of an arched concrete colonnade",
+    slots: {
+      "his shirt": () => freshCat("chrome-hearts", "shirts"),
+      "his cap":   () => freshSub("chrome-hearts", "snapbacks"),
+      "her shirt": () => freshCat("chrome-hearts", "shirts"),
+    },
+    wear: (x) =>
+      `He wears ${d(x["his shirt"])} with ${PLAIN_JEANS_BLACK}` +
+      `${x["his cap"] ? ` and ${d(x["his cap"])}` : ""}. ` +
+      `She wears ${d(x["her shirt"])} with ${PLAIN_JEANS_INDIGO}.`,
+  },
+  {
+    tag: "supreme-solo-photo", aspect: "9:16", house: "supreme",
+    place: "crown", real: true, cast: ["man", "woman1"], angles: true,
+    plain: true,
+    look:
+      "Downtown New York: the box logo on white cotton, bright flat daylight, " +
+      "red and white against pale concrete. Direct and graphic.",
+    shot: "Side by side in the plaza that closes the district",
+    slots: {
+      "his tee": () => freshCat("supreme", "shirts"),
+      "her tee": () => freshCat("supreme", "shirts"),
+    },
+    wear: (x) =>
+      `He wears ${d(x["his tee"])} with ${PLAIN_JEANS_INDIGO}. ` +
+      `She wears ${d(x["her tee"])} with ${PLAIN_JEANS_BLACK}.`,
+  },
   {
     tag: "chrome-amiri-photo", aspect: "9:16", house: "chrome-hearts",
     place: "doorway", real: true, cast: ["man2", "woman2"], angles: true,
@@ -962,7 +1080,8 @@ for (const { item, chosen } of polled) {
     `${item.look ? item.look + " " : ""}` +
     `${item.angles ? ANGLES + " " : ""}${item.shot}. ${who}. ${item.wear(chosen)} ` +
     `They are in ${PLACES[item.place]}. ` +
-    `${FIDELITY} ${item.cast.some((k) => k.startsWith("woman")) ? FEM + " " : ""}` +
+    `${FIDELITY} ${item.plain ? UNBRANDED + " " : ""}` +
+    `${item.cast.some((k) => k.startsWith("woman")) ? FEM + " " : ""}` +
     `${NO_TAGS} ${SIGNAGE} ${item.real ? PHOTO_FINISH : CEL}`;
 
   /* Whose board it hangs on, named rather than inferred.

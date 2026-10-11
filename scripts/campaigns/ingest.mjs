@@ -68,6 +68,11 @@ const PER_PICTURE = {
   "off-white-vale-photo":     ["Off-White x Vale", "Quotation marks, varsity cotton."],
   "godspeed-two-photo":       ["Godspeed", "Gothic, in daylight."],
   "gallery-purple-two-photo": ["Gallery Dept. x Purple Brand", "Atelier cotton, painted denim."],
+  // Batch four: one house per picture, the other half of the outfit plain.
+  "purple-brand-photo":       ["Purple Brand", "Denim, obsessively."],
+  "ksubi-photo":              ["Ksubi", "Shredded, Australian."],
+  "chrome-hearts-solo-photo": ["Chrome Hearts", "Sterling, leather, gothic type."],
+  "supreme-solo-photo":       ["Supreme", "The box logo."],
 };
 
 /* Editorial copy. It lives here rather than in the generator because it is
