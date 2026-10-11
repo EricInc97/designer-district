@@ -6,7 +6,7 @@ import { supabaseConfigured } from "@/lib/supabase/config";
 import SetupNotice from "@/components/SetupNotice";
 import ProductCard from "@/components/ProductCard";
 import BrandCampaign from "@/components/BrandCampaign";
-import BrandCampaignCarousel, { type CampaignSlide } from "@/components/BrandCampaignCarousel";
+import BrandCampaignBand, { type CampaignBand } from "@/components/BrandCampaignBand";
 import BrandLookbook from "@/components/BrandLookbook";
 import RecommendationRail from "@/components/RecommendationRail";
 import type { Brand, BrandMedia, ProductWithBrand } from "@/lib/types";
@@ -126,7 +126,7 @@ export default async function BrandPage({ params, searchParams }: Props) {
     ((slideProducts ?? []) as ProductWithBrand[]).map((p) => [p.id, p]),
   );
 
-  const slides: CampaignSlide[] = boards.map((m) => ({
+  const bands: CampaignBand[] = boards.map((m) => ({
     media: m,
     items: (m.product_ids ?? [])
       .map((id) => byId.get(id))
@@ -179,12 +179,19 @@ export default async function BrandPage({ params, searchParams }: Props) {
   return (
     <>
       {/* ---------------- CAMPAIGN ----------------
-          The carousel when the house has campaign artwork, which all fifteen
-          now do. BrandCampaign stays as the fallback it always was: the
-          house colourway with its mark centred, for a house with nothing
-          shot yet. */}
-      {slides.length > 0 ? (
-        <BrandCampaignCarousel slides={slides} brand={brand} />
+          The first picture leads the page; the rest are dropped between the
+          product groups further down, so the page reads banner, products,
+          banner, products as you scroll.
+
+          This replaced a carousel, and losing it is the point. A slideshow
+          showed one picture and hid the others behind a gesture most people
+          never make — a house with eleven boards was really a house with one
+          board and ten nobody would see. Stacked, they are all just there.
+
+          BrandCampaign stays as the fallback it always was: the house
+          colourway with its mark centred, for a house with nothing shot. */}
+      {bands.length > 0 ? (
+        <BrandCampaignBand band={bands[0]} brand={brand} priority />
       ) : (
         <BrandCampaign brand={brand} media={hero} />
       )}
@@ -303,8 +310,17 @@ export default async function BrandPage({ params, searchParams }: Props) {
                   </div>
                 </section>
 
-                {/* A band after every group but the last, so the page breathes
-                    instead of running as one long grid. */}
+                {/* A campaign picture after every group but the last, so
+                    the page breathes instead of running as one long grid,
+                    and so every board the house has is actually reachable by
+                    scrolling. `bands[0]` led the page, hence the offset.
+
+                    Any house with more boards than gaps keeps the remainder
+                    for the end rather than dropping them. */}
+                {bands[i + 1] && i < groups.length - 1 && (
+                  <BrandCampaignBand band={bands[i + 1]} brand={brand} />
+                )}
+
                 {lookbook[i] && i < groups.length - 1 && (
                   <BrandLookbook media={lookbook[i]} />
                 )}
@@ -313,6 +329,13 @@ export default async function BrandPage({ params, searchParams }: Props) {
           </div>
         )}
       </div>
+
+      {/* Boards left over when a house has more pictures than it has gaps
+          between product groups. Chrome Hearts has one group and three
+          boards; without this, two of them would simply never render. */}
+      {bands.slice(Math.max(groups.length, 1)).map((band) => (
+        <BrandCampaignBand key={band.media.id} band={band} brand={brand} />
+      ))}
 
       <RecommendationRail title="You may also like" limit={4} tone="quiet" />
     </>
