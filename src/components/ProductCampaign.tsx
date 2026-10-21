@@ -1,6 +1,7 @@
 import Link from "next/link";
 import BrandMark from "@/components/BrandMark";
 import ProductCard from "@/components/ProductCard";
+import Reveal from "@/components/Reveal";
 import type { Brand, BrandMedia, ProductWithBrand } from "@/lib/types";
 
 /**
@@ -187,6 +188,7 @@ export default function ProductCampaign({
        does not, so on a desktop it overhangs half a scrollbar at each edge and
        the whole page scrolls sideways 8px. */
     <section className="w-full border-y border-rule bg-paper">
+      <Reveal>
       {cinematic ? (
         <div className="relative w-full" style={{ aspectRatio: banner }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -218,6 +220,8 @@ export default function ProductCampaign({
           </div>
         </div>
       )}
+
+      </Reveal>
 
       {/* The other garments in the same photograph, so the rest of the look is
           the rest of a look the shopper is looking at. */}

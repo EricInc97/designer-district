@@ -1,5 +1,6 @@
 import Link from "next/link";
 import BrandMark from "@/components/BrandMark";
+import Reveal from "@/components/Reveal";
 import ProductImage from "@/components/ProductImage";
 import { money } from "@/lib/format";
 import type { Brand, BrandMedia, ProductWithBrand } from "@/lib/types";
@@ -69,6 +70,7 @@ export default function BrandCampaignBand({
 
   return (
     <section className="w-full bg-paper" aria-label={`${brand.name} campaign`}>
+      <Reveal>
       <div
         className={
           shape.upright
@@ -170,8 +172,11 @@ export default function BrandCampaignBand({
         </div>
       </div>
 
+      </Reveal>
+
       {items.length > 0 && (
-        <div className="mx-auto max-w-7xl px-5 pb-10 pt-7 sm:px-8">
+        <Reveal delay={0.08} className="mx-auto max-w-7xl px-5 pb-10 pt-7 sm:px-8">
+        <div>
           <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
             <h3
               id={lookId}
@@ -209,6 +214,7 @@ export default function BrandCampaignBand({
             ))}
           </div>
         </div>
+        </Reveal>
       )}
     </section>
   );

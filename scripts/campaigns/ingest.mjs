@@ -73,6 +73,8 @@ const PER_PICTURE = {
   "ksubi-photo":              ["Ksubi", "Shredded, Australian."],
   "chrome-hearts-solo-photo": ["Chrome Hearts", "Sterling, leather, gothic type."],
   "supreme-solo-photo":       ["Supreme", "The box logo."],
+  "off-white-solo-photo":     ["Off-White", "Quotation marks."],
+  "purple-brand-two-photo":   ["Purple Brand", "Denim, obsessively."],
 };
 
 /* Editorial copy. It lives here rather than in the generator because it is

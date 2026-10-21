@@ -1,5 +1,6 @@
 import Link from "next/link";
 import ProductImage from "@/components/ProductImage";
+import Reveal from "@/components/Reveal";
 import type { Brand, ProductWithBrand } from "@/lib/types";
 
 export type SetBand = {
@@ -43,6 +44,7 @@ export default function BrandSetBand({
       className="relative w-full overflow-hidden bg-paper-sunken"
       aria-label={`${band.name}, a ${brand.name} set`}
     >
+      <Reveal>
       <div className="relative min-h-[44vh] sm:min-h-[56vh]">
         <ProductImage
           src={lead.image_url}
@@ -78,6 +80,7 @@ export default function BrandSetBand({
           </div>
         </div>
       </div>
+      </Reveal>
     </section>
   );
 }

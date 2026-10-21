@@ -175,11 +175,41 @@ const PLACES = {
     "shopfront, palm fronds and deep blue sky behind it",
 };
 
+/* What a house's name looks like on a shopfront, where it differs from
+ * its slug. Only the ones a slug would get wrong. */
+const HOUSE_SIGN = {
+  "chrome-hearts": "CHROME HEARTS",
+  "purple-brand": "PURPLE BRAND",
+  "off-white": "OFF-WHITE",
+  "gallery-dept": "GALLERY DEPT",
+  "godspeed": "GODSPEED",
+};
+
 const HOUSES = "BAPE, CHROME HEARTS, SUPREME, AMIRI, BALENCIAGA, GALLERY DEPT, GODSPEED, " +
   "PURPLE BRAND, OFF-WHITE, CASABLANCA, KSUBI, RHUDE, VALE, HELLSTAR, ESSENTIALS";
 const SIGNAGE =
   `Any shopfront or screen signage may only read from this list: ${HOUSES}, or ` +
   "DESIGNER DISTRICT. Everything else blank. No other real fashion brand names.";
+
+/* Signage for a picture that belongs to one house.
+ *
+ * The open list above is right for a street scene and wrong for an
+ * advertisement. Off-White's board came back with VALE across a screen two
+ * storeys high, and Purple Brand's with an AMIRI shopfront beside the
+ * model — a competitor's name, in the largest type in the frame, on a
+ * board paid for by somebody else. The models can wear another label as
+ * styling; the architecture should not be selling one.
+ *
+ * So an own-house shot gets its own name and the district's, and nothing
+ * else. Blank is explicitly offered as the alternative, because a model
+ * told only what it may not write will write something anyway.
+ */
+const ownSignage = (house) =>
+  `Any shopfront, screen or sign visible anywhere in this photograph may ` +
+  `read only ${house.toUpperCase()} or DESIGNER DISTRICT, or be completely ` +
+  `blank. No other fashion brand name, logo or wordmark appears anywhere in ` +
+  `the frame — not on a storefront, a screen, a banner, an awning or a bag. ` +
+  `Blank signage is preferred over inventing a name.`;
 const FIDELITY =
   "Reproduce every garment exactly as shown in its reference photograph — same " +
   "colour, same cut, same printed graphics and lettering. Do not restyle or " +
@@ -398,6 +428,40 @@ const SET = [
    * board of their own for the first time — both sell denim and no tops, so
    * until now they could only appear as somebody else's guest.
    */
+  {
+    tag: "off-white-solo-photo", aspect: "9:16", house: "off-white",
+    place: "street", real: true, cast: ["man", "woman2"], angles: true,
+    plain: true,
+    look:
+      "Milan industrial: Helvetica caps and quotation marks, flat hard light, " +
+      "black and white with the concrete doing the rest. Graphic, exact, cold.",
+    shot: "Side by side on open paving",
+    slots: {
+      "his tee": () => freshCat("off-white", "shirts"),
+      "her tee": () => freshCat("off-white", "shirts"),
+    },
+    wear: (x) =>
+      `He wears ${d(x["his tee"])} with ${PLAIN_JEANS_BLACK}. ` +
+      `She wears ${d(x["her tee"])} with ${PLAIN_JEANS_INDIGO}.`,
+  },
+  {
+    tag: "purple-brand-two-photo", aspect: "9:16", house: "purple-brand",
+    place: "doorway", real: true, cast: ["man2", "woman3"], angles: true,
+    plain: true,
+    look:
+      "Los Angeles denim in shade: premium washes and painted wordmarks " +
+      "against raw concrete, one hard shaft of sun. The denim is the whole " +
+      "picture.",
+    shot: "Side by side under a concrete colonnade, both full length",
+    slots: {
+      "his jeans": () => freshCat("purple-brand", "denim"),
+      "her jeans": () => freshCat("purple-brand", "denim"),
+    },
+    wear: (x) =>
+      `He wears ${PLAIN_TEE_WHITE} with ${d(x["his jeans"])}. ` +
+      `She wears ${PLAIN_TEE_BLACK} with ${d(x["her jeans"])}. ` +
+      `The denim is the subject of the photograph.`,
+  },
   {
     tag: "purple-brand-photo", aspect: "9:16", house: "purple-brand",
     place: "street", real: true, cast: ["man2", "woman1"], angles: true,
@@ -1082,7 +1146,8 @@ for (const { item, chosen } of polled) {
     `They are in ${PLACES[item.place]}. ` +
     `${FIDELITY} ${item.plain ? UNBRANDED + " " : ""}` +
     `${item.cast.some((k) => k.startsWith("woman")) ? FEM + " " : ""}` +
-    `${NO_TAGS} ${SIGNAGE} ${item.real ? PHOTO_FINISH : CEL}`;
+    `${NO_TAGS} ${item.house && item.plain ? ownSignage(HOUSE_SIGN[item.house] ?? item.house) : SIGNAGE} ` +
+    `${item.real ? PHOTO_FINISH : CEL}`;
 
   /* Whose board it hangs on, named rather than inferred.
    *
