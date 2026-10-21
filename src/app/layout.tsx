@@ -12,7 +12,6 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import CartDrawer from "@/components/CartDrawer";
-import RecommendationPopup from "@/components/RecommendationPopup";
 import Splash from "@/components/Splash";
 import ConsentBanner from "@/components/ConsentBanner";
 
@@ -101,7 +100,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <main className="flex-1">{children}</main>
         <Footer />
         <CartDrawer />
-        <RecommendationPopup />
       </body>
     </html>
   );
