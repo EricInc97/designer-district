@@ -1,6 +1,7 @@
 import Link from "next/link";
 import BrandMark from "@/components/BrandMark";
 import Reveal from "@/components/Reveal";
+import GlReveal from "@/components/GlReveal";
 import ProductImage from "@/components/ProductImage";
 import { money } from "@/lib/format";
 import type { Brand, BrandMedia, ProductWithBrand } from "@/lib/types";
@@ -67,6 +68,9 @@ export default function BrandCampaignBand({
   const shape = shapeOf(media.aspect);
   const over = shape.upright;
   const lookId = `look-${media.id}`;
+  const imgClass = shape.upright
+    ? "block w-full object-cover sm:h-full sm:w-auto"
+    : "block w-full object-cover";
 
   return (
     <section className="w-full bg-paper" aria-label={`${brand.name} campaign`}>
@@ -79,18 +83,29 @@ export default function BrandCampaignBand({
         }
       >
         <div className={shape.upright ? "relative w-full sm:h-full sm:w-fit" : "relative w-full"}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={media.image_url}
-            alt={`${brand.name} campaign photograph`}
-            loading={priority ? "eager" : "lazy"}
-            style={{ aspectRatio: shape.css }}
-            className={
-              shape.upright
-                ? "block w-full object-cover sm:h-full sm:w-auto"
-                : "block w-full object-cover"
-            }
-          />
+          {/* The hero stays a plain image: it is the LCP element on this
+              page, and a WebGL pass has no business on the critical path.
+              Everything below it gets the canvas. */}
+          {priority ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={media.image_url}
+              alt={`${brand.name} campaign photograph`}
+              loading="eager"
+              style={{ aspectRatio: shape.css }}
+              className={imgClass}
+            />
+          ) : (
+            <GlReveal
+              src={media.image_url}
+              alt={`${brand.name} campaign photograph`}
+              style={{ aspectRatio: shape.css }}
+              className={imgClass}
+              wrapClassName={
+                shape.upright ? "block w-full sm:h-full sm:w-fit" : "block w-full"
+              }
+            />
+          )}
 
 {/* Drawn in from the left, matching the lookbook band this page
               already uses, rather than up from the bottom. A second, gentler
