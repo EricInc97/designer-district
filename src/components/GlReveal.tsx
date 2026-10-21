@@ -33,11 +33,28 @@ const VERT = `
 `;
 
 /*
- * `edge` is a soft wipe that reaches 1 everywhere at p = 1, which is what
- * guarantees the settled frame is the untouched photograph. The two
- * displacements both carry a (1 - p) or a velocity term for the same
- * reason: when the reveal is done and the page is still, every offset is
- * exactly zero.
+ * The picture is never quite still.
+ *
+ * Three things run at once and each has a job.
+ *
+ * A slow flow, always on, warping the sampled coordinate by about two
+ * pixels. On its own it is almost subliminal, which is the point: it stops
+ * the frame reading as a flat printed poster without making the clothes
+ * wobble. Amplitude is the whole argument here — this is a shop, and a
+ * garment that ripples is a garment misrepresented, so the number stays
+ * where the eye registers life rather than distortion.
+ *
+ * A gloss sweep crossing the frame every eleven seconds or so, a soft band
+ * of light a few per cent brighter. This is the part that actually catches
+ * the eye, and it does it with light rather than geometry, so nothing about
+ * the product changes shape.
+ *
+ * And scroll speed, which multiplies the flow and pulls the channels apart
+ * a little, so the image answers back when you move and settles when you
+ * stop.
+ *
+ * The entry wipe still reaches 1 everywhere at p = 1, so arriving is still
+ * a separate thing from being alive.
  */
 const FRAG = `
   precision mediump float;
@@ -45,21 +62,46 @@ const FRAG = `
   uniform vec2  uRes;
   uniform float uProgress;
   uniform float uVel;
+  uniform float uTime;
+
+  float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+  }
+  float noise(vec2 p) {
+    vec2 i = floor(p), f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+               mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+  }
 
   void main() {
-    vec2 vUv = gl_FragCoord.xy / uRes;
-    float p  = clamp(uProgress, 0.0, 1.0);
+    vec2 uv = gl_FragCoord.xy / uRes;
+    float p = clamp(uProgress, 0.0, 1.0);
+    float edge = smoothstep(0.0, 0.45, p * 1.45 - (1.0 - uv.y));
+    float v = clamp(uVel, -1.0, 1.0);
 
-    float edge = smoothstep(0.0, 0.45, p * 1.45 - (1.0 - vUv.y));
+    vec2 flow = vec2(
+      noise(uv * 3.0 + vec2(uTime * 0.05, uTime * 0.03)),
+      noise(uv * 3.0 - vec2(uTime * 0.04, uTime * 0.045))
+    ) - 0.5;
 
-    float d = (1.0 - p) * 0.05 + uVel * 0.02;
-    vec2 uv = vUv;
-    uv.y += d * (1.0 - edge) * 0.6;
-    uv.x += d * 0.12 * sin(vUv.y * 6.2831);
-    uv    = clamp(uv, 0.001, 0.999);
+    vec2 base = uv
+      + flow * 0.004 * (1.0 + abs(v) * 5.0)
+      + vec2(0.0, v * 0.018)
+      + vec2(0.0, (1.0 - p) * 0.05 * (1.0 - edge));
 
-    vec4 c = texture2D(uTex, uv);
-    gl_FragColor = vec4(c.rgb, c.a * edge);
+    float ca = abs(v) * 0.004;
+    vec4 c = texture2D(uTex, clamp(base, 0.001, 0.999));
+    float r = texture2D(uTex, clamp(base + vec2(ca, 0.0), 0.001, 0.999)).r;
+    float b = texture2D(uTex, clamp(base - vec2(ca, 0.0), 0.001, 0.999)).b;
+    vec3 col = vec3(r, c.g, b);
+
+    float sweep = fract(uTime * 0.09);
+    float band = smoothstep(0.24, 0.0,
+      abs((uv.x * 0.7 + uv.y * 0.3) - (sweep * 1.6 - 0.3)));
+    col += band * 0.055;
+
+    gl_FragColor = vec4(col, c.a * edge);
   }
 `;
 
@@ -141,11 +183,24 @@ export default function GlReveal({
         live.current = false;
         return;
       }
-      renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.setClearAlpha(0);
 
+      /* No colour conversion in either direction, deliberately.
+       *
+       * Marking the texture sRGB makes three decode it to linear when the
+       * shader samples it. The matching encode back to sRGB lives in the
+       * `colorspace_fragment` chunk, which a ShaderMaterial does not
+       * include — so the linear values went straight to the screen and
+       * every picture came out noticeably darker than the plain <img>
+       * beside it.
+       *
+       * Nothing here does lighting or blending that needs linear light.
+       * The shader samples a photograph and writes it back, so the right
+       * answer is to touch neither end: raw bytes in, same bytes out, and
+       * the canvas matches the image exactly.
+       */
       const texture = new THREE.Texture(picture);
-      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.colorSpace = THREE.NoColorSpace;
       texture.wrapS = texture.wrapT = THREE.ClampToEdgeWrapping;
       texture.minFilter = THREE.LinearFilter;
       texture.generateMipmaps = false;
@@ -156,6 +211,7 @@ export default function GlReveal({
         uRes: { value: new THREE.Vector2(1, 1) },
         uProgress: { value: 0 },
         uVel: { value: 0 },
+        uTime: { value: 0 },
       };
       const scene = new THREE.Scene();
       const camera = new THREE.Camera();
@@ -174,9 +230,12 @@ export default function GlReveal({
       const size = () => {
         const r = host.getBoundingClientRect();
         if (r.width < 2 || r.height < 2) return;
-        // Capped: this is a decorative pass over a full-width picture, and
-        // a phone with a 3x screen gains nothing from nine times the work.
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        /* Capped at 1.5 rather than the display's own ratio. This pass
+         * now runs every frame for as long as a band is on screen, not
+         * once on arrival, so the cost is continuous — and a phone with a
+         * 3x screen would be shading nine times the pixels for a drift of
+         * about two of them. */
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
         renderer.setSize(r.width, r.height, false);
         uniforms.uRes.value.set(
           r.width * renderer.getPixelRatio(),
@@ -191,6 +250,7 @@ export default function GlReveal({
       let vel = 0;
       let shown = false;
       let raf = 0;
+      const t0 = performance.now();
 
       const frame = () => {
         if (disposed) return;
@@ -201,6 +261,8 @@ export default function GlReveal({
         // come up by a third of the viewport.
         const p = 1 - (r.top - window.innerHeight * 0.1) / (window.innerHeight * 0.75);
         uniforms.uProgress.value = Math.max(0, Math.min(1, p));
+
+        uniforms.uTime.value = (performance.now() - t0) / 1000;
 
         const y = window.scrollY;
         vel = vel * 0.86 + (y - lastY) * 0.014;
