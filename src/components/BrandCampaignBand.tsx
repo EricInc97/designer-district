@@ -18,6 +18,17 @@ export type CampaignBand = {
   headline: string;
   /** The short line under it, or nothing. */
   subhead: string | null;
+  /**
+   * Where "Shop the look" goes when this band shows no tiles of its own.
+   *
+   * On a brand page every garment is already in the grid below, so the band
+   * repeating five of them above it meant the same product appeared twice on
+   * one page — six of Casablanca's nineteen did. The row is dropped there and
+   * the link points into the grid instead, or straight at the product when
+   * the shot holds exactly one. A product page still passes items, because
+   * there the companions are genuinely not shown anywhere else.
+   */
+  shopHref?: string;
 };
 
 /** The shape it was generated at, as a CSS ratio, and whether it is upright. */
@@ -56,7 +67,7 @@ function shapeOf(aspect: string | null) {
  * same board is 542px tall. One element, repositioned.
  */
 export default function BrandCampaignBand({
-  band: { media, items, headline, subhead },
+  band: { media, items, headline, subhead, shopHref },
   brand,
   priority = false,
 }: {
@@ -68,6 +79,9 @@ export default function BrandCampaignBand({
   const shape = shapeOf(media.aspect);
   const over = shape.upright;
   const lookId = `look-${media.id}`;
+  // Its own row when it has one, otherwise wherever the page says the
+  // garments actually live.
+  const shopTo = items.length > 0 ? `#${lookId}` : shopHref;
   const imgClass = shape.upright
     ? "block w-full object-cover sm:h-full sm:w-auto"
     : "block w-full object-cover";
@@ -83,31 +97,26 @@ export default function BrandCampaignBand({
         }
       >
         <div className={shape.upright ? "relative w-full sm:h-full sm:w-fit" : "relative w-full"}>
-          {/* The hero stays a plain image: it is the LCP element on this
-              page, and a WebGL pass has no business on the critical path.
-              Everything below it gets the canvas. */}
-          {priority ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={media.image_url}
-              alt={`${brand.name} campaign photograph`}
-              loading="eager"
-              style={{ aspectRatio: shape.css }}
-              className={imgClass}
-            />
-          ) : (
-            <GlReveal
-              src={media.image_url}
-              alt={`${brand.name} campaign photograph`}
-              style={{ aspectRatio: shape.css }}
-              className={imgClass}
-              wrapClassName={
-                shape.upright ? "block w-full sm:h-full sm:w-fit" : "block w-full"
-              }
-            />
-          )}
+          {/* The hero defers rather than opting out. It is still the LCP
+              element, so the largest paint is a plain decoded image on the
+              critical path and the canvas takes over a moment after load.
+              Refusing it outright was the wrong call for a plain reason:
+              nine of the fifteen houses have exactly one campaign picture,
+              and it is the hero, so on most of the site the effect existed
+              nowhere at all. */}
+          <GlReveal
+            src={media.image_url}
+            alt={`${brand.name} campaign photograph`}
+            loading={priority ? "eager" : "lazy"}
+            defer={priority}
+            style={{ aspectRatio: shape.css }}
+            className={imgClass}
+            wrapClassName={
+              shape.upright ? "block w-full sm:h-full sm:w-fit" : "block w-full"
+            }
+          />
 
-{/* Drawn in from the left, matching the lookbook band this page
+          {/* Drawn in from the left, matching the lookbook band this page
               already uses, rather than up from the bottom. A second, gentler
               wash up from the floor as well: the left gradient alone leaves
               the lower-right of a wide picture bright, and the words sit
@@ -170,9 +179,9 @@ export default function BrandCampaignBand({
 {/* A rule-underlined link rather than a pill, which is how the
                   lookbook band does it and reads as editorial rather than as
                   a form control. */}
-              {items.length > 0 && (
+              {shopTo && (
                 <a
-                  href={`#${lookId}`}
+                  href={shopTo}
                   className={`mt-6 inline-block border-b pb-1 text-xs font-semibold uppercase tracking-[0.2em] transition-opacity hover:opacity-70 ${
                     over
                       ? "border-white text-white"

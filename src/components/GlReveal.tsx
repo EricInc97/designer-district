@@ -22,10 +22,12 @@ import { useEffect, useRef } from "react";
  * is the whole reason this is not a parallax. These photographs are people
  * head to shoes and a parallax costs exactly the head and the shoes.
  *
- * And it is never the hero. The first picture on a page is the LCP element
- * and stays a plain <img>; only bands you scroll down to get the canvas. So
- * three.js is not on the critical path, and it is a dynamic import on top of
- * that — the chunk is fetched when a band approaches, not on page load.
+ * And it is never on the critical path. three.js is a dynamic import, so
+ * the chunk is fetched when a band approaches rather than on page load, and
+ * the hero takes `defer` — it keeps the plain <img> through the largest
+ * paint and only then hands over. Which is the difference between this and
+ * the first version, where the hero simply opted out: that left the effect
+ * absent from the nine houses whose only picture is the hero.
  */
 
 const VERT = `
@@ -112,6 +114,7 @@ export default function GlReveal({
   wrapClassName = "block w-full",
   style,
   loading = "lazy",
+  defer = false,
 }: {
   src: string;
   alt: string;
@@ -126,10 +129,21 @@ export default function GlReveal({
   wrapClassName?: string;
   style?: React.CSSProperties;
   loading?: "eager" | "lazy";
+  /**
+   * Hold the canvas back until after the page has painted and settled.
+   *
+   * For the hero, which is the LCP element. The first version simply
+   * refused to touch it, and that turned out to be the wrong call for a
+   * plain reason: nine of the fifteen houses have exactly one campaign
+   * picture, and it is the hero, so on most of the site the effect existed
+   * nowhere at all. Deferring gets both — the largest paint is still a
+   * plain decoded <img> on the critical path, and the canvas takes over a
+   * moment later once that measurement is long done.
+   */
+  defer?: boolean;
 }) {
   const wrap = useRef<HTMLDivElement>(null);
   const img = useRef<HTMLImageElement>(null);
-  const live = useRef(false);
 
   useEffect(() => {
     const host = wrap.current;
@@ -147,19 +161,39 @@ export default function GlReveal({
 
     let disposed = false;
     let teardown: (() => void) | null = null;
+    /* Whether a renderer is being built or running, and whether the band is
+     * still wanted by the time one is.
+     *
+     * Both are local to this mount rather than refs on the component, and
+     * that is the whole of a bug worth recording. As a ref, the flag outlived
+     * the effect: React's development double-mount ran `start`, set it, threw
+     * the mount away, and the second mount then found it already set and
+     * returned forever. Which looked like "WebGL does not work on product
+     * pages" and was really "any band already inside the observer's margin at
+     * first paint never starts" — the deferred hero was spared only because
+     * its observer begins after that window has closed.
+     *
+     * Every path out of `start` now releases it, so a band abandoned halfway
+     * through loading can also be started again when it is scrolled back to.
+     */
+    let live = false;
+    let wanted = false;
 
     const start = async () => {
-      if (disposed || live.current) return;
-      live.current = true;
+      if (disposed || live) return;
+      live = true;
 
       let THREE: typeof import("three");
       try {
         THREE = await import("three");
       } catch {
-        live.current = false;
+        live = false;
         return; // the plain image is already on screen; nothing to undo
       }
-      if (disposed) return;
+      if (disposed) {
+        live = false;
+        return;
+      }
 
       // The texture comes from the <img> the browser has already fetched,
       // so the effect costs no second download.
@@ -169,7 +203,10 @@ export default function GlReveal({
           picture.addEventListener("error", () => done(), { once: true });
         });
       }
-      if (disposed || !picture.naturalWidth) return;
+      if (disposed || !picture.naturalWidth) {
+        live = false;
+        return;
+      }
 
       const canvas = document.createElement("canvas");
       canvas.setAttribute("aria-hidden", "true");
@@ -180,7 +217,7 @@ export default function GlReveal({
       try {
         renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: false });
       } catch {
-        live.current = false;
+        live = false;
         return;
       }
       renderer.setClearAlpha(0);
@@ -289,33 +326,61 @@ export default function GlReveal({
         (mesh.material as import("three").ShaderMaterial).dispose();
         texture.dispose();
         renderer.dispose();
-        live.current = false;
+        live = false;
       };
+
+      // It may have been scrolled past while three and the picture loaded.
+      if (!wanted) {
+        teardown();
+        teardown = null;
+      }
     };
 
     /* Armed a little before it arrives so the chunk and the first frame are
      * ready, and torn down well after it leaves so a slow scroll back up
      * does not rebuild a renderer every few seconds. */
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (e.isIntersecting) void start();
-          else if (!e.isIntersecting && teardown) {
-            teardown();
-            teardown = null;
+    let io: IntersectionObserver | null = null;
+    const watch = () => {
+      if (disposed) return;
+      io = new IntersectionObserver(
+        (entries) => {
+          for (const e of entries) {
+            wanted = e.isIntersecting;
+            if (e.isIntersecting) void start();
+            else if (teardown) {
+              teardown();
+              teardown = null;
+            }
           }
-        }
-      },
-      { rootMargin: "60% 0px 60% 0px" },
-    );
-    io.observe(host);
+        },
+        { rootMargin: "60% 0px 60% 0px" },
+      );
+      io.observe(host);
+    };
+
+    let hold: ReturnType<typeof setTimeout> | null = null;
+    let onLoad: (() => void) | null = null;
+    if (defer) {
+      // Well after the largest paint has been taken, and after the load
+      // event, so nothing here competes with the image it is replacing.
+      const soon = () => { hold = setTimeout(watch, 700); };
+      if (document.readyState === "complete") soon();
+      else {
+        onLoad = soon;
+        window.addEventListener("load", onLoad, { once: true });
+      }
+    } else {
+      watch();
+    }
 
     return () => {
       disposed = true;
-      io.disconnect();
+      if (hold) clearTimeout(hold);
+      if (onLoad) window.removeEventListener("load", onLoad);
+      io?.disconnect();
       teardown?.();
     };
-  }, []);
+  }, [defer]);
 
   return (
     <div ref={wrap} className={`relative ${wrapClassName}`}>

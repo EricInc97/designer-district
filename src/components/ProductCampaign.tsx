@@ -2,6 +2,7 @@ import Link from "next/link";
 import BrandMark from "@/components/BrandMark";
 import ProductCard from "@/components/ProductCard";
 import Reveal from "@/components/Reveal";
+import GlReveal from "@/components/GlReveal";
 import type { Brand, BrandMedia, ProductWithBrand } from "@/lib/types";
 
 /**
@@ -28,6 +29,13 @@ import type { Brand, BrandMedia, ProductWithBrand } from "@/lib/types";
  * The picture is the hero and the caption sits on it: the house's mark, the
  * campaign line, and the way to shop it. The garments themselves go
  * underneath, at a size worth clicking.
+ *
+ * It arrives through WebGL, like the bands on a brand page. No deferral here
+ * — this section sits below the gallery, so it is something you scroll to and
+ * never the largest paint. `wrapClassName` carries the sizing because the
+ * canvas is stretched over the wrapper and so the wrapper has to be exactly
+ * the picture: the banner fills its aspect box, the tall board shrink-wraps
+ * from sm up, which is where its own height cap takes over.
  */
 export default function ProductCampaign({
   media,
@@ -191,8 +199,12 @@ export default function ProductCampaign({
       <Reveal>
       {cinematic ? (
         <div className="relative w-full" style={{ aspectRatio: banner }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={media.image_url} alt={alt} className="h-full w-full object-cover" />
+          <GlReveal
+            src={media.image_url}
+            alt={alt}
+            className="h-full w-full object-cover"
+            wrapClassName="block h-full w-full"
+          />
           {caption}
         </div>
       ) : (
@@ -209,12 +221,12 @@ export default function ProductCampaign({
            picture centres instead. */
         <div className="flex justify-center">
           <div className="relative w-full sm:w-auto">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <GlReveal
               src={media.image_url}
               alt={alt}
               style={{ aspectRatio: banner }}
               className="block w-full object-cover sm:h-[64vh] sm:w-auto sm:max-w-full"
+              wrapClassName="block w-full sm:w-fit"
             />
             {caption}
           </div>

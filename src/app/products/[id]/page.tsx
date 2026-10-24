@@ -92,7 +92,7 @@ export default async function ProductPage({ params }: Props) {
       .contains("product_ids", [product.id]),
   ]);
 
-  const more = (siblings ?? []) as ProductWithBrand[];
+  const siblingRows = (siblings ?? []) as ProductWithBrand[];
 
   /*
    * Which picture.
@@ -138,6 +138,18 @@ export default async function ProductPage({ params }: Props) {
         .eq("is_published", true)
     : { data: [] };
   const companions = (lookRows ?? []) as ProductWithBrand[];
+
+  /* "More from the house" means more than the page already shows.
+   *
+   * The two lists are fetched independently — one is the rest of the house,
+   * the other is the rest of the photograph — so a garment in both was tiled
+   * twice on the same page. The Purple Jeans shorts did exactly that. The
+   * picture has the stronger claim on it, so the shot keeps it and the
+   * house list gives it up, even where that leaves three tiles instead of
+   * four.
+   */
+  const inLook = new Set(companions.map((p) => p.id));
+  const more = siblingRows.filter((p) => !inLook.has(p.id));
 
   // Whether the board's own copy is about this house: either it is this
   // house's board, or it is a collaboration whose title names this house.

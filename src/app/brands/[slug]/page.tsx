@@ -270,6 +270,29 @@ export default async function BrandPage({ params, searchParams }: Props) {
     groups.push({ name: "Other", items: uncategorised });
   }
 
+  /* Nothing is tiled twice on one page.
+   *
+   * The grids below carry the whole house, so a campaign band's "featured in
+   * this shot" row was always a second copy of products already on the page:
+   * on Casablanca six of nineteen appeared twice, and Supreme the same. The
+   * row goes, and the band's link points into the grid — or straight at the
+   * garment when the shot holds exactly one, which is more use than a jump.
+   *
+   * The band itself stays. It is the photograph that sells the clothes; it is
+   * the duplicate tiles underneath it that were the problem.
+   */
+  const inGrid = new Set(groups.flatMap((g) => g.items.map((p) => p.id)));
+  const shownBands = bands.map((b) => {
+    const kept = b.items.filter((p) => !inGrid.has(p.id));
+    if (kept.length === b.items.length) return b;
+    const only = b.items.length === 1 ? b.items[0] : null;
+    return {
+      ...b,
+      items: kept,
+      shopHref: only ? `/products/${only.id}` : "#products",
+    };
+  });
+
   const chipClass = (on: boolean) =>
     `inline-block rounded-full border px-4 py-2 text-[11px] uppercase tracking-[0.16em] transition-colors ${
       on
@@ -291,8 +314,8 @@ export default async function BrandPage({ params, searchParams }: Props) {
 
           BrandCampaign stays as the fallback it always was: the house
           colourway with its mark centred, for a house with nothing shot. */}
-      {bands.length > 0 ? (
-        <BrandCampaignBand band={bands[0]} brand={brand} priority />
+      {shownBands.length > 0 ? (
+        <BrandCampaignBand band={shownBands[0]} brand={brand} priority />
       ) : (
         <BrandCampaign brand={brand} media={hero} />
       )}
@@ -382,7 +405,7 @@ export default async function BrandPage({ params, searchParams }: Props) {
       )}
 
       {/* ---------------- PRODUCTS ---------------- */}
-      <div className="py-12">
+      <div id="products" className="scroll-mt-20 py-12">
         {all.length === 0 ? (
           <div className="mx-auto max-w-7xl px-5 py-20 text-center sm:px-8">
             <p className="text-sm text-ink-dim">
@@ -427,8 +450,8 @@ export default async function BrandPage({ params, searchParams }: Props) {
 
                     Any house with more boards than gaps keeps the remainder
                     for the end rather than dropping them. */}
-                {bands[i + 1] && i < groups.length - 1 && (
-                  <BrandCampaignBand band={bands[i + 1]} brand={brand} />
+                {shownBands[i + 1] && i < groups.length - 1 && (
+                  <BrandCampaignBand band={shownBands[i + 1]} brand={brand} />
                 )}
 
                 {/* A set collection after the campaign picture, so the page
@@ -453,7 +476,7 @@ export default async function BrandPage({ params, searchParams }: Props) {
           sets and has four product groups — and silently dropping a
           collection would be worse than a long page. */}
       {!chosenSet &&
-        bands.slice(Math.max(groups.length, 1)).map((band) => (
+        shownBands.slice(Math.max(groups.length, 1)).map((band) => (
           <BrandCampaignBand key={band.media.id} band={band} brand={brand} />
         ))}
 
