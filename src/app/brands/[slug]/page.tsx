@@ -242,11 +242,20 @@ export default async function BrandPage({ params, searchParams }: Props) {
 
   /* ?set= narrows the page to one collection.
    *
-   * Validated against the sets actually on the page rather than trusted, so
-   * an unknown or stale key falls back to the whole house instead of showing
-   * an empty shop.
+   * Validated against every set the house sells, not against `setBands`,
+   * which is a narrower thing: the sets still wanting a collection band of
+   * their own. A set worn in full in a campaign picture is deliberately not
+   * in that list, and those are exactly the sets a campaign's "shop the
+   * look" links to — so validating against it sent Casablanca's Green Terry
+   * Set to an unfiltered page showing the whole house. The suppression is
+   * about whether to draw a band, never about whether the set exists.
+   *
+   * Still validated rather than trusted, so an unknown or stale key falls
+   * back to the whole house instead of showing an empty shop, and a set
+   * whose partner has gone out of stock is no longer a set.
    */
-  const chosenSet = setBands.find((x) => x.key === set) ?? null;
+  const named = set ? (setMap.get(set) ?? null) : null;
+  const chosenSet = named && named.items.length > 1 ? named : null;
 
   const shown = chosenSet
     ? chosenSet.items
@@ -270,28 +279,53 @@ export default async function BrandPage({ params, searchParams }: Props) {
     groups.push({ name: "Other", items: uncategorised });
   }
 
-  /* Nothing is tiled twice on one page.
+  /* The page is a sequence of chapters, then the rest of the shop.
    *
-   * The grids below carry the whole house, so a campaign band's "featured in
-   * this shot" row was always a second copy of products already on the page:
-   * on Casablanca six of nineteen appeared twice, and Supreme the same. The
-   * row goes, and the band's link points into the grid — or straight at the
-   * garment when the shot holds exactly one, which is more use than a jump.
+   * Each campaign photograph is followed by the garments that are in it,
+   * and only then does the ordinary grid begin — so a shopper meets a
+   * picture and immediately meets the clothes it is selling, instead of
+   * meeting every picture the house has and finding the clothes much later.
    *
-   * The band itself stays. It is the photograph that sells the clothes; it is
-   * the duplicate tiles underneath it that were the problem.
+   * That ordering is also what keeps the page free of duplicates, and it is
+   * the better way round. The earlier fix dropped the garments from under
+   * the picture because they appeared again in the grid; this drops them
+   * from the grid instead, because under the picture is where they mean
+   * something. Casablanca had six of nineteen products twice over and
+   * Supreme the same; neither does now.
+   *
+   * With a category or a set open the page is a filtered shop rather than a
+   * story, so the chapters keep their photographs, give up their garment
+   * panels, and nothing is stripped from the grid.
    */
-  const inGrid = new Set(groups.flatMap((g) => g.items.map((p) => p.id)));
-  const shownBands = bands.map((b) => {
-    const kept = b.items.filter((p) => !inGrid.has(p.id));
-    if (kept.length === b.items.length) return b;
-    const only = b.items.length === 1 ? b.items[0] : null;
-    return {
-      ...b,
-      items: kept,
-      shopHref: only ? `/products/${only.id}` : "#products",
-    };
-  });
+  const filtering = Boolean(active || chosenSet);
+
+  /* Which collection a photograph is actually promoting.
+   *
+   * Only when the shot holds exactly one set and holds all of it: a picture
+   * of three Ducati colourways promotes three sets, and a picture of half a
+   * set promotes nothing anyone could honestly be sent to. In those cases
+   * "Shop the look" falls back to the garments underneath, which is the
+   * thing the picture is pointing at anyway.
+   */
+  const promotedSet = (b: CampaignBand) => {
+    const keys = [...new Set(b.items.map((x) => x.set_key).filter(Boolean))];
+    if (keys.length !== 1) return undefined;
+    const whole = setMap.get(keys[0] as string);
+    if (!whole || !whole.items.every((x) => b.items.some((y) => y.id === x.id)))
+      return undefined;
+    return `/brands/${brand.slug}?set=${encodeURIComponent(keys[0] as string)}`;
+  };
+
+  const chapters: CampaignBand[] = bands.map((b) => ({
+    ...b,
+    shopHref: promotedSet(b),
+    items: filtering ? [] : b.items,
+  }));
+
+  const inChapters = new Set(chapters.flatMap((c) => c.items.map((x) => x.id)));
+  const rest = groups
+    .map((g) => ({ ...g, items: g.items.filter((x) => !inChapters.has(x.id)) }))
+    .filter((g) => g.items.length > 0);
 
   const chipClass = (on: boolean) =>
     `inline-block rounded-full border px-4 py-2 text-[11px] uppercase tracking-[0.16em] transition-colors ${
@@ -302,20 +336,24 @@ export default async function BrandPage({ params, searchParams }: Props) {
 
   return (
     <>
-      {/* ---------------- CAMPAIGN ----------------
-          The first picture leads the page; the rest are dropped between the
-          product groups further down, so the page reads banner, products,
-          banner, products as you scroll.
-
-          This replaced a carousel, and losing it is the point. A slideshow
-          showed one picture and hid the others behind a gesture most people
-          never make — a house with eleven boards was really a house with one
-          board and ten nobody would see. Stacked, they are all just there.
+      {/* ---------------- THE CAMPAIGN ----------------
+          Every picture the house has, each held on screen while the clothes
+          in it come up over it, in order. This replaced a carousel and then
+          a set of bands scattered between the product groups; both had the
+          same fault, which is that a photograph and the garments it is
+          advertising ended up in different parts of the page.
 
           BrandCampaign stays as the fallback it always was: the house
           colourway with its mark centred, for a house with nothing shot. */}
-      {shownBands.length > 0 ? (
-        <BrandCampaignBand band={shownBands[0]} brand={brand} priority />
+      {chapters.length > 0 ? (
+        chapters.map((band, i) => (
+          <BrandCampaignBand
+            key={band.media.id}
+            band={band}
+            brand={brand}
+            priority={i === 0}
+          />
+        ))
       ) : (
         <BrandCampaign brand={brand} media={hero} />
       )}
@@ -420,7 +458,7 @@ export default async function BrandPage({ params, searchParams }: Props) {
           </div>
         ) : (
           <div className="space-y-16">
-            {groups.map((group, i) => (
+            {rest.map((group, i) => (
               <div key={group.name} className="space-y-16">
                 <section className="mx-auto max-w-7xl px-5 sm:px-8">
                   <div className="border-b border-rule pb-4">
@@ -443,26 +481,17 @@ export default async function BrandPage({ params, searchParams }: Props) {
                   </div>
                 </section>
 
-                {/* A campaign picture after every group but the last, so
-                    the page breathes instead of running as one long grid,
-                    and so every board the house has is actually reachable by
-                    scrolling. `bands[0]` led the page, hence the offset.
-
-                    Any house with more boards than gaps keeps the remainder
-                    for the end rather than dropping them. */}
-                {shownBands[i + 1] && i < groups.length - 1 && (
-                  <BrandCampaignBand band={shownBands[i + 1]} brand={brand} />
-                )}
-
-                {/* A set collection after the campaign picture, so the page
-                    alternates between what the house is advertising and what
-                    it sells as a whole outfit. Suppressed while a set is
-                    open, where the page is already about one of them. */}
-                {!chosenSet && setBands[i] && i < groups.length - 1 && (
+                {/* A set collection between the groups, so the grid is
+                    broken up by what the house sells as a whole outfit. The
+                    campaign pictures are no longer dropped in here — they
+                    are the chapters above, each with its own garments under
+                    it. Suppressed while a set is open, where the page is
+                    already about one of them. */}
+                {!chosenSet && setBands[i] && i < rest.length - 1 && (
                   <BrandSetBand band={setBands[i]} brand={brand} />
                 )}
 
-                {lookbook[i] && i < groups.length - 1 && (
+                {lookbook[i] && i < rest.length - 1 && (
                   <BrandLookbook media={lookbook[i]} />
                 )}
               </div>
@@ -472,16 +501,11 @@ export default async function BrandPage({ params, searchParams }: Props) {
       </div>
 
       {/* Whatever did not fit between the groups. A house can easily have
-          more pictures and sets than it has gaps — Casablanca sells five
-          sets and has four product groups — and silently dropping a
-          collection would be worse than a long page. */}
+          more sets than it has gaps — Casablanca sells five and has four
+          product groups — and silently dropping a collection would be
+          worse than a long page. */}
       {!chosenSet &&
-        shownBands.slice(Math.max(groups.length, 1)).map((band) => (
-          <BrandCampaignBand key={band.media.id} band={band} brand={brand} />
-        ))}
-
-      {!chosenSet &&
-        setBands.slice(Math.max(groups.length - 1, 0)).map((band) => (
+        setBands.slice(Math.max(rest.length - 1, 0)).map((band) => (
           <BrandSetBand key={band.key} band={band} brand={brand} />
         ))}
 
