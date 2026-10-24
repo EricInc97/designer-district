@@ -7236,6 +7236,23 @@ const boards = (() => {
       (aspectMiss(o.look, wideWant) <= aspectMiss(o.look, tallWant) ? wide : tall).push(o);
     }
 
+    /* A side with nothing in it takes everything instead.
+     *
+     * Splitting by shape assumes both shapes exist. When the campaign was
+     * reshot portrait so it could fill a phone screen, every one of the
+     * eighteen boards became 9:16 or 2:3, the landscape side came back
+     * empty, and the crown — the largest screen in the street, the one that
+     * closes it — was left with nothing but the site reel.
+     *
+     * Letting it take the tall work costs nothing, because the panel below
+     * already draws a badly matched picture whole over a blurred copy of
+     * itself rather than cropping it to a stripe. The ranking still puts
+     * the closest fit first. An imperfect advert beats a blank screen, the
+     * same rule MISS_MAX is written around.
+     */
+    if (!wide.length) wide.push(...everything);
+    if (!tall.length) tall.push(...everything);
+
     if (crown) {
       /* Its mark leads, because the screen that closes the street is the one
        * that has to say where you are, and the ten-second advert follows it.

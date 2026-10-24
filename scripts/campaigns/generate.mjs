@@ -81,6 +81,17 @@ if (!cat.ok) throw new Error("storefront not answering");
 const takenThisRun = new Map();
 const cost = (p) => (p.used ?? 0) + (takenThisRun.get(p.id) ?? 0) * 2;
 
+/* And what it has already spent the look of.
+ *
+ * Ids are not enough. Vale sells three distinct pairs of shorts all
+ * described "Grey Vale shorts", and Godspeed four charcoal t-shirts, so
+ * picking two unused ids for two models dressed them identically — the
+ * picture shows the same garment twice and the board lists two products a
+ * shopper cannot tell apart. For casting purposes a description is the
+ * garment, so a note taken once is spent for the rest of the run. */
+const notesThisRun = new Set();
+const noteOf = (p) => (p.note || p.name || "").trim().toLowerCase();
+
 const live = (slug) =>
   (cat.brands[slug] || [])
     .filter((p) => p.image && (p.stock ?? 0) > 0)
@@ -119,7 +130,7 @@ const unshot = (p) => (p.used ?? 0) === 0 && !takenThisRun.has(p.id);
  * set has to be asked for by name, through wholeSet, which returns both
  * halves together. It is not possible to split one by accident any more.
  */
-const loose = (p) => unshot(p) && !p.setKey;
+const loose = (p) => unshot(p) && !p.setKey && !notesThisRun.has(noteOf(p));
 const freshCat = (slug, c) => live(slug).filter((p) => p.cat === c && loose(p))[0];
 const freshSub = (slug, sub) => live(slug).filter((p) => p.sub === sub && loose(p))[0];
 const setHalves = (slug, key) => {
@@ -204,6 +215,13 @@ const SIGNAGE =
  * else. Blank is explicitly offered as the alternative, because a model
  * told only what it may not write will write something anyway.
  */
+/* `own` marks a board that belongs to a single house, which is a separate
+ * question from whether anybody in it is wearing something plain. The two
+ * used to share the `plain` flag, so a board with no plain garment could
+ * not ask for its own signage and fell back to the open list — which is
+ * how a Supreme board came to permit an AMIRI shopfront in the largest
+ * type in the frame. `plain` still implies `own`, so nothing that already
+ * set it changes. */
 const ownSignage = (house) =>
   `Any shopfront, screen or sign visible anywhere in this photograph may ` +
   `read only ${house.toUpperCase()} or DESIGNER DISTRICT, or be completely ` +
@@ -272,6 +290,8 @@ const PLAIN_JEANS_BLACK =
   "plain black denim jeans, completely unbranded";
 const PLAIN_JEANS_INDIGO =
   "plain indigo denim jeans, completely unbranded";
+const PLAIN_SHORTS_BLACK =
+  "plain black cotton shorts, completely unbranded";
 const UNBRANDED =
   "Any garment described as plain or unbranded must be exactly that: no " +
   "logo, no wordmark, no print, no graphic, no slogan, no embroidery and no " +
@@ -652,13 +672,22 @@ const SET = [
       `She wears ${d(x["her shirt"])} with ${d(x["her shorts"])}.`,
   },
   {
-    tag: "balenciaga-photo", aspect: "3:2", house: "balenciaga",
+    tag: "balenciaga-photo", aspect: "9:16", house: "balenciaga",
     place: "street", real: true, cast: ["man2", "woman1"], angles: true,
+    // The house has one pair of shorts nobody has photographed and two
+    // people in the frame, so hers are plain. `plain` is what carries
+    // UNBRANDED into the prompt, without which the model puts a logo on
+    // anything it is not shown — and a logo it invented on a Balenciaga
+    // board is a garment the shop cannot sell.
+    plain: true,
     look:
       "Paris rebuilt around utility: exaggerated volume, condensed logo type, " +
       "a cool grey-and-black palette under flat bright daylight. Severe, " +
       "architectural, expensive.",
-    shot: "Side by side on open paving with the street behind them",
+    shot: "A tall vertical frame, the two of them standing close together " +
+          "with him a half step behind her shoulder, both full length from " +
+          "head to shoes, the street receding behind them, headroom above " +
+          "and pale paving below",
     slots: {
       "his shirt":   () => freshCat("balenciaga", "shirts"),
       "his shorts":  () => freshSub("balenciaga", "shorts"),
@@ -667,15 +696,20 @@ const SET = [
     },
     wear: (x) =>
       `He wears ${d(x["his shirt"])} with ${d(x["his shorts"])}. ` +
-      `She wears ${d(x["her shirt"])} with ${d(x["her shorts"])}.`,
+      `She wears ${d(x["her shirt"])} with ` +
+      `${x["her shorts"] ? d(x["her shorts"]) : PLAIN_SHORTS_BLACK}.`,
   },
   {
-    tag: "godspeed-photo", aspect: "3:2", house: "godspeed",
+    tag: "godspeed-photo", aspect: "9:16", house: "godspeed",
     place: "doorway", real: true, cast: ["man", "woman2"], angles: true,
+    plain: true,
     look:
       "New York streetwear with a gothic streak: religious motifs, boxy cuts, " +
       "deep shade and a hard shaft of light. Moody, high contrast, serious.",
-    shot: "Side by side in the shade of a concrete colonnade",
+    shot: "A tall vertical frame under a concrete colonnade arch, the two " +
+          "of them close together with her a half step forward of him, both " +
+          "full length from head to shoes, the arch rising the full height " +
+          "of the picture and a hard shaft of light across the paving",
     slots: {
       "his shirt":  () => freshCat("godspeed", "shirts"),
       "his shorts": () => freshSub("godspeed", "shorts"),
@@ -686,15 +720,20 @@ const SET = [
     wear: (x) =>
       `He wears ${d(x["his shirt"])} with ${d(x["his shorts"])}` +
       `${x["his cap"] ? ` and ${d(x["his cap"])}` : ""}. ` +
-      `She wears ${d(x["her shirt"])} with ${d(x["her shorts"])}.`,
+      `She wears ${d(x["her shirt"])} with ` +
+      `${x["her shorts"] ? d(x["her shorts"]) : PLAIN_SHORTS_BLACK}.`,
   },
   {
-    tag: "hellstar-photo", aspect: "16:9", house: "hellstar",
+    tag: "hellstar-photo", aspect: "9:16", house: "hellstar",
     place: "hoarding", real: true, cast: ["man2", "woman3"], angles: true,
+    own: true,
     look:
       "Los Angeles graphic wear: flame and star iconography, hot low sun, " +
       "long shadows, saturated colour against pale concrete.",
-    shot: "Side by side at a low angle looking slightly up at them",
+    shot: "A tall vertical frame from a low angle looking slightly up at " +
+          "them, the two standing close together and full length from head " +
+          "to shoes, palm fronds and deep blue sky filling the height above " +
+          "them",
     slots: {
       "his tee":    () => freshCat("hellstar", "shirts"),
       "his shorts": () => freshSub("hellstar", "shorts"),
@@ -706,12 +745,15 @@ const SET = [
       `She wears ${d(x["her tee"])} with ${d(x["her shorts"])}.`,
   },
   {
-    tag: "vale-photo", aspect: "3:2", house: "vale",
+    tag: "vale-photo", aspect: "9:16", house: "vale",
     place: "street", real: true, cast: ["man", "woman1"], angles: true,
+    plain: true,
     look:
       "Collegiate, worn off campus: arched varsity lettering on heavyweight " +
       "cotton, clean midday light, a relaxed all-American ease.",
-    shot: "Side by side on the promenade with palms behind them",
+    shot: "A tall vertical frame on the promenade, the two of them close " +
+          "together with one a half step behind the other, both full length " +
+          "from head to shoes, palms rising the full height behind them",
     slots: {
       "his tee":    () => freshCat("vale", "shirts"),
       "his shorts": () => freshSub("vale", "shorts"),
@@ -720,7 +762,8 @@ const SET = [
     },
     wear: (x) =>
       `He wears ${d(x["his tee"])} with ${d(x["his shorts"])}. ` +
-      `She wears ${d(x["her tee"])} with ${d(x["her shorts"])}.`,
+      `She wears ${x["her tee"] ? d(x["her tee"]) : PLAIN_TEE_WHITE} with ` +
+      `${d(x["her shorts"])}.`,
   },
   {
     tag: "off-white-ksubi-photo", aspect: "21:9", house: "off-white",
@@ -741,13 +784,16 @@ const SET = [
       `She wears ${d(x["her tee"])} with ${d(x["her jeans"])}.`,
   },
   {
-    tag: "gallery-purple-photo", aspect: "3:2", house: "gallery-dept",
+    tag: "gallery-purple-photo", aspect: "9:16", house: "gallery-dept",
     place: "doorway", real: true, cast: ["man", "woman3"], angles: true,
     look:
       "Two Los Angeles studios: hand-painted and reworked cotton over premium " +
       "denim washes. Warm dusty light, bone and indigo, everything a little " +
       "worn in.",
-    shot: "Side by side in an arched concrete doorway",
+    shot: "A tall vertical frame filled by an arched concrete doorway, the " +
+          "two of them standing close together inside it and full length " +
+          "from head to shoes, the arch rising the full height of the " +
+          "picture",
     slots: {
       "his shirt": () => freshCat("gallery-dept", "shirts"),
       "his jeans": () => freshCat("purple-brand", "denim"),
@@ -845,15 +891,15 @@ const SET = [
     wear: (x) => `He wears ${d(x.shirt)} with ${d(x.jeans)}.`,
   },
   {
-    tag: "rhude-photo", aspect: "21:9", house: "rhude",
-    place: "street", real: true, cast: ["woman1"],
+    tag: "rhude-photo", aspect: "9:16", house: "rhude",
+    place: "street", real: true, cast: ["woman1"], own: true,
     look:
-      "Americana filtered through motorsport: wide, cinematic, hot midday " +
-      "light on pale paving, a luxury-sportswear calm. Clean lines, racing " +
-      "colour used sparingly.",
-    shot: "Full length and wide, standing off to one side of a cinematic " +
-          "frame with the street running away behind her, head to shoes " +
-          "clearly in frame",
+      "Americana filtered through motorsport: hot midday light on pale " +
+      "paving, a luxury-sportswear calm. Clean lines, racing colour used " +
+      "sparingly.",
+    shot: "A tall vertical frame, full length and centred with the street " +
+          "running away behind her, head to shoes clearly in frame, " +
+          "headroom above and pale paving below",
     slots: {
       tee:    () => freshCat("rhude", "shirts"),
       shorts: () => freshSub("rhude", "shorts"),
@@ -1002,24 +1048,31 @@ const SET = [
       `photographs show them — do not mix the colours between the three.`,
   },
   {
-    /* The same two pictures as the Ducati pair above, photographed instead
-     * of drawn.
+    /* The photographed version of the Ducati pair above.
      *
-     * Deliberately the same two shapes and the same two framings: a 21:9
-     * strip of all three colourways and a 2:3 full length of one. Holding
-     * everything else still is what makes them a fair test of the style —
-     * put next to the cel versions on the same boards, the only thing that
-     * differs is whether the people are drawn or photographed.
+     * Three people in a 9:16 frame is the hard one. Side by side and evenly
+     * spaced is a wide-frame composition — it was shot at 21:9 and read
+     * well there — and squeezing that same line of three into a tall frame
+     * leaves each of them a third of the width and the clothes unreadable,
+     * which defeats the point of a board advertising three colourways.
+     *
+     * So they are staggered in depth instead: one forward and centred, the
+     * other two just behind at each shoulder. That is the standard vertical
+     * group portrait, it fills the height, and all three outfits stay
+     * legible head to shoes.
      *
      * The black set for the single, because it is the least photographed of
      * the three: the blue is already on three boards and the cream and red
      * on two.
      */
-    tag: "supreme-sets-photo", aspect: "21:9", house: "supreme", place: "crown", real: true,
-    cast: ["man", "woman1", "woman2"],
-    shot: "The three of them together, full length, side by side and evenly " +
-          "spaced, all three complete outfits clearly visible head to shoes, " +
-          "headroom above and paving below, standing squarely to camera",
+    tag: "supreme-sets-photo", aspect: "9:16", house: "supreme", place: "crown", real: true,
+    cast: ["man", "woman1", "woman2"], own: true,
+    shot: "A tall vertical frame with the three of them staggered in depth " +
+          "rather than in a line: one standing a half step forward and " +
+          "centred, the other two just behind at each shoulder and turned " +
+          "slightly inward. All three full length from head to shoes with " +
+          "all three complete outfits clearly visible, headroom above and " +
+          "paving below",
     slots: {
       "red top":     () => setHalves("supreme", "supreme-ducati-white-red")[0],
       "red pants":   () => setHalves("supreme", "supreme-ducati-white-red")[1],
@@ -1089,6 +1142,7 @@ for (const item of plan) {
       // Counted as spent the moment it is chosen, so the next slot and the
       // next picture both see it as already used.
       takenThisRun.set(p.id, (takenThisRun.get(p.id) ?? 0) + 1);
+      notesThisRun.add(noteOf(p));
     } else {
       missing.push(slot);
     }
@@ -1146,7 +1200,7 @@ for (const { item, chosen } of polled) {
     `They are in ${PLACES[item.place]}. ` +
     `${FIDELITY} ${item.plain ? UNBRANDED + " " : ""}` +
     `${item.cast.some((k) => k.startsWith("woman")) ? FEM + " " : ""}` +
-    `${NO_TAGS} ${item.house && item.plain ? ownSignage(HOUSE_SIGN[item.house] ?? item.house) : SIGNAGE} ` +
+    `${NO_TAGS} ${item.house && (item.plain || item.own) ? ownSignage(HOUSE_SIGN[item.house] ?? item.house) : SIGNAGE} ` +
     `${item.real ? PHOTO_FINISH : CEL}`;
 
   /* Whose board it hangs on, named rather than inferred.
@@ -1162,6 +1216,20 @@ for (const { item, chosen } of polled) {
     productIds: parts.map((p) => p.id),
     chose: Object.entries(chosen).map(([k, p]) => `${k}=${p.name}`),
   });
+
+  /* The prompt itself, read before it is paid for.
+   *
+   * `--poll` stops short of this: it proves every garment came from stock,
+   * which is the thing that was going wrong when it was written, but the
+   * sentence actually sent is assembled further down and nobody had ever
+   * seen one before the bill arrived. A dropped slot reads as an empty
+   * string in the middle of a sentence, and that is cheaper to catch here
+   * than in the picture.
+   */
+  if (process.argv.includes("--prompts")) {
+    console.log(`\n── ${item.tag} (${item.aspect}, ${refs.length} refs)\n${prompt}`);
+    continue;
+  }
 
   if (!redoAll && fs.existsSync(`${OUT}${item.tag}.png`)) { console.log(`${item.tag.padEnd(22)} have it`); continue; }
   queue.push({ item, refs, prompt });
