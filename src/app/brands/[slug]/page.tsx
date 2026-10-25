@@ -74,42 +74,33 @@ export default async function BrandPage({ params, searchParams }: Props) {
   const hero = media.find((m) => m.kind === "hero") ?? null;
   const lookbook = media.filter((m) => m.kind === "lookbook");
 
-  /* ── the campaign carousel ────────────────────────────────────────────
+  /* ── the campaign ────────────────────────────────────────────────────
    *
-   * Two reads, because a house's campaign is not only the boards filed
-   * under it. Several of these are collaborations — "Chrome Hearts x
-   * Purple Brand", "Supreme x Ksubi" — and the picture of a Purple Brand
-   * jean being worn is filed under Chrome Hearts. Counting those in takes
-   * Purple Brand from two slides to seven and Ksubi from one to four, and
-   * they are its campaign by any reading a shopper would use.
+   * This house's own boards, and only those.
    *
-   * `overlaps` rather than a second round trip per board: one query for
-   * every board touching any of this house's garments.
+   * It used to take in every board that touched any of this house's
+   * garments as well, on the reasoning that a photograph of a Purple Brand
+   * jean being worn is Purple Brand's campaign whoever filed it. That reads
+   * well and shops badly. Two of Purple Brand's three chapters were Gallery
+   * Dept. boards, so a shopper who came to look at denim met two screens of
+   * somebody else's t-shirts first, with GALLERY DEPT across the chest in
+   * the largest type on the page. A board is an advertisement, and whose
+   * page it hangs on decides who is being advertised.
+   *
+   * Nothing else is affected: Purple Brand was the only house borrowing
+   * any, and it keeps its own. The collaborations still hang on the page of
+   * the house that paid for them, where the other label is styling — which
+   * is the rule already applied to the garments listed underneath.
    */
-  const ownIds = all.map((p) => p.id);
-  const [{ data: ownBoards }, { data: featuring }] = await Promise.all([
-    supabase
-      .from("brand_media")
-      .select("*")
-      .eq("kind", "board")
-      .eq("is_published", true)
-      .eq("brand_id", brand.id)
-      .order("sort_order", { ascending: true }),
-    ownIds.length
-      ? supabase
-          .from("brand_media")
-          .select("*")
-          .eq("kind", "board")
-          .eq("is_published", true)
-          .neq("brand_id", brand.id)
-          .overlaps("product_ids", ownIds)
-      : Promise.resolve({ data: [] }),
-  ]);
+  const { data: ownBoards } = await supabase
+    .from("brand_media")
+    .select("*")
+    .eq("kind", "board")
+    .eq("is_published", true)
+    .eq("brand_id", brand.id)
+    .order("sort_order", { ascending: true });
 
-  const boards = [
-    ...((ownBoards ?? []) as BrandMedia[]),
-    ...((featuring ?? []) as BrandMedia[]),
-  ];
+  const boards = (ownBoards ?? []) as BrandMedia[];
 
   /* The garments in those pictures, in one read rather than one per slide.
    * Published only: a board can outlive a product, and a slide offering
@@ -508,6 +499,16 @@ export default async function BrandPage({ params, searchParams }: Props) {
         setBands.slice(Math.max(rest.length - 1, 0)).map((band) => (
           <BrandSetBand key={band.key} band={band} brand={brand} />
         ))}
+
+      {/* And any lookbook that did not fit between the groups.
+       *
+       * These are dropped in after every group but the last, which quietly
+       * means never when there is only one group — so filtering Supreme to
+       * Shirts made the Box Logo band vanish, including when the way you
+       * got there was clicking that band's own "view all". */}
+      {lookbook.slice(Math.max(rest.length - 1, 0)).map((m) => (
+        <BrandLookbook key={m.id} media={m} />
+      ))}
 
       <RecommendationRail title="You may also like" limit={4} tone="quiet" />
     </>

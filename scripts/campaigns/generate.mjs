@@ -149,6 +149,24 @@ const setHalves = (slug, key) => {
  * set_key exists. A set is shot as a set; a repeated half is a far smaller
  * cost than advertising an outfit the shop does not sell.
  */
+/* One named garment, whether or not it has been photographed before.
+ *
+ * For a reshoot. The fresh pickers exist so a new picture reaches for
+ * stock nobody has seen, and that is exactly wrong when the job is to
+ * photograph the same board again because the first attempt got something
+ * wrong — the yellow Gallery Dept. tee came back with its chest print
+ * across the shoulders when the garment actually reads COACH there, and
+ * replacing the tee would not fix that, it would just change the subject.
+ *
+ * Matched on the description rather than an id so the pin is readable: a
+ * line here says which garment it means, and a stale one drops the slot
+ * loudly instead of silently shooting something else.
+ */
+const exact = (slug, note) =>
+  live(slug).find(
+    (p) => (p.note || "").trim().toLowerCase() === note.trim().toLowerCase(),
+  );
+
 const wholeSet = (slug, key) => {
   const both = live(slug).filter((p) => p.setKey === key);
   const top = both.find((q) => ["hoodies", "shirts", "track-tops"].includes(q.cat) || q.sub === "track-tops");
@@ -232,6 +250,34 @@ const FIDELITY =
   "Reproduce every garment exactly as shown in its reference photograph — same " +
   "colour, same cut, same printed graphics and lettering. Do not restyle or " +
   "substitute any of the clothing.";
+/* How these three houses actually cut a jean.
+ *
+ * Amiri, Purple Brand and Ksubi all sell a tapered slim leg — the
+ * reference photographs show it plainly, narrow through the thigh and
+ * closing to a small ankle — and the model kept putting them on the
+ * figures as baggy wide-leg denim stacked over the shoe, which is the
+ * silhouette streetwear photography is soaked in. Naming the cut is the
+ * only thing that holds it, because the reference alone was not enough.
+ */
+const TAPERED_DENIM =
+  "The jeans are cut tapered and slim exactly as their reference photograph " +
+  "shows: close through the thigh, narrowing through the knee to a small " +
+  "ankle opening, breaking just above the shoe. They are not baggy, not " +
+  "wide-leg, not oversized and not stacked or puddled over the footwear.";
+
+/* What a second photograph of the same garment means.
+ *
+ * Several of these carry a different print front and back — the yellow
+ * Gallery Dept. tee says DEPT. on the chest and COACH across the shoulders
+ * — and a shot that turns a model away was sending only the front. The
+ * back came out wearing the front's print, which is a garment the shop
+ * does not sell.
+ */
+const TWO_SIDES =
+  "Where two reference photographs are given for one garment they are its " +
+  "front and its back. Reproduce whichever side faces the camera from the " +
+  "photograph of that side: a model turned away shows the back print, and " +
+  "the front print never appears on the back.";
 const NO_TAGS =
   "The clothes are being worn, so they carry no retail hang tags, no price tags " +
   "and no swing tickets anywhere.";
@@ -472,10 +518,13 @@ const SET = [
       "Los Angeles denim in shade: premium washes and painted wordmarks " +
       "against raw concrete, one hard shaft of sun. The denim is the whole " +
       "picture.",
-    shot: "Side by side under a concrete colonnade, both full length",
+    shot: "A tall vertical frame under a concrete colonnade, the two of " +
+          "them close together, both full length from head to shoes, the " +
+          "legs of the jeans unobstructed their whole length",
+    // Pinned: a reshoot for the cut of the denim, not a change of goods.
     slots: {
-      "his jeans": () => freshCat("purple-brand", "denim"),
-      "her jeans": () => freshCat("purple-brand", "denim"),
+      "his jeans": () => exact("purple-brand", "Dark wash Purple Brand jeans."),
+      "her jeans": () => exact("purple-brand", "Black Purple Brand jeans."),
     },
     wear: (x) =>
       `He wears ${PLAIN_TEE_WHITE} with ${d(x["his jeans"])}. ` +
@@ -509,18 +558,17 @@ const SET = [
       "Sydney denim turned Los Angeles: shredded washes and the scrawled " +
       "signature, cool shade with one hard shaft of sun. Hard, rock-and-roll, " +
       "nothing fussy.",
-    shot: "Side by side, both full length, the denim clearly readable from " +
-          "waist to hem",
+    shot: "A tall vertical frame, the two of them close together and both " +
+          "full length from head to shoes, the denim clearly readable from " +
+          "waist to hem and the leg unobstructed its whole length",
+    /* Pinned: a reshoot for the cut of the denim, not a change of goods.
+     * These two pairs were chosen when it was first shot — the second one
+     * by least-used rather than never-used, because Ksubi stocks five pairs
+     * and only one had never been photographed, and a repeated pair costs
+     * far less than a picture with one person in it. */
     slots: {
-      "his jeans": () => freshCat("ksubi", "denim"),
-      /* Least-used rather than never-used, and only here. Ksubi stocks five
-       * pairs of jeans and has exactly one that has never been in a
-       * picture, so asking for two fresh pairs drops the second model
-       * entirely — the poll said so out loud, which is what it is for. A
-       * house this small cannot carry a never-repeat rule, and a repeated
-       * pair of jeans costs far less than a picture with one person in it
-       * when the point is to show both. */
-      "her jeans": () => byCat("ksubi", "denim"),
+      "his jeans": () => exact("ksubi", "Mid wash Ksubi jeans."),
+      "her jeans": () => exact("ksubi", "Dark wash Ksubi jeans."),
     },
     wear: (x) =>
       `He wears ${PLAIN_TEE_BLACK} with ${d(x["his jeans"])}. ` +
@@ -660,12 +708,19 @@ const SET = [
     look:
       "Two Los Angeles studios in full sun: hand-painted and repaired cotton " +
       "over premium denim washes. Bone, rust and indigo, everything worn in.",
-    shot: "Side by side on the promenade with the skyline behind them",
+    shot: "A tall vertical frame on the promenade, the two of them close " +
+          "together with her turned away from camera so the back of her " +
+          "t-shirt reads, both full length from head to shoes, the skyline " +
+          "behind them",
+    /* Pinned. This is the shot the yellow tee is wrong in: it says DEPT. on
+     * the chest and COACH across the shoulders, and the first attempt put
+     * the chest print on her back. Swapping in a different shirt would not
+     * have corrected that, only changed the subject. */
     slots: {
-      "his shirt":  () => freshCat("gallery-dept", "shirts"),
-      "his jeans":  () => freshCat("purple-brand", "denim"),
-      "her shirt":  () => freshCat("gallery-dept", "shirts"),
-      "her shorts": () => freshSub("purple-brand", "shorts"),
+      "his shirt":  () => exact("gallery-dept", "Orange Gallery Dept. shirt."),
+      "his jeans":  () => exact("purple-brand", "Black Purple Brand jeans."),
+      "her shirt":  () => exact("gallery-dept", "Yellow Gallery Dept. t-shirt."),
+      "her shorts": () => exact("purple-brand", "Grey Purple Brand shorts."),
     },
     wear: (x) =>
       `He wears ${d(x["his shirt"])} with ${d(x["his jeans"])}. ` +
@@ -794,11 +849,12 @@ const SET = [
           "two of them standing close together inside it and full length " +
           "from head to shoes, the arch rising the full height of the " +
           "picture",
+    // Pinned: a reshoot for the fit of the denim, not a change of goods.
     slots: {
-      "his shirt": () => freshCat("gallery-dept", "shirts"),
-      "his jeans": () => freshCat("purple-brand", "denim"),
-      "her shirt": () => freshCat("gallery-dept", "shirts"),
-      "her shorts": () => freshSub("purple-brand", "shorts"),
+      "his shirt": () => exact("gallery-dept", "White Gallery Dept. t-shirt."),
+      "his jeans": () => exact("purple-brand", "Dark wash Purple Brand jeans."),
+      "her shirt": () => exact("gallery-dept", "Off-white Gallery Dept. t-shirt."),
+      "her shorts": () => exact("purple-brand", "Charcoal Purple Brand shorts."),
     },
     wear: (x) =>
       `He wears ${d(x["his shirt"])} with ${d(x["his jeans"])}. ` +
@@ -879,14 +935,18 @@ const SET = [
   {
     tag: "amiri-photo", aspect: "2:3", house: "amiri",
     place: "doorway", real: true, cast: ["man"],
+    own: true,
     look:
       "Los Angeles rock-and-roll tailoring: bone and black, low contrast, " +
       "cool shade with one hard shaft of sun. Hand-distressed denim, nothing " +
       "loud, restraint doing the work.",
-    shot: "Full length, head to shoes, the whole outfit clearly visible",
+    shot: "A tall vertical frame, full length from head to shoes, the " +
+          "whole outfit clearly visible and the leg of the jean " +
+          "unobstructed its whole length",
+    // Pinned: a reshoot for the cut of the denim, not a change of goods.
     slots: {
-      shirt: () => freshCat("amiri", "shirts"),
-      jeans: () => freshCat("amiri", "denim"),
+      shirt: () => exact("amiri", "Grey Amiri t-shirt."),
+      jeans: () => exact("amiri", "Light wash Amiri jeans."),
     },
     wear: (x) => `He wears ${d(x.shirt)} with ${d(x.jeans)}.`,
   },
@@ -1114,6 +1174,181 @@ const SET = [
       `She wears ${d(s["track top"])} with ${d(s["track pants"])}, worn together as ` +
       `the matching set they are sold as.`,
   },
+  /* ── a second round, for stock nobody has photographed ───────────────
+   *
+   * A hundred and seventy-two garments are in stock and have never been in
+   * a picture, which is most of the shop. Each of these is one house, two
+   * models, portrait, and built entirely out of that backlog — the pickers
+   * refuse anything already shot, so there is no way for one of these to
+   * reach for a garment that is already hanging somewhere.
+   *
+   * All of them are own-house boards. That is deliberate after the Purple
+   * Brand page turned out to be carrying two Gallery Dept. chapters: a
+   * house advertises itself here, and where a house sells no tops — Purple
+   * Brand sells denim and shorts and nothing else — the tops are plain
+   * rather than borrowed from a neighbour.
+   */
+  {
+    tag: "purple-brand-denim-photo", aspect: "9:16", house: "purple-brand",
+    place: "street", real: true, cast: ["man2", "woman1"], angles: true, plain: true,
+    look:
+      "Los Angeles denim, studied: hand-finished washes, tonal embroidery, " +
+      "clean hot daylight on pale paving. The jean is the whole of the " +
+      "point, so everything around it is quiet.",
+    shot: "A tall vertical frame, the two of them close together with him a " +
+          "half step behind her, both full length from head to shoes, the " +
+          "legs of the jeans unobstructed and clearly visible their whole " +
+          "length, headroom above and pale paving below",
+    slots: {
+      "his jeans":  () => freshCat("purple-brand", "denim"),
+      "her shorts": () => freshSub("purple-brand", "shorts"),
+    },
+    wear: (x) =>
+      `He wears ${PLAIN_TEE_WHITE} with ${d(x["his jeans"])}. ` +
+      `She wears ${PLAIN_TEE_BLACK} with ${d(x["her shorts"])}.`,
+  },
+  {
+    tag: "amiri-denim-photo", aspect: "9:16", house: "amiri",
+    place: "street", real: true, cast: ["man", "woman2"], angles: true, own: true,
+    look:
+      "Los Angeles luxury streetwear: bandana motifs and bone-coloured " +
+      "leather against faded indigo, warm low sun, an expensive ease.",
+    shot: "A tall vertical frame, the two of them standing close with her a " +
+          "half step forward, both full length from head to shoes, the " +
+          "denim visible its whole length, headroom above and paving below",
+    slots: {
+      "his tee":   () => freshCat("amiri", "shirts"),
+      "his jeans": () => freshCat("amiri", "denim"),
+      "her tee":   () => freshCat("amiri", "shirts"),
+      "her jeans": () => freshCat("amiri", "denim"),
+    },
+    wear: (x) =>
+      `He wears ${d(x["his tee"])} with ${d(x["his jeans"])}. ` +
+      `She wears ${d(x["her tee"])} with ${d(x["her jeans"])}.`,
+  },
+  {
+    tag: "chrome-hearts-caps-photo", aspect: "9:16", house: "chrome-hearts",
+    place: "doorway", real: true, cast: ["man2", "woman3"], angles: true, plain: true,
+    look:
+      "Hollywood gothic: sterling hardware, cross motifs and blackletter " +
+      "type on heavyweight cotton, deep shade with a hard shaft of light.",
+    shot: "A tall vertical frame under a concrete arch, the two of them " +
+          "close together, both full length from head to shoes, the caps " +
+          "clearly readable, the arch rising the full height of the picture",
+    slots: {
+      "his tee":  () => freshCat("chrome-hearts", "shirts"),
+      "his cap":  () => freshSub("chrome-hearts", "snapbacks"),
+      "her tee":  () => freshCat("chrome-hearts", "shirts"),
+      "her hat":  () => freshSub("chrome-hearts", "beanies"),
+    },
+    wear: (x) =>
+      `He wears ${d(x["his tee"])} with ${PLAIN_JEANS_BLACK}` +
+      `${x["his cap"] ? ` and ${d(x["his cap"])}` : ""}. ` +
+      `She wears ${d(x["her tee"])} with ${PLAIN_JEANS_INDIGO}` +
+      `${x["her hat"] ? ` and ${d(x["her hat"])}` : ""}.`,
+  },
+  {
+    tag: "godspeed-caps-photo", aspect: "9:16", house: "godspeed",
+    place: "street", real: true, cast: ["man", "woman1"], angles: true, plain: true,
+    look:
+      "New York streetwear with a gothic streak: religious motifs and " +
+      "motorsport graphics on boxy cotton, bright flat daylight.",
+    shot: "A tall vertical frame on open paving, the two of them close " +
+          "together with one a half step back, both full length from head " +
+          "to shoes, the caps clearly readable, headroom above",
+    slots: {
+      "his tee":    () => freshCat("godspeed", "shirts"),
+      "his shorts": () => freshSub("godspeed", "shorts"),
+      "his cap":    () => freshSub("godspeed", "snapbacks"),
+      "her tee":    () => freshCat("godspeed", "shirts"),
+      "her cap":    () => freshSub("godspeed", "snapbacks"),
+    },
+    wear: (x) =>
+      `He wears ${d(x["his tee"])} with ${d(x["his shorts"])}` +
+      `${x["his cap"] ? ` and ${d(x["his cap"])}` : ""}. ` +
+      `She wears ${d(x["her tee"])} with ${PLAIN_SHORTS_BLACK}` +
+      `${x["her cap"] ? ` and ${d(x["her cap"])}` : ""}.`,
+  },
+  {
+    /* The artwork the Box Logo band never had. It was a legacy row showing
+     * a flat-lay of a folded tee on white, which is a product photograph
+     * standing in for a campaign. */
+    tag: "supreme-boxlogo-photo", aspect: "9:16", house: "supreme",
+    place: "street", real: true, cast: ["man2", "woman2"], angles: true, plain: true,
+    look:
+      "Downtown New York, transplanted: the box logo on heavyweight cotton, " +
+      "bright flat daylight, red and white against pale concrete. Plain, " +
+      "confident, nothing fussy.",
+    shot: "A tall vertical frame, the two of them standing close together " +
+          "with him a half step behind her shoulder, both full length from " +
+          "head to shoes, the chest graphics clearly readable, headroom " +
+          "above and pale paving below",
+    slots: {
+      "his tee": () => freshCat("supreme", "shirts"),
+      "her tee": () => freshCat("supreme", "shirts"),
+    },
+    wear: (x) =>
+      `He wears ${d(x["his tee"])} with ${PLAIN_JEANS_BLACK}. ` +
+      `She wears ${d(x["her tee"])} with ${PLAIN_JEANS_INDIGO}.`,
+  },
+  {
+    tag: "rhude-two-photo", aspect: "9:16", house: "rhude",
+    place: "crown", real: true, cast: ["man", "woman3"], angles: true, own: true,
+    look:
+      "Americana filtered through motorsport: racing type used sparingly, " +
+      "hot midday light on pale paving, a luxury-sportswear calm.",
+    shot: "A tall vertical frame on the plaza, the two of them close " +
+          "together with her a half step forward, both full length from " +
+          "head to shoes, headroom above and paving below",
+    slots: {
+      "his tee":    () => freshCat("rhude", "shirts"),
+      "his shorts": () => freshSub("rhude", "shorts"),
+      "her tee":    () => freshCat("rhude", "shirts"),
+      "her shorts": () => freshSub("rhude", "shorts"),
+    },
+    wear: (x) =>
+      `He wears ${d(x["his tee"])} with ${d(x["his shorts"])}. ` +
+      `She wears ${d(x["her tee"])} with ${d(x["her shorts"])}.`,
+  },
+  {
+    tag: "casablanca-three-photo", aspect: "9:16", house: "casablanca",
+    place: "street", real: true, cast: ["man2", "woman1"], angles: true, own: true,
+    look:
+      "Riviera leisure: painterly prints on silk and towelling, soft warm " +
+      "light, a pastel palette and a holiday calm.",
+    shot: "A tall vertical frame on the promenade, the two of them close " +
+          "together with one a half step back, both full length from head " +
+          "to shoes, palms rising behind them",
+    slots: {
+      "his shirt":  () => freshCat("casablanca", "shirts"),
+      "his shorts": () => freshSub("casablanca", "shorts"),
+      "her shirt":  () => freshCat("casablanca", "shirts"),
+      "her shorts": () => freshSub("casablanca", "shorts"),
+    },
+    wear: (x) =>
+      `He wears ${d(x["his shirt"])} with ${d(x["his shorts"])}. ` +
+      `She wears ${d(x["her shirt"])} with ${d(x["her shorts"])}.`,
+  },
+  {
+    tag: "hellstar-outer-photo", aspect: "9:16", house: "hellstar",
+    place: "doorway", real: true, cast: ["man", "woman2"], angles: true, plain: true,
+    look:
+      "Los Angeles graphic wear: flame and star iconography, deep shade " +
+      "with a hard shaft of light, saturated colour on pale concrete.",
+    shot: "A tall vertical frame under a concrete arch, the two of them " +
+          "close together, both full length from head to shoes, the outer " +
+          "layer worn open so what is under it reads too",
+    slots: {
+      "his jacket": () => freshCat("hellstar", "outerwear"),
+      "his shorts": () => freshSub("hellstar", "shorts"),
+      "her tee":    () => freshCat("hellstar", "shirts"),
+      "her shorts": () => freshSub("hellstar", "shorts"),
+    },
+    wear: (x) =>
+      `He wears ${d(x["his jacket"])} over ${PLAIN_TEE_WHITE} with ` +
+      `${d(x["his shorts"])}. ` +
+      `She wears ${d(x["her tee"])} with ${d(x["her shorts"])}.`,
+  },
 ];
 
 /** How a garment is named to the model: its own description plus its name. */
@@ -1154,7 +1389,8 @@ console.log("BILL OF ITEMS — every garment resolved from stock before anything
 for (const { item, chosen, missing } of polled) {
   console.log(`${item.tag}  (${item.aspect}, ${item.place}, ${item.real ? "photoreal" : "cel"})`);
   for (const [slot, p] of Object.entries(chosen)) {
-    const refs = 1 + (item.back && p.gallery?.length ? Math.min(2, p.gallery.length) : 0);
+    const extra = item.back ? 2 : item.angles ? 1 : 0;
+    const refs = 1 + (extra && p.gallery?.length ? Math.min(extra, p.gallery.length) : 0);
     console.log(
       `   ${slot.padEnd(12)} ${(p.sub || p.cat).padEnd(12)} ${p.name.slice(0, 34).padEnd(36)} ` +
       `${refs} ref${refs > 1 ? "s" : ""}  stock ${p.stock}  ` +
@@ -1182,14 +1418,30 @@ for (const { item, chosen } of polled) {
   const parts = Object.values(chosen);
   if (!parts.length) { console.log(`! ${item.tag}: nothing in stock, skipped`); continue; }
 
+  /* One photograph per garment, and its back as well wherever somebody in
+   * the frame is turned.
+   *
+   * `back` means the whole shot is from behind and takes two. `angles`
+   * means one of the two models stands at a three-quarter turn, which is
+   * most of these — and it is exactly those shots that were printing a
+   * chest graphic across a pair of shoulders. */
+  const extraRefs = item.back ? 2 : item.angles ? 1 : 0;
   const refs = [];
+  let twoSided = false;
   for (const p of parts) {
     refs.push(refUrl(p.image));
-    // The back view needs the other photographs, or the model invents a back.
-    if (item.back && p.gallery?.length) for (const g of p.gallery.slice(0, 2)) refs.push(refUrl(g));
+    if (extraRefs && p.gallery?.length) {
+      for (const g of p.gallery.slice(0, extraRefs)) refs.push(refUrl(g));
+      twoSided = true;
+    }
   }
 
   const who = item.cast.map((k) => CAST[k]).join("; and ");
+  // Named from the garment's own description rather than a house list,
+  // because the catalogue does not put a brand slug on a product.
+  const tapered = parts.some(
+    (x) => x.cat === "denim" && /amiri|purple brand|ksubi/i.test(x.note || x.name || ""),
+  );
   const prompt =
     `${item.real ? PHOTO : STYLE} ${item.real ? SHOOT + " " : ""}` +
     // The house's own aesthetic, where the shot carries one. This is what
@@ -1198,7 +1450,8 @@ for (const { item, chosen } of polled) {
     `${item.look ? item.look + " " : ""}` +
     `${item.angles ? ANGLES + " " : ""}${item.shot}. ${who}. ${item.wear(chosen)} ` +
     `They are in ${PLACES[item.place]}. ` +
-    `${FIDELITY} ${item.plain ? UNBRANDED + " " : ""}` +
+    `${FIDELITY} ${twoSided ? TWO_SIDES + " " : ""}${tapered ? TAPERED_DENIM + " " : ""}` +
+    `${item.plain ? UNBRANDED + " " : ""}` +
     `${item.cast.some((k) => k.startsWith("woman")) ? FEM + " " : ""}` +
     `${NO_TAGS} ${item.house && (item.plain || item.own) ? ownSignage(HOUSE_SIGN[item.house] ?? item.house) : SIGNAGE} ` +
     `${item.real ? PHOTO_FINISH : CEL}`;

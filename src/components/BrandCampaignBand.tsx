@@ -164,13 +164,22 @@ export default function BrandCampaignBand({
                 hovered
                 className="!text-white [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.85))]"
               />
-              <h2
-                className={`display max-w-xl leading-tight [text-shadow:0_1px_3px_rgba(0,0,0,0.85)] ${
-                  wide ? "mt-1 text-xl sm:mt-2.5 sm:text-3xl" : "mt-2.5 text-2xl sm:text-3xl"
-                }`}
-              >
-                {headline}
-              </h2>
+              {/* Nothing where the line would only repeat the mark above
+                  it. A collaboration board on one partner's page has the
+                  rival's name stripped out of its headline and falls back
+                  to the house's own, which on Purple Brand printed PURPLE
+                  BRAND in letterspaced caps and PURPLE BRAND again in
+                  display type directly underneath. The mark has already
+                  said it. */}
+              {headline && headline.trim().toLowerCase() !== brand.name.trim().toLowerCase() && (
+                <h2
+                  className={`display max-w-xl leading-tight [text-shadow:0_1px_3px_rgba(0,0,0,0.85)] ${
+                    wide ? "mt-1 text-xl sm:mt-2.5 sm:text-3xl" : "mt-2.5 text-2xl sm:text-3xl"
+                  }`}
+                >
+                  {headline}
+                </h2>
+              )}
               {subhead && (
                 <p
                   className={`mt-1.5 max-w-md text-sm leading-relaxed text-white/85 [text-shadow:0_1px_3px_rgba(0,0,0,0.85)] ${
