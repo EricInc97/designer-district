@@ -115,6 +115,20 @@ export default async function ProductPage({ params }: Props) {
     .slice()
     .sort(
       (a, b) =>
+        /* The garment's own house first, whatever else is true.
+         *
+         * A collaboration board is filed under one of the two houses, and
+         * for the other one it is somebody else's advertisement that
+         * happens to contain its goods. Four Purple Brand garments had no
+         * picture except a Gallery Dept. board, so their product pages led
+         * with GALLERY DEPT across a model's chest and then offered Gallery
+         * Dept. shirts underneath. Where the house has shot the garment
+         * itself, that picture wins; where it has not, the collaboration is
+         * still better than nothing, and the goods beneath it are trimmed
+         * to the house either way.
+         */
+        Number(b.brand_id === product.brand_id) -
+          Number(a.brand_id === product.brand_id) ||
         (b.product_ids?.length ?? 0) - (a.product_ids?.length ?? 0) ||
         a.sort_order - b.sort_order ||
         // Newest wins what the first two cannot separate, and something has
@@ -137,7 +151,16 @@ export default async function ProductPage({ params }: Props) {
         .in("id", lookIds)
         .eq("is_published", true)
     : { data: [] };
-  const companions = (lookRows ?? []) as ProductWithBrand[];
+  /* The rest of the picture, trimmed to the house that is selling.
+   *
+   * A collaboration dresses the models in two labels, and on a Purple
+   * Brand page the Gallery Dept. half is styling, not stock to be sold off
+   * a rival's product page — the same rule the brand pages already
+   * apply to their campaign chapters. The other label is still in the
+   * photograph, worn; it is simply not listed and not linked.
+   */
+  const inShot = (lookRows ?? []) as ProductWithBrand[];
+  const companions = inShot.filter((x) => x.brand_id === product.brand_id);
 
   /* "More from the house" means more than the page already shows.
    *
@@ -151,15 +174,34 @@ export default async function ProductPage({ params }: Props) {
   const inLook = new Set(companions.map((p) => p.id));
   const more = siblingRows.filter((p) => !inLook.has(p.id));
 
-  // Whether the board's own copy is about this house: either it is this
-  // house's board, or it is a collaboration whose title names this house.
+  /* Whether the board's own copy is about this house.
+   *
+   * "Names this house" is not enough on its own, and that is the whole of
+   * the bug: "Gallery Dept. x Purple Brand" names Purple Brand, so a
+   * Purple Brand jean printed a rival's name across its own product page
+   * in display type. A collaboration headline belongs to the collaboration,
+   * and on one partner's page it is half an advertisement for the other.
+   *
+   * Which houses count as rivals is read from the garments in the picture
+   * rather than from a list of brand names, so it stays true if the roster
+   * changes — the same test the brand pages already apply to their
+   * chapters. Without its own copy the picture falls back to the house's
+   * name, and the mark has already said that, so nothing is printed twice.
+   */
+  const otherHouses = [
+    ...new Set(
+      inShot
+        .filter((x) => x.brand_id !== product.brand_id && x.brands?.name)
+        .map((x) => x.brands!.name),
+    ),
+  ];
+  const headline = (campaign?.headline ?? "").toLowerCase();
+  const namesARival = otherHouses.some((n) => headline.includes(n.toLowerCase()));
   const ownCopy =
     campaign != null &&
+    !namesARival &&
     (campaign.brand_id === product.brand_id ||
-      (brand?.name != null &&
-        (campaign.headline ?? "")
-          .toLowerCase()
-          .includes(brand.name.toLowerCase())));
+      (brand?.name != null && headline.includes(brand.name.toLowerCase())));
   const gallery = [product.image_url, ...(product.gallery ?? [])].filter(
     (src): src is string => Boolean(src),
   );

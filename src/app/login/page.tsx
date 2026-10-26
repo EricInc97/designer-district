@@ -65,6 +65,27 @@ function LoginForm() {
         return;
       }
 
+      /* The account exists; tell the CRM, and do not let it matter.
+       *
+       * Deliberately not awaited and deliberately swallowing its own
+       * failure. The person is here to create an account, they have one,
+       * and a marketing table being slow or down is not a reason to hold
+       * the welcome screen or to show them an error about something they
+       * never asked for. The endpoint answers 200 even when the write
+       * failed, for the same reason; the reason comes back in the body
+       * where logs and the network tab can see it.
+       */
+      void fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          name: fullName,
+          source: "Signup",
+          landingPage: next,
+        }),
+      }).catch(() => {});
+
       // With email confirmation on, there is no session yet.
       if (!data.session) {
         setNotice("Check your inbox to confirm your email, then sign in.");

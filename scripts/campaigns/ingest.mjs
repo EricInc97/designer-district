@@ -75,6 +75,23 @@ const PER_PICTURE = {
   "supreme-solo-photo":       ["Supreme", "The box logo."],
   "off-white-solo-photo":     ["Off-White", "Quotation marks."],
   "purple-brand-two-photo":   ["Purple Brand", "Denim, obsessively."],
+  /* Batch five: stock nobody had photographed, plus two boards made
+   * because four Purple Brand garments had no picture but a Gallery Dept.
+   * one. The subheads matter more than they look: a board whose headline
+   * is just the house name has that line dropped on the brand page, where
+   * the mark has already said it, and the subhead becomes the caption. So
+   * three Purple Brand chapters sharing "Denim, obsessively." would be
+   * three chapters captioned identically. */
+  "purple-brand-denim-photo": ["Purple Brand", "The light wash."],
+  "purple-brand-dark-photo":  ["Purple Brand", "The dark wash."],
+  "purple-brand-black-photo": ["Purple Brand", "The black wash."],
+  "amiri-denim-photo":        ["Amiri", "Bandana and indigo."],
+  "chrome-hearts-caps-photo": ["Chrome Hearts", "Sterling and gothic type."],
+  "godspeed-caps-photo":      ["Godspeed", "Snapbacks and graphics."],
+  "rhude-two-photo":          ["Rhude", "Racing type, used sparingly."],
+  "casablanca-three-photo":   ["Casablanca", "Riviera, all year."],
+  "hellstar-outer-photo":     ["Hellstar", "Outerwear, in the shade."],
+  "supreme-boxlogo-photo":    ["Supreme", "The box logo."],
 };
 
 /* Editorial copy. It lives here rather than in the generator because it is

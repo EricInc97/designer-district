@@ -139,15 +139,22 @@ export default function ProductCampaign({
           >
             Seen in the campaign
           </p>
-          <h2
-            className={`display mt-1.5 max-w-2xl text-2xl leading-tight sm:text-4xl ${
-              over
-                ? "[text-shadow:0_1px_3px_rgba(0,0,0,0.85)]"
-                : "lg:[text-shadow:0_1px_3px_rgba(0,0,0,0.85)]"
-            }`}
-          >
-            {headline}
-          </h2>
+          {/* Nothing where the line would only repeat the mark above it.
+              A board whose copy names a rival has that copy dropped and
+              falls back to the house's own name, which the mark has
+              already said — two lines of PURPLE BRAND stacked. */}
+          {headline &&
+            headline.trim().toLowerCase() !== (brandName ?? "").trim().toLowerCase() && (
+              <h2
+                className={`display mt-1.5 max-w-2xl text-2xl leading-tight sm:text-4xl ${
+                  over
+                    ? "[text-shadow:0_1px_3px_rgba(0,0,0,0.85)]"
+                    : "lg:[text-shadow:0_1px_3px_rgba(0,0,0,0.85)]"
+                }`}
+              >
+                {headline}
+              </h2>
+            )}
           {subhead && (
             <p
               className={`mt-2 max-w-md text-sm leading-relaxed ${

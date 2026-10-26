@@ -250,34 +250,32 @@ const FIDELITY =
   "Reproduce every garment exactly as shown in its reference photograph — same " +
   "colour, same cut, same printed graphics and lettering. Do not restyle or " +
   "substitute any of the clothing.";
-/* How these three houses actually cut a jean.
+/* How these three houses cut a jean, and what is sewn to it.
  *
- * Amiri, Purple Brand and Ksubi all sell a tapered slim leg — the
- * reference photographs show it plainly, narrow through the thigh and
- * closing to a small ankle — and the model kept putting them on the
- * figures as baggy wide-leg denim stacked over the shoe, which is the
- * silhouette streetwear photography is soaked in. Naming the cut is the
- * only thing that holds it, because the reference alone was not enough.
- */
-const TAPERED_DENIM =
-  "The jeans are cut tapered and slim exactly as their reference photograph " +
-  "shows: close through the thigh, narrowing through the knee to a small " +
-  "ankle opening, breaking just above the shoe. They are not baggy, not " +
-  "wide-leg, not oversized and not stacked or puddled over the footwear.";
-
-/* What a second photograph of the same garment means.
+ * Amiri, Purple Brand and Ksubi all sell a tapered slim leg, and the model
+ * kept putting them on as baggy wide-leg denim stacked over the shoe,
+ * which is the silhouette streetwear photography is soaked in. It also
+ * kept dropping the leather brand patch at the back of the waistband — a
+ * jean the shop does not sell — and NO_TAGS, sitting a sentence away and
+ * saying the clothes carry no tags, is the obvious thing to have been read
+ * as licensing that. Hence both in one breath: a swing ticket comes off
+ * before the photograph, a sewn-in label is the garment.
  *
- * Several of these carry a different print front and back — the yellow
- * Gallery Dept. tee says DEPT. on the chest and COACH across the shoulders
- * — and a shot that turns a model away was sending only the front. The
- * back came out wearing the front's print, which is a garment the shop
- * does not sell.
+ * Kept terse on purpose. The API refuses a prompt over 5000 characters and
+ * these two rules only ever land on the longest prompts in the set — the
+ * denim shots, which are also the ones carrying front-and-back references.
  */
+const DENIM_RULE =
+  "The jeans are tapered and slim as their reference shows: close through " +
+  "the thigh, narrowing to a small ankle, breaking just above the shoe " +
+  "— never baggy, wide-leg or stacked. Their sewn-in branding is part of " +
+  "the garment and stays: the brand patch at the back of the waistband, " +
+  "the embroidered leg motifs and any woven label, visible on whichever " +
+  "figure is turned away.";
 const TWO_SIDES =
-  "Where two reference photographs are given for one garment they are its " +
-  "front and its back. Reproduce whichever side faces the camera from the " +
-  "photograph of that side: a model turned away shows the back print, and " +
-  "the front print never appears on the back.";
+  "Where a garment has two reference photographs they are its front and " +
+  "its back: reproduce whichever side faces the camera, and never put the " +
+  "front print on the back.";
 const NO_TAGS =
   "The clothes are being worn, so they carry no retail hang tags, no price tags " +
   "and no swing tickets anywhere.";
@@ -413,12 +411,15 @@ const CAST_EXTRA = {
 };
 Object.assign(CAST, CAST_EXTRA);
 
+/* Trimmed to the instruction and nothing else. It rides on every shot with
+ * a woman in it, so its length is paid for across the whole set, and the
+ * denim prompts have only a few dozen characters of room under the API's
+ * 5000-character limit. */
 const FEM =
-  "Style the women's clothes so they read as feminine without altering the " +
-  "garments themselves: the t-shirt tucked or knotted at the waist so the " +
-  "silhouette is defined, sleeves turned once, clean white trainers or simple " +
-  "sandals, a small shoulder bag. The garments' colours, graphics and cut stay " +
-  "exactly as their reference photographs show.";
+  "Style the women's clothes as feminine without altering the garments: " +
+  "the t-shirt tucked or knotted at the waist, sleeves turned once, clean " +
+  "white trainers or simple sandals, a small shoulder bag. Their colours, " +
+  "graphics and cut stay exactly as the references show.";
 
 /* ── the plan ────────────────────────────────────────────────────────────
  * Deliberately mixed across houses. A district where every outfit is head to
@@ -705,6 +706,12 @@ const SET = [
   {
     tag: "gallery-purple-two-photo", aspect: "2:3", house: "gallery-dept",
     place: "street", real: true, cast: ["man2", "woman1"], angles: true,
+    /* A collaboration names its two houses and nothing else. The open
+     * list lets any house in the district appear on a storefront, and
+     * this board came back with an AMIRI shop two storeys high beside
+     * the models — a third label, in the largest type in the frame, on
+     * a board paid for by two others. */
+    signs: ["GALLERY DEPT", "PURPLE BRAND"],
     look:
       "Two Los Angeles studios in full sun: hand-painted and repaired cotton " +
       "over premium denim washes. Bone, rust and indigo, everything worn in.",
@@ -841,6 +848,12 @@ const SET = [
   {
     tag: "gallery-purple-photo", aspect: "9:16", house: "gallery-dept",
     place: "doorway", real: true, cast: ["man", "woman3"], angles: true,
+    /* A collaboration names its two houses and nothing else. The open
+     * list lets any house in the district appear on a storefront, and
+     * this board came back with an AMIRI shop two storeys high beside
+     * the models — a third label, in the largest type in the frame, on
+     * a board paid for by two others. */
+    signs: ["GALLERY DEPT", "PURPLE BRAND"],
     look:
       "Two Los Angeles studios: hand-painted and reworked cotton over premium " +
       "denim washes. Warm dusty light, bone and indigo, everything a little " +
@@ -1349,6 +1362,54 @@ const SET = [
       `${d(x["his shorts"])}. ` +
       `She wears ${d(x["her tee"])} with ${d(x["her shorts"])}.`,
   },
+  /* The four Purple Brand garments whose only picture was somebody
+   * else's.
+   *
+   * A collaboration board is filed under one house, and for the other it
+   * is a rival's advertisement that happens to contain its goods: the dark
+   * and black jeans and the charcoal and grey shorts had nothing but the
+   * two Gallery Dept. boards, so their product pages led with GALLERY
+   * DEPT. across a chest. Pinned to exactly those four, so the pages that
+   * needed artwork are the pages that get it, and the tops are plain
+   * because Purple Brand sells denim and shorts and no shirts at all.
+   */
+  {
+    tag: "purple-brand-dark-photo", aspect: "9:16", house: "purple-brand",
+    place: "doorway", real: true, cast: ["man", "woman3"], angles: true, plain: true,
+    look:
+      "Los Angeles denim, studied: hand-finished washes and tonal " +
+      "embroidery, cool shade with one hard shaft of sun. The jean is the " +
+      "whole of the point, so everything around it is quiet.",
+    shot: "A tall vertical frame under a concrete arch, the two of them " +
+          "close together with him turned away from camera so the back of " +
+          "his jeans reads, both full length from head to shoes, the legs " +
+          "unobstructed their whole length",
+    slots: {
+      "his jeans":  () => exact("purple-brand", "Dark wash Purple Brand jeans."),
+      "her shorts": () => exact("purple-brand", "Charcoal Purple Brand shorts."),
+    },
+    wear: (x) =>
+      `He wears ${PLAIN_TEE_WHITE} with ${d(x["his jeans"])}. ` +
+      `She wears ${PLAIN_TEE_BLACK} with ${d(x["her shorts"])}.`,
+  },
+  {
+    tag: "purple-brand-black-photo", aspect: "9:16", house: "purple-brand",
+    place: "street", real: true, cast: ["man2", "woman2"], angles: true, plain: true,
+    look:
+      "Los Angeles denim in full sun: crystal-set black washes and tonal " +
+      "embroidery against pale travertine. Hard light, quiet styling.",
+    shot: "A tall vertical frame on open paving, the two of them close " +
+          "together with her turned away from camera so the back of her " +
+          "shorts reads, both full length from head to shoes, the legs " +
+          "unobstructed their whole length",
+    slots: {
+      "his jeans":  () => exact("purple-brand", "Black Purple Brand jeans."),
+      "her shorts": () => exact("purple-brand", "Grey Purple Brand shorts."),
+    },
+    wear: (x) =>
+      `He wears ${PLAIN_TEE_BLACK} with ${d(x["his jeans"])}. ` +
+      `She wears ${PLAIN_TEE_WHITE} with ${d(x["her shorts"])}.`,
+  },
 ];
 
 /** How a garment is named to the model: its own description plus its name. */
@@ -1413,6 +1474,9 @@ const CAP = 5;
 const redoAll = process.argv.includes("--all");
 
 const queue = [];
+// Declared here rather than beside `done`, because the length guard in
+// the loop below needs it and that loop runs first.
+const bad = [];
 const manifest = [];
 for (const { item, chosen } of polled) {
   const parts = Object.values(chosen);
@@ -1450,10 +1514,17 @@ for (const { item, chosen } of polled) {
     `${item.look ? item.look + " " : ""}` +
     `${item.angles ? ANGLES + " " : ""}${item.shot}. ${who}. ${item.wear(chosen)} ` +
     `They are in ${PLACES[item.place]}. ` +
-    `${FIDELITY} ${twoSided ? TWO_SIDES + " " : ""}${tapered ? TAPERED_DENIM + " " : ""}` +
+    `${FIDELITY} ${twoSided ? TWO_SIDES + " " : ""}` +
+    `${tapered ? DENIM_RULE + " " : ""}` +
     `${item.plain ? UNBRANDED + " " : ""}` +
     `${item.cast.some((k) => k.startsWith("woman")) ? FEM + " " : ""}` +
-    `${NO_TAGS} ${item.house && (item.plain || item.own) ? ownSignage(HOUSE_SIGN[item.house] ?? item.house) : SIGNAGE} ` +
+    `${NO_TAGS} ${
+      item.signs
+        ? ownSignage(item.signs.join(" or "))
+        : item.house && (item.plain || item.own)
+          ? ownSignage(HOUSE_SIGN[item.house] ?? item.house)
+          : SIGNAGE
+    } ` +
     `${item.real ? PHOTO_FINISH : CEL}`;
 
   /* Whose board it hangs on, named rather than inferred.
@@ -1479,6 +1550,18 @@ for (const { item, chosen } of polled) {
    * string in the middle of a sentence, and that is cheaper to catch here
    * than in the picture.
    */
+  /* The API refuses anything over 5000 characters with a 400 that reads
+   * like a content problem, and three of these went out and came back
+   * refused before the pattern was visible: 4958 went through, 5040 did
+   * not. Checked here so an over-long prompt is a line in the bill rather
+   * than a wasted call. */
+  const LIMIT = 5000;
+  if (prompt.length > LIMIT) {
+    console.log(`! ${item.tag}: prompt ${prompt.length} > ${LIMIT}, not sent`);
+    bad.push(item.tag);
+    continue;
+  }
+
   if (process.argv.includes("--prompts")) {
     console.log(`\n── ${item.tag} (${item.aspect}, ${refs.length} refs)\n${prompt}`);
     continue;
@@ -1490,7 +1573,7 @@ for (const { item, chosen } of polled) {
 fs.writeFileSync(`${OUT}manifest.json`, JSON.stringify(manifest, null, 1));
 
 const flying = new Map();
-const done = [], bad = [];
+const done = [];
 while (queue.length || flying.size) {
   while (queue.length && flying.size < CAP) {
     const job = queue[0];
