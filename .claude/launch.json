@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 3200
+    },
+    {
+      "name": "copy-master",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "copy-master", "run", "dev", "--", "--port", "3300"],
+      "port": 3300
     }
   ]
 }

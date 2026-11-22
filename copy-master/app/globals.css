@@ -1,0 +1,260 @@
+@import "tailwindcss";
+
+/* -------------------------------------------------------------------------- */
+/* Design tokens                                                              */
+/* -------------------------------------------------------------------------- */
+
+:root {
+  /* Warm paper light theme */
+  --canvas: #f1efe9;
+  --surface: #fbfaf7;
+  --paper: #ffffff;
+  --border: #e3dfd6;
+  --border-strong: #cfc9bc;
+
+  --ink: #17171a;
+  --ink-soft: #645f58;
+  --ink-faint: #9b958a;
+
+  --accent: #3f3bb5;
+  --accent-soft: #ecebfa;
+
+  /* Readability bands */
+  --band-great: #2f8f63;
+  --band-good: #4c8a2f;
+  --band-ok: #b07c16;
+  --band-poor: #bc4034;
+
+  /* Sentence highlights. Tuned to sit behind dark text and stay legible. */
+  --mark-hard: rgb(247 197 56 / 0.42);
+  --mark-hard-edge: rgb(190 140 10 / 0.5);
+  --mark-very-hard: rgb(232 101 94 / 0.32);
+  --mark-very-hard-edge: rgb(190 55 48 / 0.45);
+
+  --shadow-panel: 0 1px 2px rgb(23 23 26 / 0.04), 0 8px 24px -12px rgb(23 23 26 / 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --canvas: #101113;
+    --surface: #181a1d;
+    --paper: #15171a;
+    --border: #282b30;
+    --border-strong: #3a3e45;
+
+    --ink: #e9e7e2;
+    --ink-soft: #a29d95;
+    --ink-faint: #6f6a63;
+
+    --accent: #9a95ff;
+    --accent-soft: #23223a;
+
+    --band-great: #54c08c;
+    --band-good: #8cc45c;
+    --band-ok: #e0b14e;
+    --band-poor: #ef7a6e;
+
+    --mark-hard: rgb(247 197 56 / 0.26);
+    --mark-hard-edge: rgb(247 197 56 / 0.45);
+    --mark-very-hard: rgb(232 101 94 / 0.26);
+    --mark-very-hard-edge: rgb(232 101 94 / 0.5);
+
+    --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+  }
+}
+
+:root[data-theme="dark"] {
+  --canvas: #101113;
+  --surface: #181a1d;
+  --paper: #15171a;
+  --border: #282b30;
+  --border-strong: #3a3e45;
+
+  --ink: #e9e7e2;
+  --ink-soft: #a29d95;
+  --ink-faint: #6f6a63;
+
+  --accent: #9a95ff;
+  --accent-soft: #23223a;
+
+  --band-great: #54c08c;
+  --band-good: #8cc45c;
+  --band-ok: #e0b14e;
+  --band-poor: #ef7a6e;
+
+  --mark-hard: rgb(247 197 56 / 0.26);
+  --mark-hard-edge: rgb(247 197 56 / 0.45);
+  --mark-very-hard: rgb(232 101 94 / 0.26);
+  --mark-very-hard-edge: rgb(232 101 94 / 0.5);
+
+  --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+}
+
+/* Expose the tokens to Tailwind's utility generator. */
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-paper: var(--paper);
+  --color-edge: var(--border);
+  --color-edge-strong: var(--border-strong);
+
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
+
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+
+  --color-band-great: var(--band-great);
+  --color-band-good: var(--band-good);
+  --color-band-ok: var(--band-ok);
+  --color-band-poor: var(--band-poor);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-newsreader), ui-serif, Georgia, serif;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Base                                                                       */
+/* -------------------------------------------------------------------------- */
+
+* {
+  min-width: 0;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background-color: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/*
+ * A focus ring for the chrome, but never for the editor surface: the textarea
+ * is as tall as the document, so a ring around it is a pair of rules down the
+ * page rather than a useful focus cue. The accent-coloured caret marks focus
+ * there instead.
+ *
+ * Written as `:not()` rather than relying on the editor's `outline-none`
+ * utility, because this rule is unlayered and so outranks anything Tailwind
+ * emits no matter what the class list says.
+ */
+:focus-visible:not(.editor-type) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Tabular figures everywhere a number changes as you type, so stats do not
+   jitter sideways on every keystroke. */
+.nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+.scroll-slim {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.scroll-slim::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.scroll-slim::-webkit-scrollbar-thumb {
+  background-color: var(--border-strong);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 999px;
+}
+
+.scroll-slim::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Editor typography                                                          */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * The editor is a textarea sitting on top of a highlight overlay that holds the
+ * same text. The two layers MUST share every metric that affects where a
+ * glyph lands, or the highlights drift out of alignment. Keep this class as the
+ * single source of truth and apply it to both layers.
+ */
+.editor-type {
+  font-family: var(--font-serif);
+  font-size: 1.125rem;
+  line-height: 1.75;
+  font-weight: 400;
+  letter-spacing: 0;
+  word-spacing: 0;
+  tab-size: 4;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+  font-variant-ligatures: none;
+  font-kerning: none;
+  text-align: left;
+  text-indent: 0;
+  margin: 0;
+  border: 0;
+}
+
+/* Padding also has to match between the layers. */
+.editor-pad {
+  padding: 2rem clamp(1.25rem, 5vw, 3.5rem) 6rem;
+}
+
+/* The subject field sits above the editor and has to line up with the body
+   text, so it borrows the same horizontal padding. */
+.editor-pad-x {
+  padding-left: clamp(1.25rem, 5vw, 3.5rem);
+  padding-right: clamp(1.25rem, 5vw, 3.5rem);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Sentence marks                                                             */
+/* -------------------------------------------------------------------------- */
+
+.mark {
+  border-radius: 3px;
+  /* Pad the mark out slightly without affecting layout, so the wash reads as a
+     highlighter stroke rather than a tight box. */
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  padding: 0.1em 0.04em;
+  margin: 0 -0.04em;
+  transition: background-color 180ms ease;
+}
+
+.mark-hard {
+  background-color: var(--mark-hard);
+  box-shadow: inset 0 -1px 0 0 var(--mark-hard-edge);
+}
+
+.mark-very-hard {
+  background-color: var(--mark-very-hard);
+  box-shadow: inset 0 -1px 0 0 var(--mark-very-hard-edge);
+}
+
+/* The sentence the right-hand panel is pointing at. */
+.mark-active {
+  background-color: var(--accent-soft);
+  box-shadow:
+    inset 0 0 0 1px var(--accent),
+    0 0 0 2px var(--accent-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mark {
+    transition: none;
+  }
+}
