@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   AnalysisPanel,
@@ -174,6 +175,14 @@ export function Dashboard() {
             <HighlightIcon />
             <span className="hidden sm:inline">Highlights</span>
           </HeaderButton>
+
+          <Link
+            href="/review"
+            title="Drafts the outreach agents wrote, before and after"
+            className="flex h-8 items-center rounded-lg border border-edge px-2.5 text-[0.8125rem] font-medium text-ink-soft transition-colors hover:border-edge-strong hover:text-ink"
+          >
+            Review
+          </Link>
 
           <ThemeToggle />
         </div>

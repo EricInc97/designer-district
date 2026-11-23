@@ -3,6 +3,7 @@ import { detectAi } from "@/lib/ai-detection";
 import { checkDeliverability, SUBJECT_MAX, SUBJECT_MIN } from "@/lib/deliverability";
 import { htmlToPlain, plainToHtml } from "@/lib/email-html";
 import { analyze } from "@/lib/readability";
+import { getServiceClient } from "@/lib/supabase/server";
 
 /**
  * Analysis for machines.
@@ -43,6 +44,81 @@ function unauthorized(request: Request): boolean {
 
 function str(value: unknown, max: number): string {
   return typeof value === "string" ? value.slice(0, max) : "";
+}
+
+const STAGES = new Set([
+  "email_1",
+  "follow_up_1",
+  "follow_up_2",
+  "follow_up_3",
+]);
+
+interface DraftRow {
+  run_id: string;
+  lead_ref: string;
+  company: string | null;
+  stage: string;
+  subject: string;
+  body: string;
+  passes: boolean;
+  problems: string[];
+  grade: number | null;
+  reading_ease: number | null;
+  deliverability_score: number;
+  spam_hit_count: number;
+  ai_score: number | null;
+  words: number;
+  sentences: number;
+}
+
+/**
+ * Save this scoring as the next iteration of a draft.
+ *
+ * Iteration 1 is whatever the agent scored first, before it had any numbers
+ * to act on — the baseline every later version is compared against. The
+ * iteration number is derived from what is already stored rather than sent by
+ * the caller, so a confused agent cannot overwrite its own baseline.
+ *
+ * Saving is best effort. A failure here must never fail the scoring, because
+ * the agent is mid-draft and the numbers are the thing it actually needs.
+ */
+async function saveDraft(
+  row: DraftRow,
+): Promise<{ saved: boolean; iteration: number | null }> {
+  const supabase = getServiceClient();
+  if (!supabase) return { saved: false, iteration: null };
+
+  try {
+    const { data: previous, error: readError } = await supabase
+      .from("outreach_drafts")
+      .select("iteration")
+      .eq("run_id", row.run_id)
+      .eq("lead_ref", row.lead_ref)
+      .eq("stage", row.stage)
+      .order("iteration", { ascending: false })
+      .limit(1);
+
+    if (readError) throw readError;
+
+    const next = (previous?.[0]?.iteration ?? 0) + 1;
+
+    // One retry: two tool calls landing together would both compute the same
+    // number, and the unique constraint turns that into an error rather than
+    // a lost row.
+    for (const iteration of [next, next + 1]) {
+      const { error } = await supabase
+        .from("outreach_drafts")
+        .insert({ ...row, iteration });
+
+      if (!error) return { saved: true, iteration };
+      if (error.code !== "23505") throw error;
+    }
+
+    return { saved: false, iteration: null };
+  } catch (error) {
+    console.error("[analyze] draft save failed", error);
+    return { saved: false, iteration: null };
+  }
 }
 
 export async function POST(request: Request) {
@@ -152,11 +228,46 @@ export async function POST(request: Request) {
     deliverability.score >= TARGETS.deliverability_at_or_above &&
     (ai.tooShort || ai.score <= TARGETS.ai_score_at_or_below);
 
+  /* ---------------------------------------------------------------- */
+  /* Keep a copy for review                                           */
+  /* ---------------------------------------------------------------- */
+
+  const runId = str(input.run_id, 100).trim();
+  const leadRef = str(input.lead_ref, 300).trim();
+  const stage = str(input.stage, 40).trim();
+
+  const save =
+    runId && leadRef && STAGES.has(stage)
+      ? await saveDraft({
+          run_id: runId,
+          lead_ref: leadRef,
+          company: str(input.company, 300).trim() || null,
+          stage,
+          subject,
+          body,
+          passes,
+          problems,
+          grade: readability.isEmpty
+            ? null
+            : Number(readability.grade.toFixed(2)),
+          reading_ease: readability.isEmpty
+            ? null
+            : Number(readability.fleschReadingEase.toFixed(1)),
+          deliverability_score: deliverability.score,
+          spam_hit_count: deliverability.hits.length,
+          ai_score: ai.tooShort ? null : ai.score,
+          words: readability.words,
+          sentences: readability.sentenceCount,
+        })
+      : { saved: false, iteration: null };
+
   return NextResponse.json({
     ok: true,
     passes,
     problems,
     targets: TARGETS,
+    /* iteration 1 means this was the baseline, scored before any fixing. */
+    review: save,
 
     readability: {
       grade: Number(readability.grade.toFixed(2)),
