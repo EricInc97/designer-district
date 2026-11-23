@@ -235,6 +235,51 @@ action.
 Without `ANTHROPIC_API_KEY` the route returns 503, the button hides itself,
 and nothing else changes.
 
+## Using it from n8n
+
+`POST /api/analyze` exposes the three engines to a machine caller. It measures
+and reports; it never rewrites. That is what makes it safe for an agent to
+loop against.
+
+```bash
+curl -X POST https://copy-master-drab.vercel.app/api/analyze \
+  -H "authorization: Bearer $COPY_MASTER_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"subject":"...","body":"Hi Sarah,<br><br>..."}'
+```
+
+Returns `passes`, a flat `problems` list the caller can act on, the three
+score blocks, and `normalized` with the text in both plain and `<br>` form.
+Auth is a bearer token from `COPY_MASTER_API_KEY`; unset means open.
+
+### The `<br>` round trip
+
+The outreach flow carries bodies as JSON with `<br>` breaks and `<a href>`
+links. `lib/email-html.ts` normalises that before anything is measured:
+`<br><br>` becomes a blank line, a single `<br>` becomes one newline, anchor
+text is kept without its markup.
+
+The blank line is the part that matters — `lib/readability.ts` treats it as a
+sentence boundary, so losing it would merge the greeting into the first
+paragraph and skew every score. Handled server-side, so no prompt has to
+remember it, and the endpoint accepts either form.
+
+### Wired into "Email Outreach"
+
+All four agents (`AI Agent`, `Follow Up Agent`, `Follow Up 2 Agent`,
+`Follow Up 3 Agent`) have a `Copy Master` HTTP tool and `maxIterations: 6`,
+so each can draft, score, fix and re-score before answering. The agents' own
+prompts are untouched; the tool instructions live in each agent's
+`systemMessage`.
+
+Agents send plain text and keep emitting `\n\n` in their JSON — the existing
+Parse nodes still convert that to `<br><br>` downstream, so nothing changed
+about what travels onward.
+
+The system message tells each agent that the flow's own rules win: if a fix
+would break a word limit or the required structure, it keeps the rule and
+leaves the problem unfixed. A linter should not be able to overrule the brief.
+
 ## Capture and A/B testing
 
 Supabase project: **Copy-master** (`npghxfkepowspnupsbcj`).
