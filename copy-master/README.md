@@ -280,6 +280,28 @@ The system message tells each agent that the flow's own rules win: if a fix
 would break a word limit or the required structure, it keeps the rule and
 leaves the problem unfixed. A linter should not be able to overrule the brief.
 
+### Saved for review
+
+Each tool call also carries `run_id`, `lead_ref`, `company` and `stage`, so
+every scoring is stored in `outreach_drafts` and `/review` shows the before
+and after.
+
+**Iteration 1 is the agent's untouched first draft.** The iteration number is
+derived from what is already stored rather than sent by the caller, so a
+confused agent cannot overwrite its own baseline, and the agents are told not
+to polish before that first scoring — a pre-cleaned baseline makes the record
+worthless.
+
+Saving is best effort and never fails the scoring. The agent is mid-draft when
+it calls, and the numbers are what it actually needs.
+
+Unlike `analysis_snapshots`, this table **does** store the copy. These are
+your own campaign emails and reading them back is the point.
+
+```sql
+select * from draft_improvements order by ended_at desc;
+```
+
 ## Capture and A/B testing
 
 Supabase project: **Copy-master** (`npghxfkepowspnupsbcj`).
