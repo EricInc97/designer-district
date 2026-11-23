@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { detectAi } from "@/lib/ai-detection";
 import { checkDeliverability, SUBJECT_MAX, SUBJECT_MIN } from "@/lib/deliverability";
 import { htmlToPlain, plainToHtml } from "@/lib/email-html";
-import { analyze } from "@/lib/readability";
+import { DEFAULT_THRESHOLDS, analyze } from "@/lib/readability";
 import { getServiceClient } from "@/lib/supabase/server";
 
 /**
@@ -44,6 +44,16 @@ function unauthorized(request: Request): boolean {
 
 function str(value: unknown, max: number): string {
   return typeof value === "string" ? value.slice(0, max) : "";
+}
+
+/** Finite numbers only; anything else falls back to the caller's default. */
+function num(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function int(value: unknown): number | null {
+  const parsed = num(value);
+  return parsed === null || parsed < 0 ? null : Math.round(parsed);
 }
 
 const STAGES = new Set([
@@ -170,7 +180,23 @@ export async function POST(request: Request) {
   const subject = htmlToPlain(rawSubject);
   const body = htmlToPlain(rawBody);
 
-  const readability = analyze(body);
+  /*
+   * Let the caller bring its own sentence-length rule.
+   *
+   * The engine's default flags at 14 words, but a caller working to its own
+   * brief may permit longer sentences — the outreach flow allows a 20-word
+   * observation. Without this the tool reports a "problem" the caller's own
+   * rules require it to keep, every single time.
+   */
+  const thresholds = {
+    minWordsToFlag:
+      int(input.min_words_to_flag) ?? DEFAULT_THRESHOLDS.minWordsToFlag,
+    hardGrade: num(input.hard_grade) ?? DEFAULT_THRESHOLDS.hardGrade,
+    veryHardGrade:
+      num(input.very_hard_grade) ?? DEFAULT_THRESHOLDS.veryHardGrade,
+  };
+
+  const readability = analyze(body, thresholds);
   const deliverability = checkDeliverability(subject, body);
   const ai = detectAi(body);
 
@@ -212,6 +238,9 @@ export async function POST(request: Request) {
 
   for (const check of deliverability.checks) {
     if (check.status === "pass") continue;
+    // Advisory checks are style preferences. Listing them here would send a
+    // caller off to "fix" something that is already fine.
+    if (check.advisory) continue;
     problems.push(`${check.label}: ${check.detail}`);
   }
 
@@ -297,6 +326,8 @@ export async function POST(request: Request) {
           check: check.label,
           status: check.status,
           detail: check.detail,
+          // Reported for information; deliberately absent from `problems`.
+          advisory: check.advisory === true,
         })),
       subject_length: deliverability.subjectLength,
     },

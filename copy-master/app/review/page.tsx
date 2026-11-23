@@ -167,12 +167,16 @@ function DraftCard({ row }: { row: Row }) {
         </div>
       </div>
 
-      <div className="grid gap-px bg-edge md:grid-cols-2">
+      {/* One column when there is only one version: a two-column grid with a
+          single child leaves an empty panel where "After" would be. */}
+      <div
+        className={`grid gap-px bg-edge ${unchanged ? "" : "md:grid-cols-2"}`}
+      >
         <Version
           heading={unchanged ? "Only version" : "Original"}
           subject={row.original_subject}
           body={row.original_body}
-          muted
+          muted={!unchanged}
         />
         {!unchanged && (
           <Version

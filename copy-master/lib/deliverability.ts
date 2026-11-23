@@ -61,6 +61,15 @@ export interface Check {
   status: CheckStatus;
   detail: string;
   penalty: number;
+  /**
+   * A style preference rather than something to go and fix.
+   *
+   * Callers that turn checks into a to-do list — the n8n agents do — should
+   * skip these. A near-miss subject length is worth knowing about and not
+   * worth a model round trip: an agent told to "fix every problem" will
+   * otherwise spend a whole call adding one character.
+   */
+  advisory?: boolean;
 }
 
 export interface DeliverabilityBand {
@@ -110,6 +119,13 @@ const SUBJECT_MULTIPLIER = 1.6;
 /** Subject length that reads well in a phone inbox. */
 export const SUBJECT_MIN = 28;
 export const SUBJECT_MAX = 60;
+
+/**
+ * Outside *these* the length is actually a problem. Between these and the
+ * comfortable range above it is a preference, reported but not worth fixing.
+ */
+export const SUBJECT_NEAR_MIN = 20;
+export const SUBJECT_NEAR_MAX = 70;
 
 /* -------------------------------------------------------------------------- */
 /* Dictionary                                                                 */
@@ -565,7 +581,14 @@ export function checkDeliverability(
   const checks: Check[] = [];
   const add = (check: Check) => checks.push(check);
 
-  /* Subject present */
+  /*
+   * Subject length.
+   *
+   * SUBJECT_MIN and SUBJECT_MAX describe a comfortable range, not a cliff: a
+   * 27-character subject is not meaningfully worse than a 28-character one.
+   * Only a clearly wrong length is worth acting on, so the near misses are
+   * marked advisory and cost less.
+   */
   if (subjectLength === 0) {
     add({
       id: "subject-present",
@@ -574,21 +597,39 @@ export function checkDeliverability(
       detail: "Missing. A message with no subject is filtered aggressively.",
       penalty: 12,
     });
+  } else if (subjectLength < SUBJECT_NEAR_MIN) {
+    add({
+      id: "subject-present",
+      label: "Subject line",
+      status: "warn",
+      detail: `${subjectLength} characters. Too short to say anything; it reads as automated.`,
+      penalty: 4,
+    });
   } else if (subjectLength < SUBJECT_MIN) {
     add({
       id: "subject-present",
       label: "Subject line",
       status: "warn",
-      detail: `${subjectLength} characters. Under ${SUBJECT_MIN} reads as terse or automated.`,
-      penalty: 4,
+      detail: `${subjectLength} characters. A little under the ${SUBJECT_MIN}-${SUBJECT_MAX} range, which is fine.`,
+      penalty: 2,
+      advisory: true,
+    });
+  } else if (subjectLength > SUBJECT_NEAR_MAX) {
+    add({
+      id: "subject-present",
+      label: "Subject line",
+      status: "warn",
+      detail: `${subjectLength} characters. Long enough that a phone will cut it off.`,
+      penalty: 5,
     });
   } else if (subjectLength > SUBJECT_MAX) {
     add({
       id: "subject-present",
       label: "Subject line",
       status: "warn",
-      detail: `${subjectLength} characters. Over ${SUBJECT_MAX} gets cut off on a phone.`,
-      penalty: 5,
+      detail: `${subjectLength} characters. A little over the ${SUBJECT_MIN}-${SUBJECT_MAX} range, which is fine.`,
+      penalty: 2,
+      advisory: true,
     });
   } else {
     add({

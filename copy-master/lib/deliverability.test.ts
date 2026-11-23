@@ -181,6 +181,40 @@ test("flags a subject that is too long for a phone", () => {
     "A reasonable body of text that says something useful to the reader.",
   );
   assert.equal(check(report, "subject-present")!.status, "warn");
+  assert.notEqual(check(report, "subject-present")!.advisory, true);
+});
+
+/*
+ * A near-miss length is a preference, not a defect. This exists because a live
+ * agent burned a whole model call rewriting a 27-character subject into a
+ * 28-character one and changed nothing else.
+ */
+test("a subject just outside the ideal range is advisory, not a problem", () => {
+  const body =
+    "A reasonable body of text that says something useful to the reader without tripping anything.";
+
+  const justShort = checkDeliverability("Re: After-Hours Booking Gap", body); // 27
+  const subjectCheck = check(justShort, "subject-present")!;
+
+  assert.equal(subjectCheck.status, "warn");
+  assert.equal(subjectCheck.advisory, true, "27 chars should be advisory");
+  assert.ok(subjectCheck.penalty <= 2, "a near miss should barely cost");
+
+  // One character later it is simply fine.
+  const fine = checkDeliverability("Re: After-Hours Booking Page", body); // 28
+  assert.equal(check(fine, "subject-present")!.status, "pass");
+});
+
+test("a genuinely short subject is still a real problem", () => {
+  const report = checkDeliverability(
+    "after-hours demo", // 16
+    "A reasonable body of text that says something useful to the reader.",
+  );
+  const subjectCheck = check(report, "subject-present")!;
+
+  assert.equal(subjectCheck.status, "warn");
+  assert.notEqual(subjectCheck.advisory, true, "16 chars is not a near miss");
+  assert.ok(subjectCheck.penalty >= 4);
 });
 
 test("flags repeated currency symbols and dense linking", () => {
