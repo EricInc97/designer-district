@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { detectAi } from "@/lib/ai-detection";
 import { checkDeliverability, SUBJECT_MAX, SUBJECT_MIN } from "@/lib/deliverability";
 import { htmlToPlain, plainToHtml } from "@/lib/email-html";
+import { checkHouseStyle } from "@/lib/house-style";
 import { DEFAULT_THRESHOLDS, analyze } from "@/lib/readability";
 import { getServiceClient } from "@/lib/supabase/server";
 
@@ -63,6 +64,28 @@ const STAGES = new Set([
   "follow_up_3",
 ]);
 
+/**
+ * The only stage that carries a subject line.
+ *
+ * Everything after it replies inside the original thread, so a subject there
+ * is a defect. Deriving this from the stage the caller already sends means no
+ * prompt has to remember the rule.
+ */
+const SUBJECT_STAGE = "email_1";
+
+/**
+ * Whether this message should have a subject line.
+ *
+ * A caller can say so outright with `expect_subject`. Otherwise the stage
+ * decides, and a caller that sends no stage at all -- the dashboard, or a
+ * one-off check -- is treated as a first email.
+ */
+function expectsSubject(input: Record<string, unknown>, stage: string): boolean {
+  if (typeof input.expect_subject === "boolean") return input.expect_subject;
+  if (!STAGES.has(stage)) return true;
+  return stage === SUBJECT_STAGE;
+}
+
 interface DraftRow {
   run_id: string;
   lead_ref: string;
@@ -79,6 +102,7 @@ interface DraftRow {
   ai_score: number | null;
   words: number;
   sentences: number;
+  house_style_violations: number;
 }
 
 /**
@@ -180,6 +204,12 @@ export async function POST(request: Request) {
   const subject = htmlToPlain(rawSubject);
   const body = htmlToPlain(rawBody);
 
+  /* Read before scoring: the stage decides whether a subject belongs here. */
+  const runId = str(input.run_id, 100).trim();
+  const leadRef = str(input.lead_ref, 300).trim();
+  const stage = str(input.stage, 40).trim();
+  const expectSubject = expectsSubject(input, stage);
+
   /*
    * Let the caller bring its own sentence-length rule.
    *
@@ -197,8 +227,9 @@ export async function POST(request: Request) {
   };
 
   const readability = analyze(body, thresholds);
-  const deliverability = checkDeliverability(subject, body);
+  const deliverability = checkDeliverability(subject, body, { expectSubject });
   const ai = detectAi(body);
+  const houseStyle = checkHouseStyle(subject, body);
 
   /* ---------------------------------------------------------------- */
   /* The actionable part                                              */
@@ -244,6 +275,23 @@ export async function POST(request: Request) {
     problems.push(`${check.label}: ${check.detail}`);
   }
 
+  /*
+   * House rules are not a matter of degree, so every violation is a problem
+   * and each one is quoted in place -- an agent told "no long dashes" with no
+   * idea where they are will rewrite the whole draft to find them.
+   */
+  for (const check of houseStyle.checks) {
+    if (check.status === "pass") continue;
+
+    const quoted = check.occurrences
+      .map((item) => `${item.where}: "${item.context}"`)
+      .join(" | ");
+
+    problems.push(
+      `${check.label}: ${check.detail}${quoted ? ` Found at -- ${quoted}` : ""}`,
+    );
+  }
+
   if (!ai.tooShort && ai.score > TARGETS.ai_score_at_or_below) {
     const worst = ai.signals.slice(0, 2).map((signal) => signal.label).join(" and ");
     problems.push(
@@ -255,15 +303,18 @@ export async function POST(request: Request) {
     (readability.isEmpty ||
       readability.grade <= TARGETS.reading_grade_at_or_below) &&
     deliverability.score >= TARGETS.deliverability_at_or_above &&
-    (ai.tooShort || ai.score <= TARGETS.ai_score_at_or_below);
+    (ai.tooShort || ai.score <= TARGETS.ai_score_at_or_below) &&
+    // A house rule is pass/fail, so it gates outright rather than scoring.
+    houseStyle.passes &&
+    // The subject rule is scored inside deliverability, but a wrong subject
+    // must never be outweighed by otherwise clean copy.
+    deliverability.checks.every(
+      (check) => check.id !== "subject-present" || check.status !== "fail",
+    );
 
   /* ---------------------------------------------------------------- */
   /* Keep a copy for review                                           */
   /* ---------------------------------------------------------------- */
-
-  const runId = str(input.run_id, 100).trim();
-  const leadRef = str(input.lead_ref, 300).trim();
-  const stage = str(input.stage, 40).trim();
 
   const save =
     runId && leadRef && STAGES.has(stage)
@@ -287,6 +338,7 @@ export async function POST(request: Request) {
           ai_score: ai.tooShort ? null : ai.score,
           words: readability.words,
           sentences: readability.sentenceCount,
+          house_style_violations: houseStyle.violations,
         })
       : { saved: false, iteration: null };
 
@@ -330,6 +382,24 @@ export async function POST(request: Request) {
           advisory: check.advisory === true,
         })),
       subject_length: deliverability.subjectLength,
+      /* Whether this stage is supposed to carry a subject at all. */
+      subject_expected: expectSubject,
+    },
+
+    /*
+     * Hard rules. Not scored, because they are not a matter of degree -- a
+     * violation here makes `passes` false on its own.
+     */
+    house_style: {
+      passes: houseStyle.passes,
+      violations: houseStyle.violations,
+      broken_rules: houseStyle.checks
+        .filter((check) => check.status !== "pass")
+        .map((check) => ({
+          rule: check.label,
+          detail: check.detail,
+          found_at: check.occurrences,
+        })),
     },
 
     ai_detection: {

@@ -17,6 +17,7 @@ import { useCapture } from "@/hooks/use-capture";
 import { useDeliverability } from "@/hooks/use-deliverability";
 import { useExperiments } from "@/hooks/use-experiments";
 import { useFix } from "@/hooks/use-fix";
+import { useHouseStyle } from "@/hooks/use-house-style";
 import { useStoredString } from "@/hooks/use-stored-string";
 import { formatCount, formatDecimal, formatDuration } from "@/lib/format";
 import type { Sentence } from "@/lib/readability";
@@ -52,8 +53,10 @@ export function Dashboard() {
   const { analysis, segments, analyzedText } = useAnalysis(text, thresholds);
   /* Deliverability reads the subject too, where triggers count for more. */
   const deliverability = useDeliverability(subject, text);
-  /* All three share the same deferred pass, so they stay in step. */
+  /* All of these share the same deferred pass, so they stay in step. */
   const aiDetection = useAiDetection(text);
+  /* Hard rules, scored separately because they are pass/fail. */
+  const houseStyle = useHouseStyle(subject, text);
   const { track, startNewDocument } = useCapture({
     visitorId,
     assignments,
@@ -109,9 +112,12 @@ export function Dashboard() {
 
   const readingTime = formatDuration(analysis.readingTimeSeconds);
 
-  /** Everything worth the writer's attention, across both metrics. */
+  /** Everything worth the writer's attention, across every check. */
   const totalFlags =
-    analysis.hardCount + analysis.veryHardCount + deliverability.hits.length;
+    analysis.hardCount +
+    analysis.veryHardCount +
+    deliverability.hits.length +
+    houseStyle.violations;
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden">
@@ -277,6 +283,7 @@ export function Dashboard() {
             analysis={analysis}
             deliverability={deliverability}
             aiDetection={aiDetection}
+            houseStyle={houseStyle}
             activeSentenceId={activeSentenceId}
             onSelectSentence={handleSelectSentence}
             onHoverSentence={setActiveSentenceId}

@@ -519,11 +519,26 @@ const EMPTY_REPORT: DeliverabilityReport = {
  * Deterministic and synchronous, like the readability engine, so it can run
  * inside a `useMemo` on every keystroke.
  */
+export interface DeliverabilityOptions {
+  /**
+   * Whether this message is supposed to carry a subject line at all.
+   *
+   * Only the first email in a sequence does. The follow-ups reply inside the
+   * original thread, so a subject on one of those is a defect rather than
+   * something to measure the length of -- and an absent subject is correct,
+   * not the "filtered aggressively" failure it would otherwise be scored as.
+   */
+  expectSubject?: boolean;
+}
+
 export function checkDeliverability(
   subject: string,
   body: string,
+  options: DeliverabilityOptions = {},
 ): DeliverabilityReport {
   if (!subject.trim() && !body.trim()) return EMPTY_REPORT;
+
+  const expectSubject = options.expectSubject !== false;
 
   const subjectHits = scan(subject);
   const bodyHits = scan(body);
@@ -589,7 +604,33 @@ export function checkDeliverability(
    * Only a clearly wrong length is worth acting on, so the near misses are
    * marked advisory and cost less.
    */
-  if (subjectLength === 0) {
+  if (!expectSubject) {
+    /*
+     * A threaded follow-up. The length bands below do not apply: the only
+     * right answer is no subject at all, and anything else has to come out.
+     */
+    add(
+      subjectLength === 0
+        ? {
+            id: "subject-present",
+            label: "Subject line",
+            status: "pass",
+            detail:
+              "None, which is correct: this replies inside the original thread.",
+            penalty: 0,
+          }
+        : {
+            id: "subject-present",
+            label: "Subject line",
+            status: "fail",
+            detail:
+              "Only the first email carries a subject line. This one replies " +
+              "inside the original thread, so remove the subject entirely " +
+              "and leave it empty.",
+            penalty: 10,
+          },
+    );
+  } else if (subjectLength === 0) {
     add({
       id: "subject-present",
       label: "Subject line",

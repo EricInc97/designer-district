@@ -217,6 +217,59 @@ test("a genuinely short subject is still a real problem", () => {
   assert.ok(subjectCheck.penalty >= 4);
 });
 
+/*
+ * Only the first email in a sequence carries a subject. The follow-ups reply
+ * in the original thread, so for those the absence of a subject is correct and
+ * the presence of one is the defect.
+ */
+test("a threaded follow-up is right to have no subject", () => {
+  const report = checkDeliverability(
+    "",
+    "Still worth a look at that booking page when you get a minute.",
+    { expectSubject: false },
+  );
+
+  const subjectCheck = check(report, "subject-present")!;
+  assert.equal(subjectCheck.status, "pass");
+  assert.equal(subjectCheck.penalty, 0);
+  assert.notEqual(subjectCheck.advisory, true);
+});
+
+test("a subject on a threaded follow-up is a failure, whatever its length", () => {
+  const body = "Still worth a look at that booking page when you get a minute.";
+
+  // A length that would be perfect on email 1.
+  const ideal = checkDeliverability("Your booking page after 5pm ok", body, {
+    expectSubject: false,
+  });
+  const idealCheck = check(ideal, "subject-present")!;
+
+  assert.equal(idealCheck.status, "fail");
+  assert.ok(idealCheck.penalty > 0);
+  assert.notEqual(idealCheck.advisory, true, "this is not advisory");
+  assert.match(idealCheck.detail, /only the first email/i);
+
+  // And a near-miss length is not downgraded to advisory either.
+  const short = checkDeliverability("Re: booking", body, {
+    expectSubject: false,
+  });
+  assert.equal(check(short, "subject-present")!.status, "fail");
+});
+
+test("the subject rule defaults to expecting one", () => {
+  const body = "A reasonable body of text that says something useful.";
+
+  // No option, and the explicit true, must behave the same as before.
+  for (const report of [
+    checkDeliverability("", body),
+    checkDeliverability("", body, {}),
+    checkDeliverability("", body, { expectSubject: true }),
+  ]) {
+    assert.equal(check(report, "subject-present")!.status, "fail");
+    assert.match(check(report, "subject-present")!.detail, /missing/i);
+  }
+});
+
 test("flags repeated currency symbols and dense linking", () => {
   const symbols = checkDeliverability("Quarterly update from the team", "Save $$$ today on everything.");
   assert.equal(check(symbols, "symbols")!.status, "fail");

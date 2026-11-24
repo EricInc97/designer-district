@@ -3,9 +3,11 @@
 import { motion, useReducedMotion } from "framer-motion";
 import { AiDetectionPane } from "@/components/ai-detection-pane";
 import { DeliverabilityPane } from "@/components/deliverability-pane";
+import { HouseStyleNotice } from "@/components/house-style-notice";
 import { ReadabilityPane } from "@/components/readability-pane";
 import type { AiDetectionReport } from "@/lib/ai-detection";
 import type { DeliverabilityReport } from "@/lib/deliverability";
+import type { HouseStyleReport } from "@/lib/house-style";
 import type { Analysis, Sentence } from "@/lib/readability";
 
 export type AnalysisTab = "readability" | "deliverability" | "ai";
@@ -22,6 +24,7 @@ interface AnalysisPanelProps {
   analysis: Analysis;
   deliverability: DeliverabilityReport;
   aiDetection: AiDetectionReport;
+  houseStyle: HouseStyleReport;
   activeSentenceId: number | null;
   onSelectSentence: (sentence: Sentence) => void;
   onHoverSentence: (id: number | null) => void;
@@ -40,6 +43,7 @@ export function AnalysisPanel({
   analysis,
   deliverability,
   aiDetection,
+  houseStyle,
   activeSentenceId,
   onSelectSentence,
   onHoverSentence,
@@ -117,6 +121,9 @@ export function AnalysisPanel({
           );
         })}
       </div>
+
+      {/* A broken rule stays visible whichever tab you are on. */}
+      <HouseStyleNotice report={houseStyle} />
 
       {/*
         Keyed on the tab so the incoming panel animates in, with no exit
