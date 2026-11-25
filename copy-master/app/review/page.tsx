@@ -42,6 +42,8 @@ interface Row {
   final_deliverability: number | null;
   final_ai: number | null;
   final_passes: boolean;
+  /** Any row of this draft; the detail page finds the rest from it. */
+  final_id: number;
 }
 
 export default function ReviewPage() {
@@ -134,7 +136,12 @@ function DraftCard({ row }: { row: Row }) {
       <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-edge px-5 py-3.5">
         <div className="min-w-0">
           <h2 className="truncate text-[0.9375rem] font-semibold">
-            {row.company || row.lead_ref}
+            <Link
+              href={`/review/${row.final_id}`}
+              className="transition-colors hover:text-accent"
+            >
+              {row.company || row.lead_ref}
+            </Link>
           </h2>
           <p className="nums mt-0.5 text-[0.6875rem] text-ink-faint">
             {STAGE_LABEL[row.stage] ?? row.stage} &middot; {row.iterations}{" "}
@@ -164,6 +171,14 @@ function DraftCard({ row }: { row: Row }) {
           >
             {row.final_passes ? "Passed" : "Still flagged"}
           </span>
+
+          <Link
+            href={`/review/${row.final_id}`}
+            className="flex items-center gap-1 rounded-full border border-edge px-2.5 py-1 text-[0.625rem] font-semibold text-ink-soft transition-colors hover:border-edge-strong hover:text-ink"
+          >
+            Full review
+            <span aria-hidden="true">&rarr;</span>
+          </Link>
         </div>
       </div>
 
