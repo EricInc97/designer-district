@@ -103,7 +103,15 @@ export function DraftReview({
             </span>
             <span className="nums block truncate text-[0.6875rem] leading-tight text-ink-faint">
               {stageLabel} &middot; run {runId} &middot;{" "}
-              {new Date(version.created_at).toLocaleString()}
+              {/*
+                The server and the browser are in different time zones, so
+                this text legitimately differs between them. Suppressing the
+                check is the sanctioned fix for a timestamp: the browser's
+                value wins after hydration, which is the one worth showing.
+              */}
+              <span suppressHydrationWarning>
+                {new Date(version.created_at).toLocaleString()}
+              </span>
             </span>
           </span>
         </div>
